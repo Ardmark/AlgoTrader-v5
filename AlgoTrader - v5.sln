@@ -1,0 +1,66 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.11.35312.102
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Backtest", "Backtest\Backtest.csproj", "{5F21AF8A-FC81-4DA8-945B-B70D0553131D}"
+EndProject
+Project("{D954291E-2A0B-460D-934E-DC6B0785DB48}") = "Shared", "Shared\Shared.shproj", "{BA6FB9C9-A1F8-4E44-B351-B5A8F74C8A23}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "SQL scripts", "SQL scripts", "{66859A22-E610-45F2-8688-904F09FF6F5A}"
+	ProjectSection(SolutionItems) = preProject
+		SQL scripts\Copy from live to backtest.sql = SQL scripts\Copy from live to backtest.sql
+	EndProjectSection
+EndProject
+Project("{54A90642-561A-4BB1-A94E-469ADEE60C69}") = "Bitmex connectors", "Bitmex connectors\Bitmex connectors.esproj", "{896E072B-FAED-4688-973B-EEDB14D16097}"
+EndProject
+Project("{54A90642-561A-4BB1-A94E-469ADEE60C69}") = "Binance connectors", "Binance connectors\Binance connectors.esproj", "{25C79702-F1A4-408B-8753-5E4552A73915}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Bitmex", "Bitmex\Bitmex.csproj", "{469B7066-EF98-4594-A34A-B612F0CDAEA4}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Binance", "Binance\Binance.csproj", "{B9348454-AFA8-446E-810D-E839166EB840}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{5F21AF8A-FC81-4DA8-945B-B70D0553131D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{5F21AF8A-FC81-4DA8-945B-B70D0553131D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{5F21AF8A-FC81-4DA8-945B-B70D0553131D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{5F21AF8A-FC81-4DA8-945B-B70D0553131D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{896E072B-FAED-4688-973B-EEDB14D16097}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{896E072B-FAED-4688-973B-EEDB14D16097}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{896E072B-FAED-4688-973B-EEDB14D16097}.Debug|Any CPU.Deploy.0 = Debug|Any CPU
+		{896E072B-FAED-4688-973B-EEDB14D16097}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{896E072B-FAED-4688-973B-EEDB14D16097}.Release|Any CPU.Build.0 = Release|Any CPU
+		{896E072B-FAED-4688-973B-EEDB14D16097}.Release|Any CPU.Deploy.0 = Release|Any CPU
+		{25C79702-F1A4-408B-8753-5E4552A73915}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{25C79702-F1A4-408B-8753-5E4552A73915}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{25C79702-F1A4-408B-8753-5E4552A73915}.Debug|Any CPU.Deploy.0 = Debug|Any CPU
+		{25C79702-F1A4-408B-8753-5E4552A73915}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{25C79702-F1A4-408B-8753-5E4552A73915}.Release|Any CPU.Build.0 = Release|Any CPU
+		{25C79702-F1A4-408B-8753-5E4552A73915}.Release|Any CPU.Deploy.0 = Release|Any CPU
+		{469B7066-EF98-4594-A34A-B612F0CDAEA4}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{469B7066-EF98-4594-A34A-B612F0CDAEA4}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{469B7066-EF98-4594-A34A-B612F0CDAEA4}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{469B7066-EF98-4594-A34A-B612F0CDAEA4}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B9348454-AFA8-446E-810D-E839166EB840}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B9348454-AFA8-446E-810D-E839166EB840}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B9348454-AFA8-446E-810D-E839166EB840}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B9348454-AFA8-446E-810D-E839166EB840}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {4B257BCC-C318-4F86-B0EA-E7F5BD75D480}
+	EndGlobalSection
+	GlobalSection(SharedMSBuildProjectFiles) = preSolution
+		Shared\Shared.projitems*{469b7066-ef98-4594-a34a-b612f0cdaea4}*SharedItemsImports = 5
+		Shared\Shared.projitems*{5f21af8a-fc81-4da8-945b-b70d0553131d}*SharedItemsImports = 5
+		Shared\Shared.projitems*{b9348454-afa8-446e-810d-e839166eb840}*SharedItemsImports = 5
+		Shared\Shared.projitems*{ba6fb9c9-a1f8-4e44-b351-b5a8f74c8a23}*SharedItemsImports = 13
+	EndGlobalSection
+EndGlobal
