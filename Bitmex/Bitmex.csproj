@@ -45,6 +45,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\OpenExchangeRates\OpenExchangeRates.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Resource Include="Windows\Resources\Bomb.png" />
     <Resource Include="Windows\Resources\Cleanup.png" />
     <Resource Include="Windows\Resources\Eye.png" />

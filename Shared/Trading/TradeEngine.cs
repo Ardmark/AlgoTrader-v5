@@ -7,7 +7,6 @@ using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Threading;
 using static BitMEX.BitMEXApi;
-//using OpenExchangeRates;
 using Brushes = System.Windows.Media.Brushes;
 
 namespace AlgoTrader.Shared
@@ -1412,9 +1411,6 @@ namespace AlgoTrader.Shared
 
                 Order.ItemStatus = TradeItemStatus.CLOSED; //close the order, this is now an active trade
                 SetUpdateRequest(Order);
-
-
-
 
                 EnterTradeOnSystem_ExchangeSpecific_Synchronised();
 

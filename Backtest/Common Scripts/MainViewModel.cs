@@ -19,6 +19,7 @@ using System.Windows.Shapes;
 using TextBox = System.Windows.Controls.TextBox;
 using MessageBox = System.Windows.MessageBox;
 using KeyEventArgs = System.Windows.Input.KeyEventArgs;
+using OpenExchangeRates;
 
 //won't build without the fully-qualified namespace here, referenced in MainWindow.xaml by xmlns:myAttachedProperties
 namespace AlgoTrader.Live.ViewModels
@@ -2000,6 +2001,19 @@ namespace AlgoTrader.Live.ViewModels
             //don't use SPACE - it holds focus on the last button clicked.
             switch (key)
             {
+                //case Key.O:
+                //    try
+                //    {
+                //        using var client = new OpenExchangeRatesClient("51581f4479b84a29921ca25369900524");
+                //        var latestRatesResponse = await client.GetLatestRatesAsync();
+                //        var gbp = latestRatesResponse.Rates.FirstOrDefault(x => x.Key == "GBP").Value;
+                //        //convertResponse = await client.ConvertAsync("GBP", "USD", 1m); //1m is decimal  - this throws 'Forbidden' exception error, poss. a paid function
+                //    }
+                //    catch (Exception ex)
+                //    {
+
+                //    }
+                //    break;
                 case Key.Space:
                 case Key.D9:
                     MainObj.ToggleDarkMode();

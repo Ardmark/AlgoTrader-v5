@@ -90,6 +90,12 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Reference Include="OpenExchangeRates">
+      <HintPath>..\OpenExchangeRates\bin\Debug\net8.0\OpenExchangeRates.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+
+  <ItemGroup>
     <Resource Include="Windows\Resources\Bomb.png" />
     <Resource Include="Windows\Resources\Cleanup.png" />
     <Resource Include="Windows\Resources\Eye.png" />

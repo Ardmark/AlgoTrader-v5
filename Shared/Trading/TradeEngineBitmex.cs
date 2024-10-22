@@ -2,6 +2,8 @@
 using AlgoTrader.Shared.Logging;
 using AlgoTrader.Shared.Windows;
 using BitMEX;
+using OpenExchangeRates;
+using System.Windows.Media.Animation;
 using static BitMEX.BitMEXApi;
 
 
@@ -421,7 +423,7 @@ namespace AlgoTrader.Shared
         //The entry point for all trades
         //This method is only called from a single point, which is within a synchronised block.
         //So it is vital that this does NOT start another synchronised section.
-        public override void StartEntryOrClose_Synchronised()
+        public override async void StartEntryOrClose_Synchronised()
         {
             void _CancelStop(_Trade trade)
             {
@@ -714,17 +716,9 @@ namespace AlgoTrader.Shared
                                 SetUpdateRequest(Floor);
                             }
 
-                            //try
-                            //{
-                            //    var client = new OpenExchangeRatesClient("ede5e779e7ea44a6983ecc84b1f2e4be");
-                            //    var convertResponse = client.ConvertAsync("USD", "GBP", 1m); //1m is decimal
-                            //    Entry.ExchangeRate = convertResponse;
-                            //    SetUpdateRequest(Entry);
-                            //}
-                            //catch
-                            //{
-                            //    LogTrades.WriteLine("Failed to get exchange rate for Entry");
-                            //}
+                            //todo -- mark method async first
+                            //Entry.ExchangeRate = await GetGBPUSDRate();;
+                            //SetUpdateRequest(Entry);
                         }
                         break;
 
@@ -790,17 +784,9 @@ namespace AlgoTrader.Shared
                                             DoFlip_Synchronised();
                                         }
                                     }
-                                    //try
-                                    //{
-                                    //    var client = new OpenExchangeRatesClient("ede5e779e7ea44a6983ecc84b1f2e4be");
-                                    //    var convertResponse = client.ConvertAsync("USD", "GBP", 1m); //1m is decimal
-                                    //    Close.ExchangeRate = convertResponse;
-                                    //    SetUpdateRequest(Close);
-                                    //}
-                                    //catch
-                                    //{
-                                    //    LogTrades.WriteLine("Failed to get exchange rate for Close");
-                                    //}
+                                    //todo -- mark method async first
+                                    //Entry.ExchangeRate = await GetGBPUSDRate();
+                                    //SetUpdateRequest(Entry);
                                 }
                             }
 
@@ -808,6 +794,22 @@ namespace AlgoTrader.Shared
                         }
                         break;
                 }
+            }
+        }
+
+        async Task<decimal> GetGBPUSDRate()
+        {
+            try
+            {
+                using var client = new OpenExchangeRatesClient("51581f4479b84a29921ca25369900524");
+                var latestRatesResponse = await client.GetLatestRatesAsync();
+                var gbp = latestRatesResponse.Rates.FirstOrDefault(x => x.Key == "GBP").Value;
+                //convertResponse = await client.ConvertAsync("GBP", "USD", 1m); //1m is decimal  - this throws 'Forbidden' exception error, poss. a paid function
+                return gbp;
+            }
+            catch (Exception ex)
+            {
+                return 0;
             }
         }
 

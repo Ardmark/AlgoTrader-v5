@@ -1,0 +1,39 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>net6.0;net7.0;net8.0</TargetFrameworks>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <GeneratePackageOnBuild Condition="'$(Configuration)' == 'Release'">true</GeneratePackageOnBuild>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <PackageId>OpenExchangeRates.NET</PackageId>
+    <Version>1.3.0</Version>
+    <Authors>Ivan Stus</Authors>
+    <Title>OpenExchangeRates.NET</Title>
+    <Description>Client for Open Exchange Rates API</Description>
+    <Copyright>Copyright © 2024 Ivan Stus</Copyright>
+    <PackageLicenseFile>LICENSE</PackageLicenseFile>
+    <PackageProjectUrl>https://github.com/ivanstus/OpenExchangeRates.NET</PackageProjectUrl>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageTags>openexchangerates;open-exchange-rates;currency;currency-api;currency-conversion;currency-conversion-rates;currency-converter;currency-exchange;currency-exchange-rates;currency-rates;exchange-rates</PackageTags>
+    <RepositoryType>git</RepositoryType>
+    <RepositoryUrl>https://github.com/ivanstus/OpenExchangeRates.NET.git</RepositoryUrl>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+  </PropertyGroup>
+
+  <ItemGroup Condition="$(TargetFramework) == 'net6.0'">
+    <PackageReference Include="System.Net.Http.Json" Version="6.0.1" />
+  </ItemGroup>
+
+  <ItemGroup Condition="$(TargetFramework) == 'net7.0'">
+    <PackageReference Include="System.Net.Http.Json" Version="7.0.1" />
+  </ItemGroup>
+
+  <ItemGroup Condition="$(TargetFramework) == 'net8.0'">
+    <PackageReference Include="System.Net.Http.Json" Version="8.0.0" />
+  </ItemGroup>
+
+</Project>

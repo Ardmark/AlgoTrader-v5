@@ -20,6 +20,8 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Bitmex", "Bitmex\Bitmex.csp
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Binance", "Binance\Binance.csproj", "{B9348454-AFA8-446E-810D-E839166EB840}"
 EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "OpenExchangeRates", "OpenExchangeRates\OpenExchangeRates.csproj", "{6D40CEBC-BB0C-4B7D-8C73-FF789F0516E4}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -50,6 +52,10 @@ Global
 		{B9348454-AFA8-446E-810D-E839166EB840}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{B9348454-AFA8-446E-810D-E839166EB840}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{B9348454-AFA8-446E-810D-E839166EB840}.Release|Any CPU.Build.0 = Release|Any CPU
+		{6D40CEBC-BB0C-4B7D-8C73-FF789F0516E4}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{6D40CEBC-BB0C-4B7D-8C73-FF789F0516E4}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{6D40CEBC-BB0C-4B7D-8C73-FF789F0516E4}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{6D40CEBC-BB0C-4B7D-8C73-FF789F0516E4}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
