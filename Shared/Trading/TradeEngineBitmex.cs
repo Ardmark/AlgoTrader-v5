@@ -478,9 +478,6 @@ namespace AlgoTrader.Shared
                             Entry.Balance = GetAccountEquity(wallet1);
                             SetUpdateRequest(Entry);
 
-                            //var client = new OpenExchangeRatesClient("ede5e779e7ea44a6983ecc84b1f2e4be");
-                            //var convertResponse = client.ConvertAsync("USD", "GBP", 1m); //1m is decimal
-
                             //if this has just restarted, will try to enter any trades immediately but the price won't be available from the websocket yet.
                             //so use the REST api instead
                             var lastQuoteValue = USE_SIMULATED_EXCHANGE ? 0 : bitmexAPI.GetLastPrice(symbolName); //can't get price feed from testnet, only live
@@ -634,8 +631,6 @@ namespace AlgoTrader.Shared
 
                                     //at this point, trade is entered live
                                     EnterTradeOnSystem_synchronised((decimal)orderEntry.AveragePrice, orderQuantity, TradeExchangeStatus.ENTERED_ON_EXCHANGE);
-
-                                    //todo - create a completed quote asset trade, with the entry balance taken from the last closed trade
                                 }
                             }
                             EndEntryOrCloseScript();
@@ -718,6 +713,18 @@ namespace AlgoTrader.Shared
                                 SetStopOnExchange_Synchronised(Floor);
                                 SetUpdateRequest(Floor);
                             }
+
+                            //try
+                            //{
+                            //    var client = new OpenExchangeRatesClient("ede5e779e7ea44a6983ecc84b1f2e4be");
+                            //    var convertResponse = client.ConvertAsync("USD", "GBP", 1m); //1m is decimal
+                            //    Entry.ExchangeRate = convertResponse;
+                            //    SetUpdateRequest(Entry);
+                            //}
+                            //catch
+                            //{
+                            //    LogTrades.WriteLine("Failed to get exchange rate for Entry");
+                            //}
                         }
                         break;
 
@@ -783,6 +790,17 @@ namespace AlgoTrader.Shared
                                             DoFlip_Synchronised();
                                         }
                                     }
+                                    //try
+                                    //{
+                                    //    var client = new OpenExchangeRatesClient("ede5e779e7ea44a6983ecc84b1f2e4be");
+                                    //    var convertResponse = client.ConvertAsync("USD", "GBP", 1m); //1m is decimal
+                                    //    Close.ExchangeRate = convertResponse;
+                                    //    SetUpdateRequest(Close);
+                                    //}
+                                    //catch
+                                    //{
+                                    //    LogTrades.WriteLine("Failed to get exchange rate for Close");
+                                    //}
                                 }
                             }
 
@@ -1263,9 +1281,6 @@ namespace AlgoTrader.Shared
                                     nextStop.GlobalStatus = TradeGlobalStatus.ACTIVE;
                                     nextStop.ItemStatus = TradeItemStatus.OPEN;
                                     SetUpdateRequest(nextStop);
-
-
-
 
                                     //this will now be the new Stop
                                     Stop = nextStop;
