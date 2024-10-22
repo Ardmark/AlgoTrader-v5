@@ -646,7 +646,6 @@ namespace AlgoTrader.Shared
                 dbUpdateRequired = true;
             }
             catch { }
-
         }
 
         //ditto for lines.
