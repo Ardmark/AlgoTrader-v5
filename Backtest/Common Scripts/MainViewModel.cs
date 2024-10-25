@@ -1138,7 +1138,11 @@ namespace AlgoTrader.Live.ViewModels
                     else
                     {
 
-                        if (MainObj.visibleTradeEngine.currentDataItem == null)
+                        if (TradeEngine.EXCHANGE == ExchangeId.BITMEX && TradeEngine.Leverage < TradeEngineBitmex.MIN_LEVERAGE_LONG)
+                        {
+                            AlertDialog.Show($"Could not place order, leverage is below minimum level of {TradeEngineBitmex.MIN_LEVERAGE_LONG}");
+                        }
+                        else if (MainObj.visibleTradeEngine.currentDataItem == null)
                         {
                             AlertDialog.Show("Could not place order, system not fully initialised.");
                         }

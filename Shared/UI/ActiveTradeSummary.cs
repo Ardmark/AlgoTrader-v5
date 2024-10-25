@@ -50,7 +50,8 @@ namespace AlgoTrader.Shared
                         var waitingTrades = allOrders.Where(x => x.ItemStatus == TradeItemStatus.OPEN).ToList();
                         //var stops = allTrades.Where(x => x.Action == TradeAction.STOP && x.ItemStatus == TradeItemStatus.OPEN);
                         //var takeProfits = allTrades.Where(x => x.Action == TradeAction.CEILING && x.ItemStatus == TradeItemStatus.OPEN);
-                        var closedOrders = db.Trades.AsNoTracking().AsParallel().Where(x => x.Action == TradeAction.CLOSE && x.Timestamp > LastClosedTimeToShow).ToList();
+                        var _closedOrders = db.Trades.AsNoTracking().AsParallel().Where(x => x.Action == TradeAction.CLOSE).ToList();
+                        var closedOrders =_closedOrders.Where(x => x.Timestamp > LastClosedTimeToShow).ToList();
                         var outputString = string.Empty;
                         string dailySummaryString = string.Empty;
 
@@ -260,6 +261,13 @@ namespace AlgoTrader.Shared
 
                         #region closed trades
                         _Trade prevClose = null;
+
+                        //want to always show intermediate order so set the prev. close order here. If the date range just shows one close,
+                        // this will ensure the intermediate order is calculated as well.
+                        if (_closedOrders.Count > 1)
+                        {
+                            prevClose = _closedOrders[^2]; //same as _closedOrders[closedOrders-2]
+                        }
                         sb.Append("Closed trades:\n");
                         sb.Append("Symbol\tAmount\tEntry: Date\tTime\tPrice\tBalance\tExit: Date\tTime\tPrice\tBalance\tResult\tRes.Lev.\ttLev.\tStop\tSide\tTF\tP/L\n");
                         //e.g. Closed: Binance THETABTC +2.3%  (Market Break)

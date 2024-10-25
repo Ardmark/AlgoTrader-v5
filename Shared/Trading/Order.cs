@@ -350,12 +350,14 @@ namespace AlgoTrader.Shared
                         stopPrice = stop.Price;
                     }
 
-                    tradeEngine.SetUpdateRequest(stop);
 
                     var gap = TradeEngine.STOP_LINE_PRICE_GAP_PC / 100;
                     stopPrice = stop.Position == TradePosition.LONG
                         ? stopPrice / (1 + gap)
                         : stopPrice * (1 + gap);
+
+                    stop.Price = stopPrice;
+                    tradeEngine.SetUpdateRequest(stop);
 
                     //check if stop price is crossed now price is set from line
                     // - in a falling wedge, stop may be initially above entry until after first execution, so must do this after stop moved

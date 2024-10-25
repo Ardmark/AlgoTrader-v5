@@ -19,6 +19,7 @@ using System.Windows.Shapes;
 using TextBox = System.Windows.Controls.TextBox;
 using MessageBox = System.Windows.MessageBox;
 using KeyEventArgs = System.Windows.Input.KeyEventArgs;
+using OpenExchangeRates;
 
 //won't build without the fully-qualified namespace here, referenced in MainWindow.xaml by xmlns:myAttachedProperties
 namespace AlgoTrader.Live.ViewModels
@@ -458,7 +459,8 @@ namespace AlgoTrader.Live.ViewModels
         public ICommand RefreshDailyPercent => refreshDailyPercent ?? (refreshDailyPercent = new CommandHandler1(() => MainObj.RefreshActiveTradeSummary(), true));
 
         ICommand clearClosedTrades;
-        public ICommand ClearClosedTrades => refreshDailyPercent ?? (clearClosedTrades = new CommandHandler(async (param) => {
+        public ICommand ClearClosedTrades => refreshDailyPercent ?? (clearClosedTrades = new CommandHandler(async (param) =>
+        {
             await ActiveTradeSummary.ClearClosedTrades(param);
             Chart.showClosedTrades = true;
             SetProperty("ShowClosedTrades_Checked", Chart.showClosedTrades);
@@ -1136,7 +1138,11 @@ namespace AlgoTrader.Live.ViewModels
                     else
                     {
 
-                        if (MainObj.visibleTradeEngine.currentDataItem == null)
+                        if (TradeEngine.EXCHANGE == ExchangeId.BITMEX && TradeEngine.Leverage < TradeEngineBitmex.MIN_LEVERAGE_LONG)
+                        {
+                            AlertDialog.Show($"Could not place order, leverage is below minimum level of {TradeEngineBitmex.MIN_LEVERAGE_LONG}");
+                        }
+                        else if (MainObj.visibleTradeEngine.currentDataItem == null)
                         {
                             AlertDialog.Show("Could not place order, system not fully initialised.");
                         }
@@ -1999,6 +2005,19 @@ namespace AlgoTrader.Live.ViewModels
             //don't use SPACE - it holds focus on the last button clicked.
             switch (key)
             {
+                //case Key.O:
+                //    try
+                //    {
+                //        using var client = new OpenExchangeRatesClient("51581f4479b84a29921ca25369900524");
+                //        var latestRatesResponse = await client.GetLatestRatesAsync();
+                //        var gbp = latestRatesResponse.Rates.FirstOrDefault(x => x.Key == "GBP").Value;
+                //        //convertResponse = await client.ConvertAsync("GBP", "USD", 1m); //1m is decimal  - this throws 'Forbidden' exception error, poss. a paid function
+                //    }
+                //    catch (Exception ex)
+                //    {
+
+                //    }
+                //    break;
                 case Key.Space:
                 case Key.D9:
                     MainObj.ToggleDarkMode();

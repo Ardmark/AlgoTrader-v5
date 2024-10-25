@@ -801,6 +801,7 @@ namespace AlgoTrader.Shared
         {
             try
             {
+                //this is tested and it works. Will need to display the data in ActiveTradeSummary, the entry rate will be the exit rate for the intermediate BTC trade
                 using var client = new OpenExchangeRatesClient("51581f4479b84a29921ca25369900524");
                 var latestRatesResponse = await client.GetLatestRatesAsync();
                 var gbp = latestRatesResponse.Rates.FirstOrDefault(x => x.Key == "GBP").Value;
