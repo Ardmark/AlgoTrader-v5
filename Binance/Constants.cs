@@ -27,7 +27,7 @@ namespace AlgoTrader.Windows
             TradeEngineBinance.RETAINED_BNB_PERCENTAGE = 10;
             TradeEngine.MA_STOP_MIN_VALUE = 1;
             //in Binance, the key and secret are sent in the node script so these values are not in this project
-            TradeEngine.STOP_TRAIL = 1.5; //floor trail percent
+            TradeEngine.STOP_TRAIL = 2.0; //floor trail percent
             TradeEngine.MAX_STOP = 2;
 
             TradeEngine.ENTRY_LINE_PRICE_GAP_PC = 0.1; //percent to offset trade entry lines

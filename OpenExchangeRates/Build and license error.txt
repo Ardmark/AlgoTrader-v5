@@ -1,0 +1,2 @@
+﻿None of the project build if this project is loaded, as there is a license requirement in the NuGet.Build.Tasks.Pack.targets file, which cannot be removed or it tries to reload it.
+So providing this project is built and included as a .dll in dependencies, unload it and then there are no build errors.
