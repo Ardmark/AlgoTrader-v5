@@ -1451,6 +1451,7 @@ namespace AlgoTrader.Live.ViewModels
 
         private void GetBalances()
         {
+            TradeEngine.showBalancesDialog = true;
             MainObj.visibleTradeEngine.ShowAccountBalances();
         }
 

@@ -50,7 +50,7 @@ namespace AlgoTrader.Shared
                         var waitingTrades = allOrders.Where(x => x.ItemStatus == TradeItemStatus.OPEN).ToList();
                         //var stops = allTrades.Where(x => x.Action == TradeAction.STOP && x.ItemStatus == TradeItemStatus.OPEN);
                         //var takeProfits = allTrades.Where(x => x.Action == TradeAction.CEILING && x.ItemStatus == TradeItemStatus.OPEN);
-                        var _closedOrders = db.Trades.AsNoTracking().AsParallel().Where(x => x.Action == TradeAction.CLOSE).ToList();
+                        var _closedOrders = db.Trades.AsNoTracking().AsParallel().Where(x => x.Action == TradeAction.CLOSE).OrderBy(x => x.Timestamp).ToList();
                         var closedOrders =_closedOrders.Where(x => x.Timestamp > LastClosedTimeToShow).ToList();
                         var outputString = string.Empty;
                         string dailySummaryString = string.Empty;
@@ -271,7 +271,7 @@ namespace AlgoTrader.Shared
                         sb.Append("Closed trades:\n");
                         sb.Append("Symbol\tAmount\tEntry: Date\tTime\tPrice\tBalance\tExit: Date\tTime\tPrice\tBalance\tResult\tRes.Lev.\ttLev.\tStop\tSide\tTF\tP/L\n");
                         //e.g. Closed: Binance THETABTC +2.3%  (Market Break)
-                        foreach (var close in closedOrders.OrderBy(x => x.Timestamp))
+                        foreach (var close in closedOrders)
                         {
                             var s = close.ExchangeStatus == TradeExchangeStatus.ENTERED_ON_EXCHANGE ? "" : "Test closed:  ";
                             var entry = db.Trades.Where(x => x.TradeReference == close.TradeReference && x.Action == TradeAction.ENTRY).FirstOrDefault();
