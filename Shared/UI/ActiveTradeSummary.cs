@@ -328,7 +328,8 @@ namespace AlgoTrader.Shared
                                             "\t" +
                                             "\t" +
                                             "\t" +
-                                            $"{_profit.ToString("F")}\t"
+                                            $"{_profit.ToString("F")}\t" +
+                                            $"{entry.ExchangeRate}"
                                         );
                                         sb.Append("\n");
                                     }
@@ -359,7 +360,8 @@ namespace AlgoTrader.Shared
                                     $"{stopResult}\t" +
                                     $"{pos}\t" +
                                     $"{close.TimeFrame}\t" +
-                                    $"{profit.ToString("F")}\t"
+                                    $"{profit.ToString("F")}\t" + 
+                                    $"{close.ExchangeRate}"
                                 );
                                 sb.Append("\n");
 

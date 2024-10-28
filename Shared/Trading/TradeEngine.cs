@@ -1585,7 +1585,7 @@ namespace AlgoTrader.Shared
                 MainObj.SetLeverageMenuState((int)Leverage); //NOTE, calling Application.Current.Dispatcher.Invoke() within this thread causes a lock condition
             }
             //need to wait a few seconds before getting the final balance
-            UpdateAccountEquityForTrade(Entry.TradeReference);
+            //UpdateAccountEquityForTrade(Entry.TradeReference);
 
             MainObj.ShowClosedTrades();
         }
@@ -1691,7 +1691,7 @@ namespace AlgoTrader.Shared
                     }
                 }
             });
-            timer.Interval = new TimeSpan(0, 0, 15);
+            timer.Interval = new TimeSpan(0, 0, 2); //wait for db to propagate changes
             timer.Start();
         }
         protected virtual void DoFlip_Synchronised() { }

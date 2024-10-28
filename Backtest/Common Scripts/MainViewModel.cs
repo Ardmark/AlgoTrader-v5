@@ -19,7 +19,6 @@ using System.Windows.Shapes;
 using TextBox = System.Windows.Controls.TextBox;
 using MessageBox = System.Windows.MessageBox;
 using KeyEventArgs = System.Windows.Input.KeyEventArgs;
-using OpenExchangeRates;
 
 //won't build without the fully-qualified namespace here, referenced in MainWindow.xaml by xmlns:myAttachedProperties
 namespace AlgoTrader.Live.ViewModels

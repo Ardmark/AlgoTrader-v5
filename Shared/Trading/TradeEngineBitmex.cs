@@ -716,9 +716,18 @@ namespace AlgoTrader.Shared
                                 SetUpdateRequest(Floor);
                             }
 
-                            //todo -- mark method async first
-                            //Entry.ExchangeRate = await GetGBPUSDRate();;
-                            //SetUpdateRequest(Entry);
+                            using (DataContext db = new DataContext())
+                            {
+                                var tr = Entry.TradeReference;                    
+                                var ex = (double)await GetGBPUSDRate();
+                                var _entry = db.Trades.FirstOrDefault(x => x.TradeReference == tr && x.Action == TradeAction.ENTRY);
+
+                                if (_entry != null )
+                                {
+                                    _entry.ExchangeRate = ex;
+                                    db.SaveChanges();
+                                }
+                            }
                         }
                         break;
 
@@ -784,9 +793,19 @@ namespace AlgoTrader.Shared
                                             DoFlip_Synchronised();
                                         }
                                     }
-                                    //todo -- mark method async first
-                                    //Entry.ExchangeRate = await GetGBPUSDRate();
-                                    //SetUpdateRequest(Entry);
+                                    using (DataContext db = new DataContext())
+                                    {
+                                        var tr = Close.TradeReference;
+                                        var ex = (double)await GetGBPUSDRate();
+                                        var _close = db.Trades.FirstOrDefault(x => x.TradeReference == tr && x.Action == TradeAction.CLOSE);
+
+                                        if (_close != null)
+                                        {
+                                            _close.ExchangeRate = ex;
+                                            db.SaveChanges();
+                                        }
+                                        UpdateAccountEquityForTrade(tr);
+                                    }
                                 }
                             }
 
