@@ -232,26 +232,30 @@ namespace Shared.Drawings
 
         }
 
-        public static TradeMarkerCanvas TradeEntryMarker(double left, double top, SolidColorBrush fill, SolidColorBrush stroke, string extraText)
+        public static TradeMarkerCanvas TradeEntryMarker(double left, double top, SolidColorBrush fill, SolidColorBrush stroke, string extraText, bool showWarning = false)
         {
 
             Canvas canvas = new Canvas { Opacity = MARKER_OPACITY };
 
             double halfSize = size / 4;
-            Polygon triangle1 = new Polygon
+            Polygon triangle1 = new()
             {
-                Points = new PointCollection
-                {
+                Points =
+                [
                     new Point(0, -halfSize * 1.5),
                     new Point(halfSize * 1.5, 0),
                     new Point(0, halfSize * 1.5)
-                },
+                ],
                 Fill = fill,
                 Stroke = stroke,
                 StrokeThickness = 2,
             };
             canvas.Children.Add(triangle1);
 
+            if (showWarning)
+            {
+                DrawWarningMarker(canvas, fill, stroke, size / 4, halfSize / 2, halfSize / 4);
+            }
 
             if (extraText != null)
             {

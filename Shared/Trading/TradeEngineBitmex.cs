@@ -758,7 +758,7 @@ namespace AlgoTrader.Shared
                         {
                             var orderClose = bitmexAPI.CloseOrder(symbolName);
                             if (orderClose != null)
-                            {
+                            { 
                                 LogTrades.WriteLine($"Order status of {orderClose.OrderStatus} received");
 
                                 bool hasClosed = false;
@@ -1334,13 +1334,14 @@ namespace AlgoTrader.Shared
             {
                 return;
             }
-            await Task.Run(() =>
+            //await Task.Run(() =>
             {
                 //check if live trade is still running on the server. 
                 //The position could have been closed and the stop still left running, but this would have been done manually
                 //in any case, there should be only one position running at a time
-                InitForDataContext(() =>
+               InitForDataContext(() =>
                 {
+
                     bool _CloseOrderOrUpdateStop(_Trade floorOrStop, string name)
                     {
                         if (floorOrStop == null)
@@ -1443,6 +1444,7 @@ namespace AlgoTrader.Shared
                         {
                             //clear this out here, it will not get done otherwise on any entry operation
                             Entry.ExchangeMethodScript = null;
+
                             SetUpdateRequest(Entry);
                         }
                         if (!USE_SIMULATED_EXCHANGE)
@@ -1451,9 +1453,10 @@ namespace AlgoTrader.Shared
                             {
                                 bool save = false;
 
-                                //bitmexAPI.GetOpenPositions() does not always work, sometimes returns no open positions incorrectly, so use margin balance instead
-                                var margin = bitmexAPI.GetMargin();
-                                if (margin != null && margin.UnrealisedPnl == 0) //no unrealised PNL so assume no trades running
+                                var openPositons = bitmexAPI.GetOpenPositions();// does not always work, sometimes returns no open positions incorrectly, so could use margin balance instead
+                                if (openPositions  != null && openPositions.Count != 0) 
+                                //var margin = bitmexAPI.GetMargin(); //this appears to have failed once so no idea the trade had closed on exchange
+                                //if (margin != null && margin.UnrealisedPnl == 0) //no unrealised PNL so assume no trades running
                                 {
                                     //exchange may not return open position immediately after order placement, so wait for a few seconds before displaying a warning message
                                     var timeDiff = DateTime.UtcNow.Subtract(Entry.Timestamp).TotalSeconds;
@@ -1473,6 +1476,7 @@ namespace AlgoTrader.Shared
                                             //Whatever, can't exit trade here.
 
                                             Entry.ExchangeMethodScript = TradeEngine.EXCHANGE_NOT_SYNCHED;
+
                                             tradeRunning = false;
                                             save = true;
                                         }
@@ -1543,7 +1547,8 @@ namespace AlgoTrader.Shared
                         #endregion
                     }
                 });
-            });
+            }
+            //);
         }
         #endregion
 

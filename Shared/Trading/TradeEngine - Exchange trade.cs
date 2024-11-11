@@ -151,6 +151,7 @@ namespace AlgoTrader.Shared
         public const double CHECK_EXCHANGE_INTERVAL_SECONDS = 30;
         public void InitLiveUpdateTimer()
         {
+            return; //because live state update uses InitForDataContext and this does not always work in an asynch loop
             if (timer == null)
             {
                 try

@@ -79,10 +79,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Folder Include="Common Scripts\Notes\" />
-  </ItemGroup>
-
-  <ItemGroup>
     <PackageReference Include="EntityFramework" Version="6.5.1" />
     <PackageReference Include="Microsoft.Xaml.Behaviors.Wpf" Version="1.1.135" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />

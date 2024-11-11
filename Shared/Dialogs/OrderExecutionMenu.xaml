@@ -25,7 +25,7 @@
         <MenuItem Header="! Rising from retracement"    Command="{Binding MenuItem5_Command}"></MenuItem>
         <MenuItem Header="! Unclassified"               Command="{Binding MenuItem6_Command}"></MenuItem>-->
 
-        <MenuItem Header="Edit trade set"               Command="{Binding MenuItem0_Command}"></MenuItem>
+        <MenuItem Header="Select trade set"               Command="{Binding MenuItem0_Command}"></MenuItem>
         <Separator></Separator>
         <MenuItem Header="Remove trade"                 Command="{Binding MenuItem1_Command}"></MenuItem>
         <MenuItem Header="Remove trade and line"        Command="{Binding MenuItem2_Command}"></MenuItem>
@@ -33,11 +33,9 @@
         <Separator></Separator>
         <MenuItem Header="Close Order"                  Command="{Binding MenuItem3_Command}"></MenuItem>
         <Separator />
-        <MenuItem Header="Set entry price"              Command="{Binding MenuItem7_Command}"></MenuItem>
-        <MenuItem Header="Set close price"              Command="{Binding MenuItem6_Command}"></MenuItem>
-        <Separator />
+        <MenuItem Header="Set price"              Command="{Binding MenuItem7_Command}" Click="MenuItem_Click_1"></MenuItem>
+        <MenuItem Header="Set date and time"              Command="{Binding MenuItem6_Command}"></MenuItem>
         <MenuItem Header="Adjust timeframe"             Command="{Binding MenuItem4_Command}"></MenuItem>
-        <Separator />
         <MenuItem Header="Mark as synchronised"         Command="{Binding MenuItem5_Command}"></MenuItem>
     </Menu>
 </Window>

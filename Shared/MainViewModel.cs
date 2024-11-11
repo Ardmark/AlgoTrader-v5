@@ -838,76 +838,59 @@ namespace AlgoTrader.Live.ViewModels
                 },
                 #endregion
 
-                #region Set close price
+                #region Set date
                 () =>
                 {
-                    _Trade close = null;
-                    _Trade entry = null;
 
                     using (DataContext db = new DataContext())
                     {
                         var id = GetTradeId();
                         var trade = db.Trades.FirstOrDefault(x => x.Id == id);
-
                         if (trade != null)
                         {
-                            close = db.Trades.FirstOrDefault(x => x.TradeReference == trade.TradeReference && x.Action == TradeAction.CLOSE);
-                            entry = db.Trades.FirstOrDefault(x => x.TradeReference == trade.TradeReference && x.Action == TradeAction.ENTRY);
-                        }
+                            var currDate = trade.Timestamp.ToString();
+                            var ret = SetOrderAtDateDialog.Prompt(currDate, "Set date", mouseMoveX, mouseMoveY);
 
-
-                        if (close != null && entry != null)
-                        {
-                            var ret = double.TryParse(SetOrderAtPriceDialog.Prompt(close.Price.ToString(), $"Set close price", mouseMoveX, mouseMoveY), out double price);
-
-                            if (ret)
+                            if (ret != null)
                             {
-                                if (price > 0)
-                                {
-                                    close.Price = price;
-                                    var result = tradeEngine.AdjustResultForFees(MainObj.GetPriceDiff(close.Price, entry.Price, close.Position) * 100);
+                                var ok = DateTime.TryParse(ret, out DateTime date);
 
-                                    close.Result = result;
+                                if (ok)
+                                {
+                                    trade.Timestamp = date;
                                     db.SaveChanges();
                                     tradeEngine.GetUIListData(db);
                                     MainObj.DrawCurrentDispatcherDelayed();
-                                    ActiveTradeSummary.ClearClosedTrades("24");
                                 }
-
                             }
                         }
+
                     }
                     RemovePopupWindow();
                 },
                 #endregion
 
-                #region Set entry price
+                #region Set price
                 () =>
                 {
-                    _Trade entry = null;
-                    _Trade close = null;
 
                     using (DataContext db = new DataContext())
                     {
                         var id = GetTradeId();
                         var trade = db.Trades.FirstOrDefault(x => x.Id == id);
+                        var close = db.Trades.FirstOrDefault(x => x.TradeReference == trade.TradeReference && x.Action == TradeAction.CLOSE);
+                        var entry = db.Trades.FirstOrDefault(x => x.TradeReference == trade.TradeReference && x.Action == TradeAction.ENTRY);
 
-                        if (trade != null)
+                        if (trade != null && close != null && entry != null)
                         {
-                            close = db.Trades.FirstOrDefault(x => x.TradeReference == trade.TradeReference && x.Action == TradeAction.CLOSE);
-                            entry = db.Trades.FirstOrDefault(x => x.TradeReference == trade.TradeReference && x.Action == TradeAction.ENTRY);
-                        }
-
-
-                        if (entry != null)
-                        {
-                            var ret = double.TryParse(SetOrderAtPriceDialog.Prompt(entry.Price.ToString(), $"Set entry price", mouseMoveX, mouseMoveY), out double price);
+        
+                            var ret = double.TryParse(SetOrderAtPriceDialog.Prompt(entry.Price.ToString(), $"Set price", mouseMoveX, mouseMoveY), out double price);
 
                             if (ret)
                             {
                                 if (price > 0)
                                 {
-                                    entry.Price = price;
+                                    trade.Price = price;
                                     if (close != null)
                                     {
                                         var result = tradeEngine.AdjustResultForFees(MainObj.GetPriceDiff(close.Price, entry.Price, close.Position) * 100);
@@ -2005,19 +1988,6 @@ namespace AlgoTrader.Live.ViewModels
             //don't use SPACE - it holds focus on the last button clicked.
             switch (key)
             {
-                //case Key.O:
-                //    try
-                //    {
-                //        using var client = new OpenExchangeRatesClient("51581f4479b84a29921ca25369900524");
-                //        var latestRatesResponse = await client.GetLatestRatesAsync();
-                //        var gbp = latestRatesResponse.Rates.FirstOrDefault(x => x.Key == "GBP").Value;
-                //        //convertResponse = await client.ConvertAsync("GBP", "USD", 1m); //1m is decimal  - this throws 'Forbidden' exception error, poss. a paid function
-                //    }
-                //    catch (Exception ex)
-                //    {
-
-                //    }
-                //    break;
                 case Key.Space:
                 case Key.D9:
                     MainObj.ToggleDarkMode();

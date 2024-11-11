@@ -229,8 +229,8 @@ namespace AlgoTrader.Shared
         public DataContext DataContext { get; set; }
 
         //UI drawing lists
-        internal List<_Trade> UI_Trades = new List<_Trade>();
-        internal List<_ChartLine> UI_Lines = new List<_ChartLine>(); //just the lines, no trades included, for drawing (disposed data context)
+        internal List<_Trade> UI_Trades = [];
+        internal List<_ChartLine> UI_Lines = []; //just the lines, no trades included, for drawing (disposed data context)
 
         #region Properties
         //gets all waiting orders for this symbol
@@ -758,12 +758,16 @@ namespace AlgoTrader.Shared
                 //must have at least one update for data to be ready, so any interpolation will have been performed by now and current data item will be up to date
                 dataReady = true;
 
-                //UpdateLiveState(); //conflicts somewhat with setting stop after stop movement
-
-                using (DataContext db = new DataContext())
+                UpdateLiveState(); //conflicts somewhat with setting stop after stop movement, so went to a timer but that did not seem to update db as it is asynchronous and old values still persisted
+                _Trade entry = null;
+                InitForDataContext(() =>
                 {
-                    GetUILists(db); //just to synch with db, in case something has been removed or not saved correctly
-                }
+                    entry = Entry;
+                });
+
+                using DataContext db = new();
+                GetUILists(db); //just to synch with db, in case something has been removed or not saved correctly
+                var _entry = db.Trades.FirstOrDefault(x => x.Id == entry.Id);
             }
             catch
             {

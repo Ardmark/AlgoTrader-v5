@@ -822,7 +822,7 @@ namespace AlgoTrader.Shared
                                     (orderPriceNow, _) = _orderLine.GetPriceAtTime(DateTime.UtcNow, true);
                                 }
                             }
-                            bool exchangeSynched = entry == null || entry.ExchangeMethodScript != TradeEngine.EXCHANGE_NOT_SYNCHED;
+                            bool exchangeSynched = entry == null || entry.ExchangeMethodScript != TradeEngine.EXCHANGE_NOT_SYNCHED ;
 
                             if (order != null)
                             {
@@ -958,7 +958,7 @@ namespace AlgoTrader.Shared
 
                                             canvas1 = closedOnExchange
                                                 ? TradeEntryMarkerClosedOnExchange(left, top, color, outline, __text).canvas
-                                                : TradeEntryMarker(left, top, color, outline, __text).canvas;
+                                                : TradeEntryMarker(left, top, color, outline, __text, !exchangeSynched).canvas;
                                             break;
 
                                         case TradeAction.STOP:

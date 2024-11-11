@@ -9,6 +9,7 @@
     <Import_RootNamespace>Shared</Import_RootNamespace>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="$(MSBuildThisFileDirectory)DataContext.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)DataObjects\Drawings.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)DataObjects\PendingTradeRequest.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)DataObjects\SymbolDataItem.cs" />
@@ -39,6 +40,9 @@
     <Compile Include="$(MSBuildThisFileDirectory)Dialogs\ResultsWindow.xaml.cs">
       <DependentUpon>ResultsWindow.xaml</DependentUpon>
     </Compile>
+    <Compile Include="$(MSBuildThisFileDirectory)Dialogs\SetOrderAtDateDialog.xaml.cs">
+      <DependentUpon>SetOrderAtDateDialog.xaml</DependentUpon>
+    </Compile>
     <Compile Include="$(MSBuildThisFileDirectory)Dialogs\SetOrderAtPriceDialog.xaml.cs">
       <DependentUpon>SetOrderAtPriceDialog.xaml</DependentUpon>
     </Compile>
@@ -62,6 +66,7 @@
     <Compile Include="$(MSBuildThisFileDirectory)interfaces\IMainViewModel.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)MainObj - UI.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)MainObj.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)MainViewModel.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Moving averages\EMA.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Moving averages\HMA.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Moving averages\MACD.cs" />
@@ -88,7 +93,7 @@
     <Compile Include="$(MSBuildThisFileDirectory)Trading\TradeEngine.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Trading\TradeEngineBinance.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Trading\TradeEngineBitmex.cs" />
-    <Compile Include="$(MSBuildThisFileDirectory)UI\ActiveTradeSummary.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)ActiveTradeSummary.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)UI\Candle.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)UI\Chart.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)UI\ChartLine - UI.cs" />
@@ -132,6 +137,10 @@
       <SubType>Designer</SubType>
       <Generator>MSBuild:Compile</Generator>
     </Page>
+    <Page Include="$(MSBuildThisFileDirectory)Dialogs\SetOrderAtDateDialog.xaml">
+      <SubType>Designer</SubType>
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
     <Page Include="$(MSBuildThisFileDirectory)Dialogs\SetOrderAtPriceDialog.xaml">
       <SubType>Designer</SubType>
       <Generator>MSBuild:Compile</Generator>
@@ -148,5 +157,6 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="$(MSBuildThisFileDirectory)KEY MAPPINGS" />
+    <None Include="$(MSBuildThisFileDirectory)Windows defender blocks live release.txt" />
   </ItemGroup>
 </Project>
