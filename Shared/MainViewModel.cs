@@ -407,32 +407,23 @@ namespace AlgoTrader.Live.ViewModels
                     price = 0;
                 }
                 TradeEngine.STOP_TRAIL = price;
-                using (DataContext db = new DataContext())
+                using DataContext db = new();
+
+                //get any trailing stop and reset action value
+                var stop = db.Trades.FirstOrDefault(x => x.Action == TradeAction.STOP && x.Stop == TradeStop.STOP_TRAIL && x.GlobalStatus == TradeGlobalStatus.ACTIVE);
+                if (stop != null)
                 {
-                    //get any trailing stop and reset action value
-                    var stop = db.Trades.FirstOrDefault(x => x.Action == TradeAction.STOP && x.Stop == TradeStop.STOP_TRAIL && x.GlobalStatus == TradeGlobalStatus.ACTIVE);
-                    if (stop != null)
-                    {
-                        stop.ActionValue = price / 100;
-                        //trail max. value is High if backtesting, otherwise market close
-                        var limitPrice = MainObj.visibleTradeEngine.GetHigh(stop);
-
-                        //move the stop price which will still be the same ActionValue percentage below the current close
-                        //the action value can be changed manually at any point, to move the trade from weak to strong
-                        double newPrice = stop.Position == TradePosition.LONG
-                            ? limitPrice * (1 - stop.ActionValue)
-                            : limitPrice * (1 + stop.ActionValue);
-
-                        //update the trail price and set time as current -
-                        stop.Price = newPrice;
-
-                    }
-                    db.SaveChanges();
-                    MainObj.DrawCurrentDispatcher();
+                    stop.ActionValue = price / 100;
+                    Order.DoTrail(stop);
 
                 }
+
+                db.SaveChanges();
+                MainObj.DrawCurrentDispatcherDelayed();
             }
         }
+
+
         #region View
         ICommand showHeikinAshiCommand, showClosedTradesCommand, showWaitingTradesCommand, showFloorTradesCommand, showLiquidationsCommand, drawingModeCommand, darkModeCommand, showAllTradesCommand;
         public ICommand ShowHeikinAshiCommand => showHeikinAshiCommand ?? (showHeikinAshiCommand = new CommandHandler1(() => { ToggleHeikinAshi(); }, true));

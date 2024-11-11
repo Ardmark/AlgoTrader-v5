@@ -1026,13 +1026,15 @@ namespace AlgoTrader.Shared
                                                     stopPricePC -= TradeEngine.ENTRY_LINE_PRICE_GAP_PC;
                                                 }
 
-
-                                                text += GetStopText(stopPricePC, hasEntered, order);
+                                                if (Math.Abs(stopPricePC) > TradeEngine.MAX_STOP)
+                                                {
+                                                    text += GetStopText(stopPricePC, hasEntered, order);
+                                                }
 
                                                 switch (trade.Stop)
                                                 {
                                                     case TradeStop.STOP_TRAIL:
-                                                        text += " (trailing stop)";
+                                                        text += $" (trailing stop @{100*trade.ActionValue}%)";
                                                         break;
                                                     case TradeStop.STOP_TRAIL_SPIKE:
                                                         text += " (spike stop)";

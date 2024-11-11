@@ -26,8 +26,8 @@ namespace AlgoTrader.Windows
             TradeEngine.STOP_LINE_PRICE_GAP_PC = 0.1; //percent to offset trade stop lines
 
             TradeEngine.INITIAL_TAKE_PROFIT_PERCENT_MARKET = 0; //will auto-set t/p if this value is set
-            TradeEngine.STOP_TRAIL = 2.0;
-            TradeEngine.MAX_STOP = 2;
+            TradeEngine.STOP_TRAIL = 3.0;
+            TradeEngine.MAX_STOP = 2; //will scale leverage back if greater than this, and won't show stop pc if less than this 
 
             /* 
              * Reason for not scaling leverage to stop depth:

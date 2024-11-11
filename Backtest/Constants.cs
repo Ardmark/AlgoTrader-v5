@@ -25,7 +25,8 @@ namespace AlgoTrader.Windows
 
             TradeEngine.INITIAL_TAKE_PROFIT_PERCENT_MARKET = 0; //will auto-set t/p if this value is set
             TradeEngine.STOP_TRAIL = 3;
-            TradeEngine.MAX_STOP = 2;
+            TradeEngine.MAX_STOP = 2; 
+
 
             /* 
              * Reason for not scaling leverage to stop depth:

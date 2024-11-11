@@ -1463,7 +1463,7 @@ namespace AlgoTrader.Shared
                 // This will ensure stop or floor is not too close.
                 void SetInitialStopFloor(_Trade _floorStop)
                 {
-                    _floorStop.Quantity = Entry.Quantity;
+                    _floorStop.Quantity = -Entry.Quantity; //although this is also set later
                     SetUpdateRequest(_floorStop);
 
                     //if (_floorStop.)

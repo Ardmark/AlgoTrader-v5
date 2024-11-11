@@ -1454,7 +1454,7 @@ namespace AlgoTrader.Shared
                                 bool save = false;
 
                                 var openPositons = bitmexAPI.GetOpenPositions();// does not always work, sometimes returns no open positions incorrectly, so could use margin balance instead
-                                if (openPositions  != null && openPositions.Count != 0) 
+                                if (openPositions  != null && openPositions.Count == 0) 
                                 //var margin = bitmexAPI.GetMargin(); //this appears to have failed once so no idea the trade had closed on exchange
                                 //if (margin != null && margin.UnrealisedPnl == 0) //no unrealised PNL so assume no trades running
                                 {

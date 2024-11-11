@@ -293,6 +293,22 @@ namespace AlgoTrader.Shared
         }
 
 
+
+        public static void DoTrail(_Trade stop)
+        {
+            //trail max. value is High if backtesting, otherwise market close
+            var limitPrice = MainObj.visibleTradeEngine.GetHigh(stop);
+
+            //move the stop price which will still be the same ActionValue percentage below the current close
+            //the action value can be changed manually at any point, to move the trade from weak to strong
+            double newPrice = stop.Position == TradePosition.LONG
+                ? limitPrice * (1 - stop.ActionValue)
+                : limitPrice * (1 + stop.ActionValue);
+
+            //update the trail price and set time as current -
+            stop.Price = newPrice;
+        }
+
         internal virtual (bool, bool) ExecuteStop_synchronised(bool itemAdded)
         {
             _Trade activeOrder = tradeEngine.Order;
@@ -420,17 +436,7 @@ namespace AlgoTrader.Shared
                             double diff = MainObj.GetPriceDiffPercent(currentDataItem, stop.Price, stop.Position);
                             if (diff > stop.ActionValue)
                             {
-                                //trail max. value is High if backtesting, otherwise market close
-                                var limitPrice = tradeEngine.GetHigh(stop);
-
-                                //move the stop price which will still be the same ActionValue percentage below the current close
-                                //the action value can be changed manually at any point, to move the trade from weak to strong
-                                double newPrice = stop.Position == TradePosition.LONG
-                                    ? limitPrice * (1 - stop.ActionValue)
-                                    : limitPrice * (1 + stop.ActionValue);
-
-                                //update the trail price and set time as current -
-                                stop.Price = newPrice;
+                                DoTrail(stop);
                                 tradeEngine.SetUpdateRequest(stop);
                             }
                         }
@@ -575,11 +581,11 @@ namespace AlgoTrader.Shared
                 //var takeProfitPrice = GetTakeProfitAtPC_Price(entry, tradeEngine.currentDataItem.Close);
 
                 //if there is already a stop, do nothing
-                if (stop != null)// && (stop.Stop == TradeStop.STOP_TRAIL || stop.Stop == TradeStop.STOP_TRAIL_SPIKE))
-                {
-                    //do nothing
-                    return;
-                }
+                //if (stop != null)// && (stop.Stop == TradeStop.STOP_TRAIL || stop.Stop == TradeStop.STOP_TRAIL_SPIKE))
+                //{
+                //    //do nothing
+                //    return;
+                //}
 
                 //if there is a stop or floor in profit, do nothing
                 var breakEvenPrice = GetBreakEvenPrice(entry, tradeEngine);
@@ -600,7 +606,8 @@ namespace AlgoTrader.Shared
 
                 //if there is a better (i.e. lower/long, higher/short) stop than the trail price would set, do nothing
                 var pc = TradeEngine.STOP_TRAIL / 100;
-                var trailValue = entry.Position == TradePosition.LONG ? entry.Price * (1 - pc) : entry.Price * (1 + pc);
+                var currPrice = tradeEngine.currentDataItem.Close;
+                var trailValue = entry.Position == TradePosition.LONG ? currPrice * (1 - pc) : currPrice * (1 + pc);
 
                 if (stop != null)
                 {
@@ -626,6 +633,7 @@ namespace AlgoTrader.Shared
                 if (stop == null)
                 {
                     stop = SetFloorStop_synchronised(DateTime.UtcNow, trailValue, TradeAction.STOP);
+                    stop.Quantity = -entry.Quantity;
                 }
                 else
                 {
