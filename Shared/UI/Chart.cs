@@ -1127,7 +1127,11 @@ namespace AlgoTrader.Shared
                                                         //will add this in when it breaks the entry line
                                                         floorPricePC -= TradeEngine.ENTRY_LINE_PRICE_GAP_PC;
                                                     }
-                                                    text += GetStopText(floorPricePC, hasEntered, order);
+                                                    if (Math.Abs(floorPricePC) > TradeEngine.MAX_STOP)
+                                                    {
+                                                        text += GetStopText(floorPricePC, hasEntered, order);
+                                                    }
+
                                                     text += " (floor)";
                                                 }
 
