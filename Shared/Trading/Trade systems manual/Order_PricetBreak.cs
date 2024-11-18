@@ -29,11 +29,11 @@ namespace AlgoTrader.Shared
                 //have had one occasion where the line had identical start and end times. for some reason.
                 //If this occurs, set minimum line length to 1 hour
                 var d = chartLine.EndTimeStamp.Subtract(chartLine.StartTimeStamp).TotalMinutes;
-                if (d < TradeEngine.MINIMUM_TRADE_TIME)
+                const int minLineTime = 60;
+                if (d < minLineTime)
                 {
-                    chartLine.EndTimeStamp = chartLine.StartTimeStamp.AddMinutes(TradeEngine.MINIMUM_TRADE_TIME);
+                    chartLine.EndTimeStamp = chartLine.StartTimeStamp.AddMinutes(minLineTime);
                     tradeEngine.SetUpdateRequest(chartLine);
-                    return false;
                 }
 
                 var item = tradeEngine.currentDataItem;
@@ -79,11 +79,11 @@ namespace AlgoTrader.Shared
                     : prevItemPrice >= currLinePrice && currItemPrice < currLinePrice)
                 {
 
-                    if (TradeEngine.MAX_FLIP_DIFF_PERCENT > 0)
+                    if (TradeEngine.MAX_ENTRY_DIFF_PERCENT > 0)
                     {
                         var maxOrderPrice = order.Position == TradePosition.LONG
-                                                        ? currLinePrice * (1 + TradeEngine.MAX_FLIP_DIFF_PERCENT / 100)
-                                                        : currLinePrice / (1 + TradeEngine.MAX_FLIP_DIFF_PERCENT / 100);
+                                                        ? currLinePrice * (1 + TradeEngine.MAX_ENTRY_DIFF_PERCENT / 100)
+                                                        : currLinePrice / (1 + TradeEngine.MAX_ENTRY_DIFF_PERCENT / 100);
 
                         //don't allow entry if a sudden spike take price too far above break price
                         //however, this will often happen with backtests as only 1-min close is available so ignore that

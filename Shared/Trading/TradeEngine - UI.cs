@@ -66,12 +66,15 @@ namespace AlgoTrader.Shared
                     MoveStop(Floor, up);
                     hasMovedStop = true;
                 }
+
+                //this is only called when moving stops up or down from the buttons, and there should always be a stop or trail set.
+                //if there is not (i.e. no trail value set and stops removed) this will add a floor at the correct level for the target stop loss.
                 if (!hasMovedStop)
                 {
                     //can't have a floor set or it would have been moved, so set one
                     Floor = Entry.Clone();
 
-                    var stopOffsetPC_Leveraged = MAX_STOP;// CalculateStopFromLeverage(DEFAULT_LEVERAGE, Entry.Position);
+                    var stopOffsetPC_Leveraged = TradeEngineBitmex.CalculateStopFromLeverage(Entry.Leverage, Entry.Position);
 
                     var floorPrice = Order.Position == TradePosition.LONG
                                 ? Entry.Price / (1 + stopOffsetPC_Leveraged / 100)

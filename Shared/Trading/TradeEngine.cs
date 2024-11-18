@@ -85,12 +85,12 @@ namespace AlgoTrader.Shared
         public bool EXECUTE_STOPS_ON_TIMEFRAME_CLOSE { get; set; } = false; //will only run stop test on hour, etc. to try to avoid spikes
         public int STOP_TIMEFRAME { get; set; } = 60; //timeframe for above
         public static double STOPLINE_MIN_VALUE { get; set; } = 0.5; //Do not set to zero. As above, but for moving stop lines. Closer for easier debugging, etc.
-        public static double MA_STOP_MIN_VALUE { get; set; } = 1;
+        public static double STOP_MIN_VALUE { get; set; } = 1;
         public static double STOP_TRAIL { get; set; } = 0; //trailing extra stop, as a floor level. Will set to b/e (dead) when price excedes entry by this percent, then will trail up.Set to zero if not needed
         public static double MAX_SHORT_STOP { get; set; }
         public static int NUM_BARS_FOR_FLOOR { get; set; } = 0; // when this many bars clear (higher lows) will set floor
         public static double MOVE_STOPS_AMT { get; set; } = 0.1;
-        public static double MAX_STOP { get; internal set; } = 1;
+        public static double TARGET_STOP_LOSS { get; internal set; } = 1;
 
         //take profit (unused)
         public static double INITIAL_TAKE_PROFIT_PERCENT_MARKET { get; set; } = 0; //initial take profit percent (set to zero to block setting TP initially) - set to any % to place an initial take profit  
@@ -111,7 +111,7 @@ namespace AlgoTrader.Shared
         public static int MAX_CONCURRENT_TRADES { get; set; } = 1;
         public static int MINIMUM_TRADE_TIME { get; set; } = 60;
         public static double RESTRICTED_TRADE_VALUE { get; set; } = 0;
-        public static double MAX_FLIP_DIFF_PERCENT { get; set; } = 0; //in Order.cs so must be shared: maximum allowable difference for a flip to happen; more than this, the trade won't flip
+        public static double MAX_ENTRY_DIFF_PERCENT { get; set; } = 0; //in Order.cs so must be shared: maximum allowable difference for an order or flip to happen; more than this, the trade won't enter
         public static double ENTRY_LINE_PRICE_GAP_PC { get; set; } = 0; //this percent will be used to offset line for trade entry
         public static double STOP_LINE_PRICE_GAP_PC { get; set; } = 0; //this percent will be used to offset line for trade exit
 
@@ -1269,6 +1269,19 @@ namespace AlgoTrader.Shared
                 }
                 else
                 {
+                    if (!MainObj.BACKTEST)
+                    {
+                        var lastClose = AllTrades.OrderByDescending(x => x.Timestamp).FirstOrDefault(x => x.Action == TradeAction.CLOSE);
+                        if (lastClose != null)
+                        {
+
+                            var timeDiff = DateTime.UtcNow.Subtract(lastClose.Timestamp).TotalMinutes;
+                            if (timeDiff < MINIMUM_TRADE_TIME)
+                            {
+                                reason = OrderFrequency.PREV_CLOSE_TOO_CLOSE;
+                            }
+                        }
+                    }
                     //need to calculate the maximum number of trades per quote asset
                     //no, this is more complicated with ETFs so have moved this to the Exchange Trade code block
                     //var quoteAsset = SymbolNamesBinance.GetQuoteAssetForSymbol(symbolName);
@@ -1302,12 +1315,18 @@ namespace AlgoTrader.Shared
                     {
                         case OrderFrequency.MAX_TRADES_PER_24_HOURS_EXCEDED:
                             LogTrades.WriteLineOrder($" {trade.SymbolName} at {DateTime.Now} - Trade not entered as max. number of entries in 24 hours ({TradeEngine.MAX_TRADES_PER_24_HOURS}) exceded");
-                            AlertDialog.Show($"Could not place order for {trade.SymbolName} as there have already been {TradeEngine.MAX_TRADES_PER_24_HOURS} in 24 hours");
+                            //AlertDialog.Show($"Could not place order for {trade.SymbolName} as there have already been {TradeEngine.MAX_TRADES_PER_24_HOURS} in 24 hours");
                             return (false, true);
+
                         //case OrderFrequency.MAX_CONCURRENT_TRADES_EXCEDED:
                         //    LogTrades.WriteLine($" {trade.SymbolName} at {DateTime.Now} - Trade not entered as max. number of concurrent entries ({TradeEngine.MAX_CONCURRENT_TRADES}) exceded");
                         //    AlertDialog.Show($"Could not place order for {trade.SymbolName} as there are already a maximum number of concurrent entries");
                         //    return (false, true);
+                       
+                        case OrderFrequency.PREV_CLOSE_TOO_CLOSE:
+                            LogTrades.WriteLineOrder($" {trade.SymbolName} at {DateTime.Now} - Trade not entered as too near to previous trade's close order");
+                            return (false, true);
+
                         case OrderFrequency.OK_TO_ENTER_LIVE:
                             LogTrades.WriteSpacer();
                             EnterTradeLive_synchronised(trade, (decimal)currentDataItem.Close);
@@ -1468,7 +1487,7 @@ namespace AlgoTrader.Shared
 
                     //if (_floorStop.)
                     //make sure it is not too close to price
-                    AdjustStopPriceToMinimum_Synchronised(Entry, _floorStop, MA_STOP_MIN_VALUE);
+                    AdjustStopPriceToMinimum_Synchronised(Entry, _floorStop, STOP_MIN_VALUE);
                 }
 
                 #region Initial floor
@@ -1585,7 +1604,7 @@ namespace AlgoTrader.Shared
             Order = null;
             if (EXCHANGE == ExchangeId.BITMEX)
             {
-                Leverage = TradeEngineBitmex.DEFAULT_LEVERAGE;
+                Leverage = 2; //always set this as a default since it is an integer and 1 will be no use for a long anyway.
                 MainObj.SetLeverageMenuState((int)Leverage); //NOTE, calling Application.Current.Dispatcher.Invoke() within this thread causes a lock condition
             }
             //need to wait a few seconds before getting the final balance

@@ -63,8 +63,9 @@ namespace AlgoTrader.Shared
         */
 
         public static double MIN_LEVERAGE_SHORT { get; internal set; } = 1;
-        public static double MIN_LEVERAGE_LONG { get; internal set; } = 1.5;
-        public static double DEFAULT_LEVERAGE { get; internal set; } = 1;
+        public static double MIN_LEVERAGE_LONG { get; internal set; } = 1.2;
+        //public static double DEFAULT_LEVERAGE { get; internal set; } = 1;
+        public static double MAX_LEVERAGE { get; internal set; } = 2;
 
 
 
@@ -222,40 +223,36 @@ namespace AlgoTrader.Shared
 
         #region Leverage and order quantity
 
-        public double CalculateLeverage(double stopPC, TradePosition position)
+        public static double CalculateLeverageFromStop(double stopPC, TradePosition position)
         {
-            if (stopPC <= 0)
+            var minLeverage = position == TradePosition.LONG ? MIN_LEVERAGE_LONG : MIN_LEVERAGE_SHORT;
+            stopPC = Math.Abs(stopPC); //to be safe
+            if (stopPC == 0)
             {
-                LogTrades.WriteLine($"No stop to calculate leverage from, using default leverage of {Leverage}");
-                return Leverage;
+                var _leverage = Math.Max(Math.Min(Leverage, MAX_LEVERAGE), minLeverage);
+                LogTrades.WriteLine($"No stop to calculate leverage from, using default leverage of {_leverage}");
+                return _leverage;
             }
 
             stopPC += STOP_LINE_PRICE_GAP_PC; //because this will be added in when it stops out, if it is a stop line (just use it anyway)
 
+            var leverage = TARGET_STOP_LOSS / stopPC; //this is the default leverage here
 
+            //if leverage is outside of min and max range, clamp it
+            leverage = Math.Max(Math.Min(leverage, MAX_LEVERAGE), minLeverage);
 
-            var l = stopPC <= MAX_STOP
-                        ? DEFAULT_LEVERAGE
-                        : (MAX_STOP * DEFAULT_LEVERAGE) / stopPC;
-
-            if (l > DEFAULT_LEVERAGE)
-            {
-                LogTrades.WriteLine($"Leverage calculation - actual leverage would be {l}, but limited to {DEFAULT_LEVERAGE}");
-                l = DEFAULT_LEVERAGE;
-            }
-
+            //This algorithm attempts to set the leverage so the maximum allowed loss is always the same.
+            //For small initial stops, the leverage may be outside of the max. allowed leverage, so that will clamp the leverage and reduce the
+            // effective maximum loss (i.e. to hit the max. allowed loss, a high leverage may be needed)
+            //For large initial stops, the leverage may be too small, so it will be increased to the minimum - however, this will 
+            // INCREASE the maximum potential loss.
 
             //With long positions, 1X leverage will merely track the rising value of the underlying asset, so no profit can be taken.
             //With short positions, 1X is fine as the sell will purchase the underlying asset at a higher level of equity than it was sold for
             //e.g. Long - market rises by 10%, XBT sold for $100, XBT bought for $110, but BTC value has gone up by 10% anyway
             //Short - market falls by 10%, XBT sold for $100, XBT bought for $110, so more XBT purchased than was originally sold
 
-            //set minimum values. Note, 1X long is pointless, you might as well just hold the XBT dollar amount
-            l = position == TradePosition.LONG
-                ? l < MIN_LEVERAGE_LONG ? MIN_LEVERAGE_LONG : l
-                : l < MIN_LEVERAGE_SHORT ? MIN_LEVERAGE_SHORT : l;
-
-            return l;
+            return leverage;
 
             #region Auto-calculate leverage (unused)
             /*
@@ -338,6 +335,17 @@ namespace AlgoTrader.Shared
             */
             #endregion
 
+        }
+
+        public static double CalculateStopFromLeverage(double leverage, TradePosition position)
+        {
+            leverage = position == TradePosition.LONG
+                ? Math.Max(leverage, MIN_LEVERAGE_LONG)
+                : Math.Max(leverage, MIN_LEVERAGE_SHORT);
+
+            var stop = TARGET_STOP_LOSS / leverage; //this obviously cannot be greater than the target stop loss
+            stop = Math.Max(stop, STOP_MIN_VALUE); //use this minimum stop value as a lower limit
+            return stop;
         }
 
         //inverse of the above
@@ -556,7 +564,7 @@ namespace AlgoTrader.Shared
 
 
                             var lotSize = GetLotSize();
-                            var leverage = CalculateLeverage(stopPC, Entry.Position);
+                            var leverage = CalculateLeverageFromStop(stopPC, Entry.Position);
                             LogTrades.WriteLine($"Stop is at {stopPC} at entry time");
 
                             (var orderQuantity, var actualLeverage) = CalculateOrderQuantity(amount, lastQuoteValue, leverage, lotSize, Entry.Position);
@@ -697,7 +705,7 @@ namespace AlgoTrader.Shared
                                 {
                                     Floor = Entry.Clone();
 
-                                    var stopOffsetPC_Leveraged = MAX_STOP;// CalculateStopFromLeverage(DEFAULT_LEVERAGE, Entry.Position);
+                                    var stopOffsetPC_Leveraged = CalculateStopFromLeverage(Entry.Leverage, Entry.Position);
 
                                     var floorPrice = Order.Position == TradePosition.LONG
                                                 ? Entry.Price / (1 + stopOffsetPC_Leveraged / 100)
@@ -1156,7 +1164,7 @@ namespace AlgoTrader.Shared
                         //determine if this is within an acceptable range
 
                         bool isWithinRange = true;
-                        if (diff > TradeEngine.MAX_FLIP_DIFF_PERCENT)
+                        if (diff > TradeEngine.MAX_ENTRY_DIFF_PERCENT)
                         {
                             //Note, this uses the previous stop price, not the close price, which could be different anyway.
 
@@ -1209,7 +1217,7 @@ namespace AlgoTrader.Shared
 
                         var lotSize = GetLotSize();
 
-                        var leverage = CalculateLeverage(stopPC_flip, position);
+                        var leverage = CalculateLeverageFromStop(stopPC_flip, position);
                         LogTrades.WriteLine($"Stop is at {stopPC_flip} at entry time");
 
 
@@ -1292,7 +1300,7 @@ namespace AlgoTrader.Shared
 
                                     //must not set too close because the rising MA stop will quickly overrun the stop
                                     //this will already have been done with the default values, these will not be correct for a MA stop.
-                                    AdjustStopPriceToMinimum_Synchronised(Entry, nextStop, MA_STOP_MIN_VALUE);
+                                    AdjustStopPriceToMinimum_Synchronised(Entry, nextStop, STOP_MIN_VALUE);
 
                                     nextStop.Action = TradeAction.STOP;
                                     nextStop.Timestamp = DateTime.UtcNow;

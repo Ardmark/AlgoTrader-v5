@@ -20,28 +20,20 @@ namespace AlgoTrader.Windows
             //Trading
             TradeEngine.EXCHANGE = Shared.Enums.ExchangeId.BITMEX;
             TradeEngine.USE_SIMULATED_EXCHANGE = false;
-            TradeEngine.RESTRICTED_TRADE_VALUE = 0;
+            TradeEngine.RESTRICTED_TRADE_VALUE = 100;
 
-            TradeEngine.ENTRY_LINE_PRICE_GAP_PC = 0.1; //percent to offset trade entry lines
-            TradeEngine.STOP_LINE_PRICE_GAP_PC = 0.1; //percent to offset trade stop lines
+            TradeEngine.ENTRY_LINE_PRICE_GAP_PC = 0; //percent to offset trade entry lines
+            TradeEngine.STOP_LINE_PRICE_GAP_PC = 0; //percent to offset trade stop lines
 
             TradeEngine.INITIAL_TAKE_PROFIT_PERCENT_MARKET = 0; //will auto-set t/p if this value is set
             TradeEngine.STOP_TRAIL = 3.0;
-            TradeEngine.MAX_STOP = 2; //will scale leverage back if greater than this, and won't show stop pc if less than this 
-
-            /* 
-             * Reason for not scaling leverage to stop depth:
-             * The first trade may scale to 5X, but that may likely fail, and the next may scale to less - 
-             *  with the market becoming more volatile before it breaks -
-             *  and this can happen a few times, so the final successful trade makes a loss against the previous failed trades.
-             * So it is better to just have a fixed leverage, and only scale it if the stop is excessive for some reason
-             * */
+            TradeEngine.TARGET_STOP_LOSS = 6; //leverage will scale to always target this as a stop loss
             TradeEngineBitmex.MIN_LEVERAGE_SHORT = 1;
-            TradeEngineBitmex.MIN_LEVERAGE_LONG = 1.3;
-            TradeEngineBitmex.DEFAULT_LEVERAGE = 3; //this will be used for everything, including market orders, but it will scale down if stop > MAX_STOP
-
-            TradeEngine.MA_STOP_MIN_VALUE = 1;
-            TradeEngine.MAX_FLIP_DIFF_PERCENT = 0.5;
+            TradeEngineBitmex.MIN_LEVERAGE_LONG = 1.333;
+            TradeEngineBitmex.MAX_LEVERAGE = 5;
+            TradeEngine.MINIMUM_TRADE_TIME = 120;
+            TradeEngine.STOP_MIN_VALUE = 1;
+            TradeEngine.MAX_ENTRY_DIFF_PERCENT = 0.5;
 
             /*************************************************************/
             /* Set correct domain in BitMEXAPI.cs */

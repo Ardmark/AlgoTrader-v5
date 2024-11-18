@@ -3,6 +3,7 @@ using Shared.Drawings;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using System.Windows.Media.Media3D;
 using System.Windows.Shapes;
 using static Shared.Drawings.DrawingObjects;
 using Brushes = System.Windows.Media.Brushes;
@@ -741,17 +742,34 @@ namespace AlgoTrader.Shared
 
                             //var lossProfit = price < 0 ? "loss" : price == 0 ? "" : "profit";
                             text += $" {stopPC.ToString("0.0")}%";
-                            text += hasEntered ? " from entry" : $" from order now inc. any gap(s) of {TradeEngine.ENTRY_LINE_PRICE_GAP_PC}%";
-                            if (!hasEntered)
+                            var gapText = TradeEngine.ENTRY_LINE_PRICE_GAP_PC > 0
+                                ? " inc.any gap(s) of { TradeEngine.ENTRY_LINE_PRICE_GAP_PC}%"
+                                : string.Empty;
+                            text += hasEntered ? " from entry" : $" from order now{gapText}";
+                            //if (!hasEntered)
                             {
-                                TradeEngineBitmex t = tradeEngine as TradeEngineBitmex;
-                                if (t != null)
+                                var lev = hasEntered 
+                                    ? order.Leverage
+                                    : TradeEngineBitmex.CalculateLeverageFromStop(Math.Abs(stopPC), order.Position);
+                                var t1 = lev.ToString("F1");
+                                
+                                if (lev == TradeEngineBitmex.MAX_LEVERAGE)
                                 {
-                                    var l = t.CalculateLeverage(Math.Abs(stopPC), order.Position).ToString("F1");
-                                    text += $"   Lev. {l}X\n";
+                                    t1 += " (max)";
                                 }
+                                var loss = (stopPC * lev);
+
+                                var t2 = loss.ToString("F1");
+
+                                var t3 = string.Empty;
+                                if (Math.Abs(loss) > TradeEngine.TARGET_STOP_LOSS)
+                                {
+                                    t3 = " (over target)";
+                                }
+
+                                text += $"   Lev. {t1}   Loss {t2}% {t3}\n";
                             }
-                            //text += $" ({lossProfit} {(price * lvrg).ToString("0.0")})";
+
                             return text;
 
                         }
@@ -908,8 +926,8 @@ namespace AlgoTrader.Shared
 
                                             if (trade.ItemStatus == TradeItemStatus.OPEN || trade.GlobalStatus == TradeGlobalStatus.ACTIVE || entry == null)
                                             {
-                                                /*
                                                 string extraText = string.Empty;
+                                                /*
 
                                                 //this is a locally placed order if it is running with a zero action value. Otherwise it was placed on exchange.
                                                 var p = trade.Position == TradePosition.LONG ? "LONG" : "SHORT";
@@ -940,7 +958,7 @@ namespace AlgoTrader.Shared
                                                     ? $" ({trade.TimeFrame}min{s}) {trade.Leverage.ToString("0.0")}X"
                                                     : $" ({trade.TimeFrame}min{s})";
                                                 */
-                                                canvas1 = TradeOrderMarker(trade.Position, left, top, color, outline, string.Empty).canvas;
+                                                canvas1 = TradeOrderMarker(trade.Position, left, top, color, outline, extraText).canvas;
                                             }
                                             break;
 
@@ -992,13 +1010,13 @@ namespace AlgoTrader.Shared
                                                 switch (trade.Type)
                                                 {
                                                     case TradeType.NO_FLIP_ORDER:
-                                                        text += " stop dead exit (inc. gap)";
+                                                        text += " stop ";
                                                         break;
                                                     case TradeType.FLIP_ORDER:
-                                                        text += " flip order (inc. gap)";
+                                                        text += " flip order ";
                                                         break;
                                                     case TradeType.STOP_WAITING:
-                                                        text += " flip stop waiting (inc. gap)";
+                                                        text += " flip stop waiting ";
                                                         break;
                                                 }
 
@@ -1026,10 +1044,9 @@ namespace AlgoTrader.Shared
                                                     stopPricePC -= TradeEngine.ENTRY_LINE_PRICE_GAP_PC;
                                                 }
 
-                                                if (Math.Abs(stopPricePC) > TradeEngine.MAX_STOP)
-                                                {
-                                                    text += GetStopText(stopPricePC, hasEntered, order);
-                                                }
+
+                                                text += GetStopText(stopPricePC, hasEntered, order);
+
 
                                                 switch (trade.Stop)
                                                 {
@@ -1037,16 +1054,16 @@ namespace AlgoTrader.Shared
                                                         text += $" (trailing stop @{100*trade.ActionValue}%)";
                                                         break;
                                                     case TradeStop.STOP_TRAIL_SPIKE:
-                                                        text += " (spike stop)";
+                                                        text += " (spike)";
                                                         break;
                                                     case TradeStop.STOP_ON_LINE_BREAK:
-                                                        text += " (line break stop)";
+                                                        text += " (line break)";
                                                         break;
                                                     case TradeStop.TAKE_PROFIT_MA_CROSS:
-                                                        text += " (moving average stop)";
+                                                        text += " (moving average)";
                                                         break;
                                                     default:
-                                                        text += " (unspecified stop)";
+                                                        text += " (unspecified)";
                                                         break;
                                                 }
 
@@ -1063,9 +1080,9 @@ namespace AlgoTrader.Shared
                                             text = trade.Quantity.ToString() + " take profit ";
                                             switch (trade.Type)
                                             {
-                                                case TradeType.NO_FLIP_ORDER:
-                                                    text += "dead exit ";
-                                                    break;
+                                                //case TradeType.NO_FLIP_ORDER:
+                                                //    text += "dead exit ";
+                                                //    break;
                                                 case TradeType.LINE_BREAK_ORDER:
                                                     text += "flip order ";
                                                     break;
@@ -1116,7 +1133,7 @@ namespace AlgoTrader.Shared
 
                                             if (showFloorTrades)
                                             {
-                                                text = string.Empty;// trade.Quantity.ToString();
+                                                text = "floor";
 
                                                 if (tradeEngine.currentDataItem != null)
                                                 {
@@ -1127,12 +1144,8 @@ namespace AlgoTrader.Shared
                                                         //will add this in when it breaks the entry line
                                                         floorPricePC -= TradeEngine.ENTRY_LINE_PRICE_GAP_PC;
                                                     }
-                                                    if (Math.Abs(floorPricePC) > TradeEngine.MAX_STOP)
-                                                    {
-                                                        text += GetStopText(floorPricePC, hasEntered, order);
-                                                    }
 
-                                                    text += " (floor)";
+                                                    text += GetStopText(floorPricePC, hasEntered, order);
                                                 }
 
                                                 canvas1 = TradeStopMarker(left + currentTimeOffset, top, color, outline, (trade.GlobalStatus == TradeGlobalStatus.ACTIVE ? text : " stopped"), trade.Type == TradeType.FLIP_ORDER, trade.ExecutionSystem == TradeExecutionSystem.EXCHANGE_UNSYNCHED).canvas;

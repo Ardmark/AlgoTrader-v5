@@ -24,8 +24,8 @@ namespace AlgoTrader.Windows
             TradeEngine.STOP_LINE_PRICE_GAP_PC = 0; //percent to offset trade stop lines
 
             TradeEngine.INITIAL_TAKE_PROFIT_PERCENT_MARKET = 0; //will auto-set t/p if this value is set
-            TradeEngine.STOP_TRAIL = 3;
-            TradeEngine.MAX_STOP = 2; 
+            TradeEngine.STOP_TRAIL = 0;
+            TradeEngine.TARGET_STOP_LOSS = 6; //leverage will scale to always target this as a stop loss
 
 
             /* 
@@ -36,12 +36,12 @@ namespace AlgoTrader.Windows
              * So it is better to just have a fixed leverage, and only scale it if the stop is excessive for some reason
              * */
             TradeEngineBitmex.MIN_LEVERAGE_SHORT = 1;
-            TradeEngineBitmex.MIN_LEVERAGE_LONG = 1.3;
-            TradeEngineBitmex.DEFAULT_LEVERAGE = 3; //this will be used for everything, including market orders, but it will scale down if stop > MAX_STOP
+            TradeEngineBitmex.MIN_LEVERAGE_LONG = 1.333;
+            TradeEngineBitmex.MAX_LEVERAGE = 5;
+            TradeEngine.MINIMUM_TRADE_TIME = 120;
 
-
-            TradeEngine.MA_STOP_MIN_VALUE = 1;
-            TradeEngine.MAX_FLIP_DIFF_PERCENT = 0.5;
+            TradeEngine.STOP_MIN_VALUE = 1;
+            TradeEngine.MAX_ENTRY_DIFF_PERCENT = 0.5;
 
 
             /*************************************************************/

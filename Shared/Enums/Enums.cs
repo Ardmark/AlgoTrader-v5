@@ -108,6 +108,7 @@ namespace AlgoTrader.Shared.Enums
         NULL_ORDER,
         MAX_CONCURRENT_TRADES_EXCEDED,
         MAX_TRADES_PER_24_HOURS_EXCEDED,
+        PREV_CLOSE_TOO_CLOSE,
         OK_TO_ENTER_LIVE
     }
     #endregion
