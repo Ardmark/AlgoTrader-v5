@@ -18,13 +18,13 @@ namespace AlgoTrader.Windows
             //Trading
             TradeEngine.EXCHANGE = Shared.Enums.ExchangeId.BITMEX;
             TradeEngine.USE_SIMULATED_EXCHANGE = false;
-            TradeEngine.RESTRICTED_TRADE_VALUE = 100;
+            TradeEngine.RESTRICTED_TRADE_VALUE = 0;
 
             TradeEngine.ENTRY_LINE_PRICE_GAP_PC = 0; //percent to offset trade entry lines
             TradeEngine.STOP_LINE_PRICE_GAP_PC = 0; //percent to offset trade stop lines
 
             TradeEngine.INITIAL_TAKE_PROFIT_PERCENT_MARKET = 0; //will auto-set t/p if this value is set
-            TradeEngine.STOP_TRAIL = 0;
+            TradeEngine.STOP_TRAIL = 3;
             TradeEngine.TARGET_STOP_LOSS = 6; //leverage will scale to always target this as a stop loss
 
 

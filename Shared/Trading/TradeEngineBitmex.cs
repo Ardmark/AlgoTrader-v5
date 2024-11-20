@@ -801,19 +801,16 @@ namespace AlgoTrader.Shared
                                             DoFlip_Synchronised();
                                         }
                                     }
-                                    using (DataContext db = new DataContext())
+                                    var tr = Close.TradeReference;
+                                    var ex = (double)await GetGBPUSDRate();
+                                    using DataContext db = new(); //Close can drop out of context after the await method call above
+                                    var _close = db.Trades.FirstOrDefault(x => x.TradeReference == tr && x.Action == TradeAction.CLOSE);
+                                    if (_close != null)
                                     {
-                                        var tr = Close.TradeReference;
-                                        var ex = (double)await GetGBPUSDRate();
-                                        var _close = db.Trades.FirstOrDefault(x => x.TradeReference == tr && x.Action == TradeAction.CLOSE);
-
-                                        if (_close != null)
-                                        {
-                                            _close.ExchangeRate = ex;
-                                            db.SaveChanges();
-                                        }
-                                        UpdateAccountEquityForTrade(tr);
+                                        _close.ExchangeRate = ex;
+                                        db.SaveChanges();
                                     }
+                                    UpdateAccountEquityForTrade(tr);
                                 }
                             }
 
@@ -942,91 +939,12 @@ namespace AlgoTrader.Shared
             }
 
 
-            //since this is locked at the ExchangeDataProcessor.ProcessData() level, this method cannot be called again until the stop completes
-            //but this is locking the entire system until it returns.
-
-            //if this is a new stop, run synchronously
-            //if this is to update the stop price, run asynchronously or will hang the app unpredictably
-            //note, the stop may not be an active running trade so may not be the Stop object
-
-
-            //if trade is not running, then just exit
-            //if trade is running, get any existing stop and update. Otherwise, set new stop
-
-            //NOTE - if the quantity is the wrong side, it will trigger an immediate exit.
-            //e.g. if a long stop has a positive quantity, this will trigger an immediate sell, the same as if the stop was placed above the current price.
-            // not sure why Bitmex does this, 'Close on trigger' will just prevent increasing position size but the stop would therefore be the same as another market order?
-            // so surely it would just be rejected?
-            void SetStop(_Trade st)
-            {
-                if (st == null || st.Quantity == 0) //can be zero if attempting to move a closed stop
-                {
-                    return; //happens with locally placed order
-                }
-                bool isUpdating = st.ItemId != null;
-
-                var orders = bitmexAPI.GetOrders("BTCUSD");
-                BitMEXApi.Order orderStop = isUpdating
-                   ? bitmexAPI.AmendStopOrder(st)
-                   : bitmexAPI.SendOrder(symbolName, st.Quantity, "ReduceOnly", 0, st.Price);
-
-                if (orderStop != null)
-                {
-                    if (!string.IsNullOrEmpty(orderStop.OrderRejectionReason))
-                    {
-                        if (!isUpdating) //if this is a new stop order and it gets rejected, remove the stop. Otherwise leave it with an error message
-                        {
-                            RemoveTradeFromLine_UI_synchronised(st, false);
-                            SetUpdateRequest(st, TradeUpdateRequest.DELETE);
-
-                            //st.ExchangeStatus = TradeExchangeStatus.ENTERED_OFF_EXCHANGE; //just reset to default
-                            WriteDeliniatedMessage($"Stop or Floor order was rejected: {orderStop.OrderRejectionReason}");
-                        }
-                        else
-                        {
-                            WriteDeliniatedMessage($"Stop or Floor order was not updated: {orderStop.OrderRejectionReason}");
-                        }
-                        return;
-                    }
-                    else
-                    {
-                        st.ItemId = orderStop.OrderID;
-
-                        //the tick price calculation will return as a double, but the exchange tick price will be rounded for BTC
-                        // - this will result in sending a new update request when one is not needed, which will return an error lots of times
-                        // - and we want to keep showing errors in the log, so by setting the stop price to the actual stopPx value, this will be avoided
-                        st.Price = (double)orderStop.StopTriggerPrice;
-                        st.ExchangeStatus = TradeExchangeStatus.ENTERED_ON_EXCHANGE;
-
-                        SetUpdateRequest(st);
-                        if (isManualSynchStop && st.Action == TradeAction.STOP)
-                        {
-                            LogTrades.WriteLine($"{st.Action} synchronised with Exchange");
-                            isManualSynchStop = false;
-                        }
-                        if (isManualSynchFloor && st.Action == TradeAction.FLOOR)
-                        {
-                            LogTrades.WriteLine($"{st.Action} synchronised with Exchange");
-                            isManualSynchFloor = false;
-                        }
-                        return;
-                    }
-                }
-                else
-                {
-                    //this happens a lot, about once every 4 mins typically - probably because the stop price is unchanged and a new order is not required.
-                    //LogTrades.WriteLine($"Did not set {s} on exchange, orderStop was null at {DateTime.UtcNow:G}");
-                    return;
-                }
-            }
-
-
             if (stop.ExchangeStatus == TradeExchangeStatus.ENTERING_ON_EXCHANGE)
             {
                 //trade is entering, run synchronously and allow enclosing InitForDataContext() to save changes
                 try
                 {
-                    SetStop(stop);
+                    SendStopToExchange(stop);
                 }
                 catch (Exception ex)
                 {
@@ -1044,7 +962,7 @@ namespace AlgoTrader.Shared
                         {
                             try
                             {
-                                SetStop(Stop);
+                                SendStopToExchange(Stop);
                             }
                             catch (Exception ex)
                             {
@@ -1055,6 +973,69 @@ namespace AlgoTrader.Shared
                 }
             }
 
+        }
+
+        public void SendStopToExchange(_Trade st)
+        {
+            if (st == null || st.Quantity == 0) //can be zero if attempting to move a closed stop
+            {
+                return; //happens with locally placed order
+            }
+            bool isUpdating = st.ItemId != null;
+
+            var orders = bitmexAPI.GetOrders("BTCUSD");
+            BitMEXApi.Order orderStop = isUpdating
+               ? bitmexAPI.AmendStopOrder(st)
+               : bitmexAPI.SendOrder(symbolName, st.Quantity, "ReduceOnly", 0, st.Price);
+
+            if (orderStop != null)
+            {
+                if (!string.IsNullOrEmpty(orderStop.OrderRejectionReason))
+                {
+                    if (!isUpdating) //if this is a new stop order and it gets rejected, remove the stop. Otherwise leave it with an error message
+                    {
+                        RemoveTradeFromLine_UI_synchronised(st, false);
+                        SetUpdateRequest(st, TradeUpdateRequest.DELETE);
+
+                        //st.ExchangeStatus = TradeExchangeStatus.ENTERED_OFF_EXCHANGE; //just reset to default
+                        WriteDeliniatedMessage($"Stop or Floor order was rejected: {orderStop.OrderRejectionReason}");
+                    }
+                    else
+                    {
+                        WriteDeliniatedMessage($"Stop or Floor order was not updated: {orderStop.OrderRejectionReason}");
+                    }
+                    return;
+                }
+                else
+                {
+                    st.ItemId = orderStop.OrderID;
+
+                    //the tick price calculation will return as a double, but the exchange tick price will be rounded for BTC
+                    // - this will result in sending a new update request when one is not needed, which will return an error lots of times
+                    // - and we want to keep showing errors in the log, so by setting the stop price to the actual stopPx value, this will be avoided
+                    st.Price = (double)orderStop.StopTriggerPrice;
+                    st.ExchangeStatus = TradeExchangeStatus.ENTERED_ON_EXCHANGE;
+
+                    SetUpdateRequest(st);
+                    if (isManualSynchStop && st.Action == TradeAction.STOP)
+                    {
+                        LogTrades.WriteLine($"{st.Action} synchronised with Exchange");
+                        isManualSynchStop = false;
+                    }
+                    if (isManualSynchFloor && st.Action == TradeAction.FLOOR)
+                    {
+                        LogTrades.WriteLine($"{st.Action} synchronised with Exchange");
+                        isManualSynchFloor = false;
+                    }
+                    return;
+                }
+            }
+            else
+            {
+                //this happens a lot, about once every 4 mins typically - probably because the stop price is unchanged and a new order is not required.
+                //LogTrades.WriteLine($"Did not set {s} on exchange, orderStop was null at {DateTime.UtcNow:G}");
+                return;
+            }
         }
 
         protected override void RemoveStopFromExchange_Synchronised(_Trade stop)

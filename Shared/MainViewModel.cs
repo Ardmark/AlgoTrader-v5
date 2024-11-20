@@ -19,6 +19,7 @@ using System.Windows.Shapes;
 using TextBox = System.Windows.Controls.TextBox;
 using MessageBox = System.Windows.MessageBox;
 using KeyEventArgs = System.Windows.Input.KeyEventArgs;
+using System;
 
 //won't build without the fully-qualified namespace here, referenced in MainWindow.xaml by xmlns:myAttachedProperties
 namespace AlgoTrader.Live.ViewModels
@@ -402,19 +403,31 @@ namespace AlgoTrader.Live.ViewModels
 
             if (ret)
             {
-                if (price < 0)
-                {
-                    price = 0;
-                }
-                TradeEngine.STOP_TRAIL = price;
+                //get any trailing stop
                 using DataContext db = new();
-
-                //get any trailing stop and reset action value
                 var stop = db.Trades.FirstOrDefault(x => x.Action == TradeAction.STOP && x.Stop == TradeStop.STOP_TRAIL && x.GlobalStatus == TradeGlobalStatus.ACTIVE);
+                TradeEngine.STOP_TRAIL = price;
                 if (stop != null)
                 {
-                    stop.ActionValue = price / 100;
-                    Order.DoTrail(stop);
+                    if (price < 0.5)
+                    {
+                        //set to zero (or close) will remove trailing stop, same as having the value set to zero in constants
+                         stop.Stop = TradeStop.STOP_ON_LINE_BREAK;
+                    }
+                    else
+                    {
+
+                        //reset action value
+                        stop.ActionValue = price / 100;
+                        Order.DoTrail(stop);
+
+                        //must update on the exchange, otherwise it will only update when the trail moves which may not happen for ages if the market is falling (long)
+                        var tradeEngine = MainObj.visibleTradeEngine as TradeEngineBitmex;
+                        if (tradeEngine != null)
+                        {
+                            tradeEngine.SendStopToExchange(stop);
+                        }
+                    }
 
                 }
 

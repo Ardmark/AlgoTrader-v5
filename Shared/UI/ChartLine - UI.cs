@@ -288,6 +288,8 @@ namespace AlgoTrader.Shared
         public void MoveLine_UI(double oldMouseX, double newMouseX, double oldMouseY, double newMouseY, bool shiftDown, bool ctrlDown, Chart chart)
         {
 
+            var deltaX = newMouseX - oldMouseX;
+            var deltaY = newMouseY - oldMouseY;
 
             if (Trade != null)
             {
@@ -299,33 +301,45 @@ namespace AlgoTrader.Shared
                 }
 
                 //block stop movement above current price, with a small margin of 1% (or would just close straight away if on exact price anyway)
-                //if (Trade.Action == TradeAction.STOP)
-                //{
-                //    var tradeEngine = MainObj.GetTradeEngineForSymbol(Trade.SymbolName);
-                //    if (tradeEngine.currentDataItem != null)
-                //    {
-                //        var entry = tradeEngine.UI_Trades.FirstOrDefault(x => x.Action == TradeAction.ENTRY && x.TradeReference == Trade.TradeReference);
-                //        if (entry != null && entry.GlobalStatus == TradeGlobalStatus.ACTIVE)
-                //        {
-                //            //this only applies to live orders
-                //            (var currLinePrice, _) = GetPriceAtTime(tradeEngine.currentDataItem.Timestamp, true);
+                if (Trade.Action == TradeAction.STOP)
+                {
+                    var tradeEngine = MainObj.GetTradeEngineForSymbol(Trade.SymbolName);
+                    if (tradeEngine.currentDataItem != null)
+                    {
+                        var entry = tradeEngine.UI_Trades.FirstOrDefault(x => x.Action == TradeAction.ENTRY && x.TradeReference == Trade.TradeReference);
+                        if (entry != null && entry.GlobalStatus == TradeGlobalStatus.ACTIVE)
+                        {
+                            //this only applies to live orders
+                            (var currLinePrice, _) = GetPriceAtTime(tradeEngine.currentDataItem.Timestamp, true);
 
-                //            bool not_ok = Trade.Position == TradePosition.LONG
-                //                ? currLinePrice > tradeEngine.currentDataItem.Close
-                //                : currLinePrice < tradeEngine.currentDataItem.Close;
-                //            if (not_ok)
-                //            {
-                //                //locks trade to the price, cannot move
-                //                AlertDialog.Show("Cannot move stop above current price!");
-                //                return;
-                //            }
-                //        }   
-                //    }
-                //}
+                            //calculate the maximum price (i.e. long) which you must not go above when moving a line.
+                            //The line may move incrementally anyway so it can get very close to the current price otherwise, and then the price can move against the
+                            // line resulting in a trade exit
+                            double beVal = 1 + TradeEngine.BREAK_EVEN_THRESHOLD / 100;
+                            var maxPrice =  entry.Position == TradePosition.LONG
+                                ? currLinePrice * beVal
+                                : currLinePrice / beVal; 
+
+                            bool not_ok = Trade.Position == TradePosition.LONG
+                                ? maxPrice > tradeEngine.currentDataItem.Close
+                                : maxPrice < tradeEngine.currentDataItem.Close;
+                            if (not_ok)
+                            {
+                                //is line moving away from the price? Must test for this, or line will get locked once threshold is hit
+                                //locks trade to the price, cannot move
+                                not_ok = Trade.Position == TradePosition.LONG
+                                    ? deltaY < 0
+                                    : deltaY > 0;
+                                if (not_ok)
+                                {
+                                    AlertDialog.Show($"Cannot move stop too within {TradeEngine.BREAK_EVEN_THRESHOLD}% of current price! Set a floor if this is desirable.");
+                                    return;
+                                }
+                            }
+                        }   
+                    }
+                }
             }
-
-            var deltaX = newMouseX - oldMouseX;
-            var deltaY = newMouseY - oldMouseY;
 
             if (isDraggingEnd)
             {

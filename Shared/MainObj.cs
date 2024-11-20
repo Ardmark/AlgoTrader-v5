@@ -930,7 +930,10 @@ namespace AlgoTrader.Shared
                 mainViewModel.SetInitialTime(timeFrame);
                 mainViewModel.SetConcurrentOrdersMenuState(TradeEngine.MAX_CONCURRENT_TRADES);
                 mainViewModel.SetLeverageMenuState((int)TradeEngine.Leverage);
-                ToggleDarkMode();
+                if (!BACKTEST)
+                {
+                    ToggleDarkMode();
+                }
                 MainObj.ScrollToEnd();
                 TradeEngine tradeEngine = GetTradeEngineForSymbol(visibleChart.symbolName);
                 TradeStatusChanged(tradeEngine);

@@ -242,7 +242,7 @@ namespace AlgoTrader.Shared
         }
 
 
-        public static double GetBreakEvenPrice(_Trade trade, TradeEngine tradeEngine, double? percent = null)
+        public static double GetBreakEvenPrice(_Trade trade, double? percent = null)
         {
             //calculate the break-even price, as a small percentage beyond the trade entry
             double beVal = 1 + (percent == null ? TradeEngine.BREAK_EVEN_THRESHOLD / 100 : (double)percent);
@@ -588,7 +588,7 @@ namespace AlgoTrader.Shared
                 //}
 
                 //if there is a stop or floor in profit, do nothing
-                var breakEvenPrice = GetBreakEvenPrice(entry, tradeEngine);
+                var breakEvenPrice = GetBreakEvenPrice(entry);
                 if (stop != null)
                 {
                     if (stop.Position == TradePosition.LONG ? stop.Price > breakEvenPrice : stop.Price < breakEvenPrice)
@@ -604,26 +604,27 @@ namespace AlgoTrader.Shared
                     }
                 }
 
-                //if there is a better (i.e. lower/long, higher/short) stop than the trail price would set, do nothing
                 var pc = TradeEngine.STOP_TRAIL / 100;
                 var currPrice = tradeEngine.currentDataItem.Close;
                 var trailValue = entry.Position == TradePosition.LONG ? currPrice * (1 - pc) : currPrice * (1 + pc);
 
-                if (stop != null)
-                {
-                    if (stop.Position == TradePosition.LONG ? stop.Price < trailValue : stop.Price > trailValue)
-                    {
-                        return;
-                    }
-                }
+                //this was very confusing...
+                //if there is a better (i.e. lower/long, higher/short) stop than the trail price would set, do nothing
+                //if (stop != null)
+                //{
+                //    if (stop.Position == TradePosition.LONG ? stop.Price < trailValue : stop.Price > trailValue)
+                //    {
+                //        return;
+                //    }
+                //}
 
-                if (floor != null)
-                {
-                    if (floor.Position == TradePosition.LONG ? floor.Price < trailValue : floor.Price > trailValue)
-                    {
-                        return;
-                    }
-                }
+                //if (floor != null)
+                //{
+                //    if (floor.Position == TradePosition.LONG ? floor.Price < trailValue : floor.Price > trailValue)
+                //    {
+                //        return;
+                //    }
+                //}
 
                 //so there is either:
                 //no existing stop or floor
@@ -637,6 +638,12 @@ namespace AlgoTrader.Shared
                 }
                 else
                 {
+                    if (stop.Type == TradeType.FLIP_ORDER)
+                    {
+                        //a flip order, which will often be placed, cannot be used as a trailing stop as it is set at a specific price level
+                        //If a trailing stop is required, then the flip would be changed to a floor or line break stop, and the trail would then execute separately.
+                        return; 
+                    }
                     //detach stop from any line
                     var line = tradeEngine.ActiveLines.GetLineForTrade(stop);
                     if (line != null)
