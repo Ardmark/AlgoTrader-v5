@@ -539,12 +539,17 @@ namespace AlgoTrader.Shared
         {
             if (dataContext != null)
             {
-                UI_Lines = dataContext.Lines.AsNoTracking().Include(x => x.Trade).Where(x => x.SymbolName == symbolName).ToList();
-                UI_Trades = dataContext.Trades.AsNoTracking().Where(x => x.SymbolName == symbolName).ToList();
+                UI_Lines = [.. dataContext.Lines.AsNoTracking().Include(x => x.Trade).Where(x => x.SymbolName == symbolName)]; //same as .ToList()
+                UI_Trades = [.. dataContext.Trades.AsNoTracking().Where(x => x.SymbolName == symbolName)];
             }
         }
-        public void GetUILists(DataContext db, Action callback = null)
+        public void GetUILists(DataContext db, bool shallow = false, Action callback = null)
         {
+            if (shallow)
+            {
+                callback?.Invoke();
+                return; //do nothing, the lists will have had one or more members directly updated
+            }
             //get UI lists for drawing. These need now to be updated since there have been some changes somewhere
             lock (listUpdateLock) //locking here in case UI thread tries to read the data for drawing
             {
@@ -560,6 +565,24 @@ namespace AlgoTrader.Shared
                     GetUIListData(db);
 
                 }
+            }
+        }
+        public void UpdateUIList(_Trade trade)
+        {
+            if (trade == null) return;
+            var t = tradeEngine.UI_Trades.FirstOrDefault(x => x.Id == trade.Id);
+            if (t != null)
+            {
+                trade.CopyTo(t);
+            }
+        }
+        public void UpdateUIList(_ChartLine line)
+        {
+            if (line == null) return;
+            var l = tradeEngine.UI_Lines.FirstOrDefault(x => x.Id == line.Id);
+            if (l != null)
+            {
+                line.CopyTo(l);
             }
         }
         #endregion
@@ -1911,7 +1934,7 @@ namespace AlgoTrader.Shared
             }
         }
 
-        public override void Draw()
+        public override void Draw(bool shallow)
         {
             //return;
             int startFrame = Chart.ScrollBars;

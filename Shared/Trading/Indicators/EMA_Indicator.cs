@@ -30,7 +30,7 @@ namespace AlgoTrader.Shared.TradeIndicators
         //    //}
         //}
 
-        public override void Draw() => DrawLineOverlayChart(indicator, lineThickness, color);
+        public override void Draw(bool shallow) => DrawLineOverlayChart(indicator, lineThickness, color);
 
     }
 }

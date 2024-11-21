@@ -111,6 +111,9 @@ namespace AlgoTrader.Windows
         {
             mainViewModel.OnMouseUp();
         }
-
+        private void Window_MouseDown(object sender, System.Windows.Input.MouseEventArgs e)
+        {
+           // mainViewModel.OnMouseDown();
+        }
     }
 }

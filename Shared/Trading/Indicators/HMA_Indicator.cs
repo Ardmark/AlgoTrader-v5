@@ -18,7 +18,7 @@ namespace AlgoTrader.Shared.TradeIndicators
             movingAverages.Add(indicator = new HMA(candlePosition, chart, length));
         }
 
-        public override void Draw() => DrawLineOverlayChart(indicator, lineThickness, color);
+        public override void Draw(bool shallow) => DrawLineOverlayChart(indicator, lineThickness, color);
 
         public override bool CanEnterTrade(int timeFrame, double currPrice, double prevPrice, int currentFrame)
         {

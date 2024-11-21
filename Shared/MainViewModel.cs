@@ -426,9 +426,9 @@ namespace AlgoTrader.Live.ViewModels
                         if (tradeEngine != null)
                         {
                             tradeEngine.SendStopToExchange(stop);
+                            tradeEngine.UpdateUIList(stop);
                         }
                     }
-
                 }
 
                 db.SaveChanges();
@@ -863,8 +863,9 @@ namespace AlgoTrader.Live.ViewModels
                                 {
                                     trade.Timestamp = date;
                                     db.SaveChanges();
-                                    tradeEngine.GetUIListData(db);
-                                    MainObj.DrawCurrentDispatcherDelayed();
+                                    //tradeEngine.GetUIListData(db);
+                                    //tradeEngine.UpdateUIList(trade);
+                                    MainObj.DrawCurrentDispatcher(true);
                                 }
                             }
                         }
@@ -901,8 +902,10 @@ namespace AlgoTrader.Live.ViewModels
                                         close.Result = result;
                                     }
                                     db.SaveChanges();
-                                    tradeEngine.GetUIListData(db);
-                                    MainObj.DrawCurrentDispatcherDelayed();
+                                    //tradeEngine.GetUIListData(db);
+                                    tradeEngine.UpdateUIList(trade);
+                                    tradeEngine.UpdateUIList(close);
+                                    MainObj.DrawCurrentDispatcher(true);
                                 }
 
                             }
@@ -2269,20 +2272,14 @@ namespace AlgoTrader.Live.ViewModels
         public void OnMouseUp()
         {
             mouseDown = false;
-            if (MainObj.visibleChart != null)
-            {
-                MainObj.visibleChart.MouseUp();
-            }
+            MainObj.visibleChart?.MouseUp();
             //MainObj.DrawImmediate(); //calls line draw calculation again
-
         }
+
         public void OnMouseUpNoDraw()
         {
             mouseDown = false;
-            if (MainObj.visibleChart != null)
-            {
-                MainObj.visibleChart.MouseUp();
-            }
+            MainObj.visibleChart?.MouseUp();
         }
 
 

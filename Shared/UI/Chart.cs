@@ -426,7 +426,7 @@ namespace AlgoTrader.Shared
             MainObj.DrawCurrentDispatcher();
         }
 
-        public override void Draw()
+        public override void Draw(bool shallow = false)
         {
             if (
                 !canDraw ||
@@ -490,7 +490,7 @@ namespace AlgoTrader.Shared
                     liveTrailMarker = null;
 
                     #region Get all objects to draw
-                    tradeEngine.GetUILists(null, () =>
+                    tradeEngine.GetUILists(null, shallow, () =>
                     {
                         //so this is a callback, to ensure thread safety - cannot read any of the UI lists if they are being updated
                         // - it also does not create a shallow copy of the entire lists, only a copy from a query  
@@ -1501,10 +1501,7 @@ namespace AlgoTrader.Shared
         public void MouseUp()
         {
             //finish line here
-            if (currentLine != null)
-            {
-                currentLine.MouseUp_UI_synchronised();
-            }
+            currentLine?.MouseUp_UI_synchronised();
 
             ShowBox = false;
             currentLine = null;
@@ -1710,7 +1707,7 @@ namespace AlgoTrader.Shared
         internal List<_Trade> GetAllTrades()
         {
             List<_Trade> trades = null;
-            tradeEngine.GetUILists(null, () =>
+            tradeEngine.GetUILists(null, false, () =>
             {
                 trades = tradeEngine.UI_Trades.ToList(); //get a shallow copy
             });

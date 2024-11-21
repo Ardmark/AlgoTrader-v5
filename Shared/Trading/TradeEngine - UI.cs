@@ -495,8 +495,9 @@ namespace AlgoTrader.Shared
                     {
                         t.ExchangeMethodScript = null;// "Exchange not synched";
                         SetUpdateRequest(t);
+                        tradeEngine.UpdateUIList(t);
                     }
-                    MainObj.DrawCurrentDispatcherDelayed();
+                    MainObj.DrawCurrentDispatcher(true);
                 }
             });
         }
@@ -862,15 +863,13 @@ namespace AlgoTrader.Shared
 
                     //set stop on exchange
                     trade.Price = price; //MA stop will not change price
-                    LineUpTrades_UI_Synchronised(trade, chartLine, false); //this will set the stop or floor on the exchange. It is also called when moving a line, if the stop is not set on the exchange then one is created there.
+                    LineUpTrades_UI_Synchronised(trade, chartLine, false); //this will set the stop on the exchange. It is also called when moving a line, if the stop is not set on the exchange then one is created there.
 
-
-                    //                    //set stop on exchange
-                    //                    bool isEntered = order.ItemStatus == TradeItemStatus.CLOSED && order.GlobalStatus == TradeGlobalStatus.ACTIVE;
-                    //                    if (isEntered)
-                    //                    {
-                    ////                        SetStopOnExchange_Synchronised(trade);
-                    //                    }
+                    //set floor on exchange
+                    if (trade.Action == TradeAction.FLOOR)
+                    {
+                        SetStopOnExchange_Synchronised(trade);
+                    }
                     SetUpdateRequest(trade);
 
                     if (IsActiveTrade(order))
@@ -934,11 +933,14 @@ namespace AlgoTrader.Shared
                         }
                         tradeEngine.SetUpdateRequest(chartLine);
                     }
+                    tradeEngine.UpdateUIList(trade);
+                    tradeEngine.UpdateUIList(chartLine);
+
 
                 });
 
 
-                MainObj.DrawCurrentDispatcherDelayed();
+                MainObj.DrawCurrentDispatcher(true);
                 MainObj.TradeStatusChanged(this);
             }
 
@@ -946,16 +948,20 @@ namespace AlgoTrader.Shared
                     ? order.Position == TradePosition.LONG ? TradePosition.SHORT : TradePosition.LONG
                     : order.Position;
 
-            if (!CanSetTrade(orderLine, chartLine, price, tradeAction, entry, pos))
+            (bool isClose, bool isWrongSide) = CanSetTrade(orderLine, chartLine, price, tradeAction, entry, pos);
+            if (isClose)
             {
-                var m = tradeAction == TradeAction.CEILING || tradeAction == TradeAction.TAKE_PROFIT || tradeAction == TradeAction.BREAK_EVEN
-                    ? order.Position == TradePosition.LONG ? "below" : "above"
-                    : order.Position == TradePosition.LONG ? "above" : "below";
-
-                AlertDialog.ShowCallback($"Requested position is either too close to, or wrong side of, Order, and may trigger immediate exit.\nDo you wish to procede? ", $"Terminating trade position may not be valid", () =>
+                if (!isWrongSide)
                 {
-                    SetStop();
-                });
+                    //need to block setting on wrong side of current price entirely to be safe
+                    AlertDialog.ShowCallback($"Requested position is too close to Order and may trigger immediate exit.\nDo you wish to procede? ", $"Terminating trade position may not be valid", () =>            
+                        SetStop()
+                    );
+                }
+                else
+                {
+                    AlertDialog.Show("Requested position is wrong side of Order");
+                }
             }
             else
             {
@@ -1179,42 +1185,50 @@ namespace AlgoTrader.Shared
                 }
 
                 bool isEntered = order.ItemStatus == TradeItemStatus.CLOSED && order.GlobalStatus == TradeGlobalStatus.ACTIVE;
-                bool hasSetOnExchange = false;
-                foreach (var attachedTrade in trades)
+                if (isEntered)
                 {
-                    if (attachedTrade != null)
+                    //deal with stops first by getting correct price from line
+                    foreach (var attachedTrade in trades)
                     {
-                        //move stop to correct price
-                        var stopLine = AllLinesForSymbol.FirstOrDefault(x => x.TradeId == attachedTrade.Id);
-                        if (stopLine != null)
+                        if (attachedTrade != null)
                         {
-                            (attachedTrade.Price, _) = stopLine.GetPriceAtTime(attachedTrade.Timestamp, true);
-                            if (attachedTrade.Action == TradeAction.STOP || attachedTrade.Action == TradeAction.FLOOR) // && attachedTrade.Type != TradeType.FLIP_ORDER)
+                            switch (attachedTrade.Action)
                             {
+                                case TradeAction.STOP:
 
-                                if (isEntered)
-                                {
-                                    attachedTrade.ExchangeStatus = TradeExchangeStatus.ENTERING_ON_EXCHANGE;
-                                    SetStopOnExchange_Synchronised(attachedTrade);
-                                    hasSetOnExchange = true;
-                                }
+                                    //move stop to correct price
+                                    var stopLine = AllLinesForSymbol.FirstOrDefault(x => x.TradeId == attachedTrade.Id);
+                                    if (stopLine != null)
+                                    {
+                                        (attachedTrade.Price, _) = stopLine.GetPriceAtTime(attachedTrade.Timestamp, true);
+
+                                        attachedTrade.ExchangeStatus = TradeExchangeStatus.ENTERING_ON_EXCHANGE;
+                                        SetStopOnExchange_Synchronised(attachedTrade);
+
+                                        SetUpdateRequest(attachedTrade);
+                                    }
+                                    break;
+                                case TradeAction.TAKE_PROFIT:
+                                    var tpLine = AllLinesForSymbol.FirstOrDefault(x => x.TradeId == attachedTrade.Id);
+                                    if (tpLine != null)
+                                    {
+                                        (attachedTrade.Price, _) = tpLine.GetPriceAtTime(attachedTrade.Timestamp, true);
+
+                                        SetUpdateRequest(attachedTrade);
+                                    }
+                                    break;
 
                             }
-                            SetUpdateRequest(attachedTrade);
                         }
-                    }
-                }
 
-                if (!hasSetOnExchange && (trade.ExchangeStatus == TradeExchangeStatus.ENTERED_ON_EXCHANGE || trade.ExchangeStatus == TradeExchangeStatus.ENTERING_ON_EXCHANGE))
-                {
-                    //set on exchange if it is a moving average stop, or some other stop but not a floor.
-                    //UPDATE - very confusing if floors not set on exchange, as one must be as a default stop if no other stop entered
-                    //So always set on exchange
-                    SetStopOnExchange_Synchronised(trade);
+                    }
+
 
                 }
             }
         }
+            
+        
 
         //unused
         internal void AdvanceTrade_UI_synchronised(int tradeId)
@@ -1822,11 +1836,12 @@ namespace AlgoTrader.Shared
                         );
         }
 
-        internal bool CanSetTrade(_ChartLine orderLine, _ChartLine tradeLine, double price, TradeAction action, _Trade entry, TradePosition position)
+        //returns (is close, is wrong side)
+        internal (bool, bool) CanSetTrade(_ChartLine orderLine, _ChartLine tradeLine, double price, TradeAction action, _Trade entry, TradePosition position)
         {
             if (currentDataItem == null)
             {
-                return false;
+                return (false, false);
             }
             //if trade is on a line, use that for price, otherwise use supplied price (i.e. for ceiling, floor etc. where there is no line)
             if (tradeLine != null)
@@ -1854,59 +1869,37 @@ namespace AlgoTrader.Shared
 
             var v = MainObj.GetPriceDiff(basePrice, price, position) * 100;
 
-            bool canSet = false;
+            bool isClose = false;
+            bool isWrongSide = false;
 
             switch (action)
             {
                 case TradeAction.ORDER:
-                    canSet = -v > MIN_ORDER_THRESHOLD;
+                    isClose = v < MIN_ORDER_THRESHOLD;
                     break;
                 case TradeAction.BREAK_EVEN:
-                    canSet = -v > BREAK_EVEN_THRESHOLD;
+                    isClose = v < BREAK_EVEN_THRESHOLD;
+                    isWrongSide = v < 0;
                     break;
                 case TradeAction.TAKE_PROFIT:
                 case TradeAction.CEILING:
-                    canSet = -v > STOPLINE_MIN_VALUE;
+                    isClose = -v < STOPLINE_MIN_VALUE;
+                    isWrongSide = v > 0;
                     break;
                 case TradeAction.FLOOR:
                 case TradeAction.STOP:
                 case TradeAction.WAITING_STOP:
-                    canSet = v > STOPLINE_MIN_VALUE;
+                    isClose = v < STOPLINE_MIN_VALUE;
+                    isWrongSide = v < 0;
                     //break;
                     //case TradeAction.WAITING_STOP:
-                    //canSet = -v > STOPLINE_MIN_VALUE;
-                    //        canSet = position == TradePosition.LONG ? -v > STOPLINE_MIN_VALUE : v > STOPLINE_MIN_VALUE;
+                    //isClose = v < STOPLINE_MIN_VALUE;
+                    //isClose = position == TradePosition.LONG ? -v > STOPLINE_MIN_VALUE : v > STOPLINE_MIN_VALUE;
+                    //isWrongSide =
                     break;
             }
 
-            if (!canSet)
-            {
-                var s = string.Empty;
-                switch (action)
-                {
-                    case TradeAction.CEILING:
-                        s = "Ceiling";
-                        break;
-                    case TradeAction.FLOOR:
-                        s = "Floor";
-                        break;
-                    case TradeAction.TAKE_PROFIT:
-                        s = "Take Profit";
-                        break;
-                    case TradeAction.STOP:
-                        s = "Stop";
-                        break;
-                    case TradeAction.BREAK_EVEN:
-                        s = "Break even";
-                        break;
-                    case TradeAction.WAITING_STOP:
-                        s = "Waiting stop";
-                        break;
-                }
-
-                return false;
-            }
-            return true;
+            return (isClose, isWrongSide);
         }
 
         #endregion

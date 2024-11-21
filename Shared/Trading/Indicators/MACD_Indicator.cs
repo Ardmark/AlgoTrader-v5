@@ -197,7 +197,7 @@ namespace AlgoTrader.Shared.TradeIndicators
         }
 
 
-        public override void Draw()
+        public override void Draw(bool shallow)
         {
             //return;
             int startFrame = Chart.ScrollBars;

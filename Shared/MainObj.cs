@@ -1190,14 +1190,17 @@ namespace AlgoTrader.Shared
             Draw();
         }
 
-        internal static void DrawCurrentDispatcher()
+        internal static void DrawCurrentDispatcher(bool shallow = false)
         {
             Application.Current.Dispatcher.Invoke(() =>
             {
-                Draw();
+                Draw(shallow);
             });
         }
 
+        //problem here is that Chart.Draw() gets a new list from the db each time, and that may be stale if a new datacontext has updated the db
+        //this is a nasty hack but it does work at least
+        //it would be better to update the drawing lists manually with any changes, the have a Draw() method which did not do a db pull to get the new lists
         internal static void DrawCurrentDispatcherDelayed()
         {
             var timer = new System.Timers.Timer(1000)
@@ -1216,7 +1219,8 @@ namespace AlgoTrader.Shared
             });
 
         }
-        private static void Draw()
+
+        private static void Draw(bool shallow = false)
         {
             if (visibleChart == null || currentPanelList == null)
             {
@@ -1224,14 +1228,14 @@ namespace AlgoTrader.Shared
             }
 
             visibleChart.InitDraw();
-            visibleChart.Draw();
+            visibleChart.Draw(shallow);
 
             foreach (DisplayPanel panel in currentPanelList)
             {
                 if (panel != visibleChart)
                 {
                     //any chart panel won't draw unless it is visible chart, and that one has already been drawn
-                    panel.Draw(true);
+                    panel.Draw(shallow);
                 }
             }
 

@@ -59,6 +59,7 @@ namespace AlgoTrader.Shared
         #region Init
 
         public static Line CurrentLine { get; set; }
+        public static _ChartLine originalLine = new();
 
         const double endDistToDrag = 20;
         const int lineThickness = 1;
@@ -69,6 +70,7 @@ namespace AlgoTrader.Shared
             line.Cursor = a || b ? Cursors.ScrollWE : Cursors.ScrollAll;
             return (a, b);
         }
+
 
         public void InitLine(bool active)
         {
@@ -95,6 +97,7 @@ namespace AlgoTrader.Shared
                 line.MouseLeftButtonDown += (object sender, MouseButtonEventArgs e) =>
                 {
                     movingLine = this;
+                    CopyTo(originalLine);
                     MainObj.visibleChart.currentLine = this;
 
                     Trade = MainObj.visibleTradeEngine.UI_Trades.FirstOrDefault(x => x.Id == TradeId);

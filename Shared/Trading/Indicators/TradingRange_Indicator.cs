@@ -125,7 +125,7 @@ namespace AlgoTrader.Shared.TradeIndicators
             }
         }
         #region Draw
-        public override void Draw()
+        public override void Draw(bool shallow)
         {
             int startFrame = Chart.ScrollBars;
             int numFrames = Chart.ScaleBars;

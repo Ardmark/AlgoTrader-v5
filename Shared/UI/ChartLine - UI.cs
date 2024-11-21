@@ -129,110 +129,91 @@ namespace AlgoTrader.Shared
                             var order = tradeEngine.GetTradeForTradeReference(TradeAction.ORDER, chartLine.Trade.TradeReference);
                             var entry = tradeEngine.GetTradeForTradeReference(TradeAction.ENTRY, chartLine.Trade.TradeReference);
 
-                            if (order != null)
+                            if (order != null && entry != null)
                             {
                                 var orderLine = tradeEngine.AllLinesForSymbol.FirstOrDefault(x => x.TradeId == order.Id);
 
-                                bool canSet = true;
-                                if (chartLine.Trade.Action == TradeAction.ORDER && entry == null)
+                                bool isClose = true;
+                                bool isWrongSide = true;
+
+                                if (tradeEngine.currentDataItem != null)
                                 {
-                                    if (tradeEngine.currentDataItem != null)
+                                    if (chartLine.Trade.Type != TradeType.STOP_WAITING)
                                     {
-                                        canSet = true; //order can be set above or below current price
 
-                                        //price must be above or below floor, ceiling etc
-                                        var floor = tradeEngine.GetTradeForTradeReference(TradeAction.FLOOR, chartLine.Trade.TradeReference);
-                                        if (floor != null)
+                                        //first see if stop line has moved
+                                        var stopLine = tradeEngine.AllLinesForSymbol.FirstOrDefault(x => x.TradeId == chartLine.Trade.Id);
+                                        (isClose, isWrongSide) = tradeEngine.CanSetTrade(orderLine, stopLine, chartLine.Trade.Price, chartLine.Trade.Action, entry, order.Position);
+
+                                        if (!isClose)
                                         {
-                                            canSet = tradeEngine.CanSetTrade(orderLine, null, floor.Price, TradeAction.FLOOR, entry, order.Position);
-                                        }
-                                        if (canSet)
-                                        {
-                                            var ceiling = tradeEngine.GetTradeForTradeReference(TradeAction.CEILING, chartLine.Trade.TradeReference);
-                                            if (ceiling != null)
-                                            {
-                                                canSet = tradeEngine.CanSetTrade(orderLine, null, ceiling.Price, TradeAction.CEILING, entry, order.Position);
-                                            }
-
-                                            if (canSet)
-                                            {
-                                                //price must be above or below stop, etc
-                                                var stop = tradeEngine.GetTradeForTradeReference(TradeAction.STOP, chartLine.Trade.TradeReference);
-                                                if (stop != null)
-                                                {
-                                                    var stopLine = tradeEngine.AllLinesForSymbol.FirstOrDefault(x => x.TradeId == stop.Id);
-                                                    if (stopLine != null)
-                                                    {
-                                                        var pos = stop.Type == TradeType.STOP_WAITING
-                                                            ? order.Position == TradePosition.LONG ? TradePosition.SHORT : TradePosition.LONG
-                                                            : order.Position;
-                                                        canSet = tradeEngine.CanSetTrade(orderLine, stopLine, 0, TradeAction.STOP, entry, pos);
-                                                    }
-                                                }
-
-                                                if (canSet)
-                                                {
-                                                    //price must be above or below stop, etc
-                                                    var takeProfit = tradeEngine.GetTradeForTradeReference(TradeAction.TAKE_PROFIT, chartLine.Trade.TradeReference);
-                                                    if (takeProfit != null)
-                                                    {
-                                                        var tpLine = tradeEngine.AllLinesForSymbol.FirstOrDefault(x => x.TradeId == takeProfit.Id);
-                                                        if (tpLine != null)
-                                                        {
-                                                            canSet = tradeEngine.CanSetTrade(orderLine, tpLine, 0, TradeAction.TAKE_PROFIT, entry, order.Position);
-                                                        }
-                                                    }
-                                                }
-                                            }
+                                            //then see if order line has moved
+                                            (isClose, isWrongSide) = tradeEngine.CanSetTrade(orderLine, chartLine, 0, chartLine.Trade.Action, entry, order.Position);
                                         }
                                     }
-                                }
-                                else
-                                {
-                                    canSet = tradeEngine.CanSetTrade(orderLine, chartLine, 0, chartLine.Trade.Action, entry, order.Position);
-                                }
-                                if (chartLine.Trade.Type == TradeType.STOP_WAITING)
-                                {
-                                    canSet = true;
-                                }
-                                if (MainObj.BACKTEST)
-                                {
-                                    canSet = true;
-                                }
-                                if (!canSet)
-                                {
-                                    var originalLine = new _ChartLine();
-                                    chartLine.CopyTo(originalLine);
-                                    AlertDialog.ShowCallback($"Order entry, stop or take profit would be too close to, or would trigger, terminating trade.\nDo you wish to procede? ", $"Position may not be valid", () =>
+                                    static void CopyLineBack(TradeEngine tradeEngine, _ChartLine chartLine, _ChartLine originalLine)
                                     {
-                                        using (DataContext db = new DataContext())
+                                        using DataContext db = new();
+                                        var _line = db.Lines.FirstOrDefault(x => x.Id == chartLine.Id);
+                                        if (_line != null)
                                         {
-                                            var _line = db.Lines.FirstOrDefault(x => x.Id == chartLine.Id);
-                                            if (_line != null)
+                                            originalLine.CopyTo(_line);
+                                            var attachedTrade = db.Trades.FirstOrDefault(x => x.Id == _line.TradeId);
+                                            if (attachedTrade != null)
                                             {
-                                                originalLine.CopyTo(_line);
-                                                var attachedTrade = db.Trades.FirstOrDefault(x => x.Id == _line.TradeId);
-                                                if (attachedTrade != null)
-                                                {
-                                                    (attachedTrade.Price, _) = _line.GetPriceAtTime(attachedTrade.Timestamp, true);
-                                                }
-                                                db.SaveChanges();
-                                                tradeEngine.GetUILists(db, null);
-                                                MainObj.DrawCurrentDispatcherDelayed();
-                                            }
-                                        }
-                                    });
-                                    MainObj.DrawCurrentDispatcherDelayed();
-                                    lineCopy.CopyTo(chartLine);
-                                }
-                            }
+                                                (attachedTrade.Price, _) = _line.GetPriceAtTime(attachedTrade.Timestamp, true);
 
-                            tradeEngine.LineUpTrades_UI_Synchronised(chartLine.Trade, chartLine);
-                            tradeEngine.currentTradeSetReference = chartLine.Trade.TradeReference;
-                            MainObj.DrawCurrentDispatcherDelayed();
+                                                tradeEngine.UpdateUIList(attachedTrade);
+                                            }
+                                            db.SaveChanges();
+                                        }
+                                        originalLine.CopyTo(chartLine);
+
+                                        tradeEngine.UpdateUIList(chartLine);
+                                        tradeEngine.SetUpdateRequest(chartLine);
+                                    }
+
+                                    if (isClose)
+                                    {
+
+                                        _ChartLine newLine = new();
+                                        chartLine.CopyTo(newLine);
+                                        CopyLineBack(tradeEngine, chartLine, originalLine);
+
+                                        if (isWrongSide)
+                                        {
+                                            AlertDialog.Show("Trade wrong side of price");
+                                        }
+                                        else
+                                        {
+                                            //this is problematic because the enclosing method terminates before this dialog shows.
+                                            //so the line is moved back by default then forward again if agreed.
+                                            //The line copies and the database update are independent of the synchronised block
+                                            AlertDialog.ShowCallback($"Trade would be too close to price and may trigger close.\nDo you wish to procede? ", $"Position may not be valid", () =>
+                                            {
+                                                CopyLineBack(tradeEngine, chartLine, newLine);
+                                                MainObj.DrawCurrentDispatcher(true);
+                                            });
+                                        }
+                                    }
+                                    else
+                                    {
+                                        tradeEngine.UpdateUIList(chartLine);
+                                        //do a price update here so the trade can be immediately redrawn
+                                        (chartLine.Trade.Price, _) = GetPriceAtTime(chartLine.Trade.Timestamp, true);
+                                        tradeEngine.UpdateUIList(chartLine.Trade);
+                                    }
+                                    
+                                }
+
+                                //tradeEngine.LineUpTrades_UI_Synchronised(chartLine.Trade, chartLine);
+                                tradeEngine.currentTradeSetReference = chartLine.Trade.TradeReference;
+                                MainObj.DrawCurrentDispatcher(true);
+                            }
                         }
                     }
                 }
+
 
                 if (Id == 0)
                 {
@@ -301,44 +282,44 @@ namespace AlgoTrader.Shared
                 }
 
                 //block stop movement above current price, with a small margin of 1% (or would just close straight away if on exact price anyway)
-                if (Trade.Action == TradeAction.STOP)
-                {
-                    var tradeEngine = MainObj.GetTradeEngineForSymbol(Trade.SymbolName);
-                    if (tradeEngine.currentDataItem != null)
-                    {
-                        var entry = tradeEngine.UI_Trades.FirstOrDefault(x => x.Action == TradeAction.ENTRY && x.TradeReference == Trade.TradeReference);
-                        if (entry != null && entry.GlobalStatus == TradeGlobalStatus.ACTIVE)
-                        {
-                            //this only applies to live orders
-                            (var currLinePrice, _) = GetPriceAtTime(tradeEngine.currentDataItem.Timestamp, true);
+                //if (Trade.Action == TradeAction.STOP)
+                //{
+                //    var tradeEngine = MainObj.GetTradeEngineForSymbol(Trade.SymbolName);
+                //    if (tradeEngine.currentDataItem != null)
+                //    {
+                //        var entry = tradeEngine.UI_Trades.FirstOrDefault(x => x.Action == TradeAction.ENTRY && x.TradeReference == Trade.TradeReference);
+                //        if (entry != null && entry.GlobalStatus == TradeGlobalStatus.ACTIVE)
+                //        {
+                //            //this only applies to live orders
+                //            (var currLinePrice, _) = GetPriceAtTime(tradeEngine.currentDataItem.Timestamp, true);
 
-                            //calculate the maximum price (i.e. long) which you must not go above when moving a line.
-                            //The line may move incrementally anyway so it can get very close to the current price otherwise, and then the price can move against the
-                            // line resulting in a trade exit
-                            double beVal = 1 + TradeEngine.BREAK_EVEN_THRESHOLD / 100;
-                            var maxPrice =  entry.Position == TradePosition.LONG
-                                ? currLinePrice * beVal
-                                : currLinePrice / beVal; 
+                //            //calculate the maximum price (i.e. long) which you must not go above when moving a line.
+                //            //The line may move incrementally anyway so it can get very close to the current price otherwise, and then the price can move against the
+                //            // line resulting in a trade exit
+                //            double beVal = 1 + TradeEngine.BREAK_EVEN_THRESHOLD / 100;
+                //            var maxPrice =  entry.Position == TradePosition.LONG
+                //                ? currLinePrice * beVal
+                //                : currLinePrice / beVal; 
 
-                            bool not_ok = Trade.Position == TradePosition.LONG
-                                ? maxPrice > tradeEngine.currentDataItem.Close
-                                : maxPrice < tradeEngine.currentDataItem.Close;
-                            if (not_ok)
-                            {
-                                //is line moving away from the price? Must test for this, or line will get locked once threshold is hit
-                                //locks trade to the price, cannot move
-                                not_ok = Trade.Position == TradePosition.LONG
-                                    ? deltaY < 0
-                                    : deltaY > 0;
-                                if (not_ok)
-                                {
-                                    AlertDialog.Show($"Cannot move stop too within {TradeEngine.BREAK_EVEN_THRESHOLD}% of current price! Set a floor if this is desirable.");
-                                    return;
-                                }
-                            }
-                        }   
-                    }
-                }
+                //            bool not_ok = Trade.Position == TradePosition.LONG
+                //                ? maxPrice > tradeEngine.currentDataItem.Close
+                //                : maxPrice < tradeEngine.currentDataItem.Close;
+                //            if (not_ok)
+                //            {
+                //                //is line moving away from the price? Must test for this, or line will get locked once threshold is hit
+                //                //locks trade to the price, cannot move
+                //                not_ok = Trade.Position == TradePosition.LONG
+                //                    ? deltaY < 0
+                //                    : deltaY > 0;
+                //                if (not_ok)
+                //                {
+                //                    AlertDialog.Show($"Cannot move stop too within {TradeEngine.BREAK_EVEN_THRESHOLD}% of current price! Set a floor if this is desirable.");
+                //                    return;
+                //                }
+                //            }
+                //        }   
+                //    }
+                //}
             }
 
             if (isDraggingEnd)

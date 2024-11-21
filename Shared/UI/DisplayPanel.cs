@@ -201,7 +201,7 @@ namespace AlgoTrader.Shared
 
         #region Virtual / abstract
 
-        public virtual void Draw()
+        public virtual void Draw(bool shallow = false)
         {
             //derived class will then update all visible objects
         }
@@ -227,14 +227,14 @@ namespace AlgoTrader.Shared
         //ItemUpdated - must wait for ItemAdded before data is interpolated
         public virtual void ItemUpdated(_SymbolDataItem item, bool itemAdded = false) { }
 
-        public void Draw(bool allowBacktestingDraw = false)
-        {
-            if (MainObj.IsBacktesting && !allowBacktestingDraw)
-            {
-                return;
-            }
-            Draw();
-        }
+        //public void Draw(bool allowBacktestingDraw = false)
+        //{
+        //    if (MainObj.IsBacktesting && !allowBacktestingDraw)
+        //    {
+        //        return;
+        //    }
+        //    Draw();
+        //}
         #endregion
 
         #region Scaling

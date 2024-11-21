@@ -138,7 +138,7 @@ namespace AlgoTrader.Backtest.Backtesting
         {
             var firstVisibleTime = chart.LastVisibleTime.AddMinutes(-Chart.ScaleBars * TimeFrame);
             IOrderedEnumerable<_Trade> trades = null;
-            tradeEngine.GetUILists(null, () =>
+            tradeEngine.GetUILists(null, false, () =>
             {
                 trades = tradeEngine.UI_Trades.Where(x =>
                                                         x.Action == TradeAction.ORDER &&

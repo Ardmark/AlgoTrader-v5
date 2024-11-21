@@ -13,6 +13,7 @@
         LocationChanged="Window_Moved"
         MouseLeave="Window_MouseLeave"
         MouseUp="Window_MouseUp"
+        MouseDown="Window_MouseDown"
         MouseEnter="Window_MouseEnter"
         Activated="Window_Activated"
         Margin="0"
