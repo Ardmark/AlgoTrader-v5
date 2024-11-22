@@ -933,8 +933,14 @@ namespace AlgoTrader.Shared
 
                                                 if (oppOrder != null)
                                                 {
-                                                    var floorPricePC = -MainObj.GetPriceDiff(orderPriceNow, oppOrder.Price, order.Position) * 100;
-                                                    extraText = GetStopText(floorPricePC, false, order, true);
+                                                    var _oppOrderLine = visibleLines.FirstOrDefault(x => x.TradeId == oppOrder.Id);
+                                                    if (_oppOrderLine != null)
+                                                    {
+                                                        (double oppOrderPriceNow, _) = _oppOrderLine.GetPriceAtTime(DateTime.UtcNow, true);
+
+                                                        var floorPricePC = -MainObj.GetPriceDiff(orderPriceNow, oppOrderPriceNow, order.Position) * 100;
+                                                        extraText = GetStopText(floorPricePC, false, order, true);
+                                                    }
                                                 }
                                                 /*
 
