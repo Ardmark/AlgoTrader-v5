@@ -13,7 +13,6 @@
         LocationChanged="Window_Moved"
         MouseLeave="Window_MouseLeave"
         MouseUp="Window_MouseUp"
-        MouseDown="Window_MouseDown"
         MouseEnter="Window_MouseEnter"
         Activated="Window_Activated"
         Margin="0"
@@ -151,8 +150,6 @@
                         <MenuItem Header="11" Command="{Binding ConcurrentOrdersCommand}" CommandParameter="11" IsChecked="{Binding ConcurrentOrders11_Checked}"></MenuItem>
                         <MenuItem Header="12" Command="{Binding ConcurrentOrdersCommand}" CommandParameter="12" IsChecked="{Binding ConcurrentOrders12_Checked}"></MenuItem>
                     </MenuItem>
-
-                    <MenuItem Header="Set stop trail percent"  Command="{Binding SetStopTrailPercent}"></MenuItem>
 
                     <Separator />
                     <!--<MenuItem Header="Run test trade" Command="{Binding RunTestTradeCommand}"></MenuItem>

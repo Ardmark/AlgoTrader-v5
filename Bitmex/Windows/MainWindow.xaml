@@ -151,8 +151,6 @@
                         <MenuItem Header="12" Command="{Binding ConcurrentOrdersCommand}" CommandParameter="12" IsChecked="{Binding ConcurrentOrders12_Checked}"></MenuItem>
                     </MenuItem>
 
-                    <MenuItem Header="Set stop trail percent"  Command="{Binding SetStopTrailPercent}"></MenuItem>
-
                     <Separator />
                     <!--<MenuItem Header="Run test trade" Command="{Binding RunTestTradeCommand}"></MenuItem>
                     <Separator />-->

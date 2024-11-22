@@ -399,40 +399,42 @@ namespace AlgoTrader.Live.ViewModels
 
         public void SetStopTrailPC()
         {
-            var ret = double.TryParse(SetOrderAtPriceDialog.Prompt(TradeEngine.STOP_TRAIL.ToString(), $"Set trailing stop percent", mouseMoveX, mouseMoveY), out double price);
+            var ret = double.TryParse(SetOrderAtPriceDialog.Prompt("1", $"Set trailing stop percent", mouseMoveX, mouseMoveY), out double price);
 
             if (ret)
             {
+
+                if (price < 0.5)
+                {
+                    AlertDialog.Show("Cannot set trail this close");
+                    return;
+                }                
+                
                 //get any trailing stop
                 using DataContext db = new();
                 var stop = db.Trades.FirstOrDefault(x => x.Action == TradeAction.STOP && x.Stop == TradeStop.STOP_TRAIL && x.GlobalStatus == TradeGlobalStatus.ACTIVE);
-                TradeEngine.STOP_TRAIL = price;
-                if (stop != null)
+
+                if (stop == null)
                 {
-                    if (price < 0.5)
-                    {
-                        //set to zero (or close) will remove trailing stop, same as having the value set to zero in constants
-                         stop.Stop = TradeStop.STOP_ON_LINE_BREAK;
-                    }
-                    else
-                    {
+                    MainObj.visibleTradeEngine.SetStopAtPrice_UI_synchronised(DateTime.UtcNow, price, TradeStop.STOP_TRAIL);
+                }
+                else
+                {
+                    //reset action value
+                    stop.ActionValue = price / 100;
+                    Order.DoTrail(stop);
 
-                        //reset action value
-                        stop.ActionValue = price / 100;
-                        Order.DoTrail(stop);
-
-                        //must update on the exchange, otherwise it will only update when the trail moves which may not happen for ages if the market is falling (long)
-                        var tradeEngine = MainObj.visibleTradeEngine as TradeEngineBitmex;
-                        if (tradeEngine != null)
-                        {
-                            tradeEngine.SendStopToExchange(stop);
-                            tradeEngine.UpdateUIList(stop);
-                        }
+                    //must update on the exchange, otherwise it will only update when the trail moves which may not happen for ages if the market is falling (long)
+                    var tradeEngine = MainObj.visibleTradeEngine as TradeEngineBitmex;
+                    if (tradeEngine != null)
+                    {
+                        tradeEngine.SendStopToExchange(stop);
+                        tradeEngine.UpdateUIList(stop);
                     }
                 }
 
                 db.SaveChanges();
-                MainObj.DrawCurrentDispatcherDelayed();
+                MainObj.DrawCurrentDispatcher(true);
             }
         }
 
@@ -1209,6 +1211,13 @@ namespace AlgoTrader.Live.ViewModels
                 },
                 #endregion
 
+                #region Set Trailing Stop
+                () =>
+                {
+                    SetStopTrailPC();
+                    RemovePopupWindow();
+                },
+                #endregion
 
                 #region Unused 
                 #region Set Break Even
@@ -1219,28 +1228,10 @@ namespace AlgoTrader.Live.ViewModels
                     //MainObj.visibleTradeEngine.SetTakeProfitAtPercent_UI_synchronised(DateTime.UtcNow, MainObj.visibleTradeEngine.currentDataItem.Close);
                     //}
                     RemovePopupWindow();
-                },
+                }
                 #endregion
 
 
-                #region Set trailing stop (unused, poss. does not set initial price correctly?)
-            () =>
-            {
-                AlertDialog.ShowCallback("", "Set Trailing Stop position?", () =>
-                {
-                    if (MainObj.invertChart)
-                    {
-                        ShowInvertedChartWarning();
-                    }
-                    else
-                    {
-                        (DateTime timeStamp, double price) = MainObj.visibleChart.GetTimeAndPriceFromLastMouse(true);
-                        MainObj.visibleTradeEngine.SetStopAtPrice_UI_synchronised(timeStamp, price, TradeStop.STOP_TRAIL);
-                    }
-                });
-                RemovePopupWindow();
-            }
-            #endregion 
             #endregion
 
             );

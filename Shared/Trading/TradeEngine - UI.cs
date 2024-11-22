@@ -812,7 +812,7 @@ namespace AlgoTrader.Shared
                     //Set the stop
 
                     //if this is a trailing stop, need the action value
-                    double actionValue = tradeStop == TradeStop.STOP_TRAIL ? MainObj.GetPriceDiffPercent(currentDataItem, price, order.Position) : 0;
+                    double actionValue = tradeStop == TradeStop.STOP_TRAIL ? price / 100 : 0; //because the price is the percent here
 
                     _Trade trade = GetTradeForTradeReference(tradeAction);
 
@@ -862,7 +862,11 @@ namespace AlgoTrader.Shared
                     }
 
                     //set stop on exchange
-                    trade.Price = price; //MA stop will not change price
+                    trade.Price = tradeStop == TradeStop.STOP_TRAIL 
+                    ? order.Position == TradePosition.LONG //set this to be safe
+                        ? currentDataItem.Close / (1 + price / 100)
+                        : currentDataItem.Close * (1 + price / 100)
+                    : price; //MA stop will not change price
                     LineUpTrades_UI_Synchronised(trade, chartLine, false); //this will set the stop on the exchange. It is also called when moving a line, if the stop is not set on the exchange then one is created there.
 
                     //set floor on exchange
@@ -1203,10 +1207,10 @@ namespace AlgoTrader.Shared
                                         (attachedTrade.Price, _) = stopLine.GetPriceAtTime(attachedTrade.Timestamp, true);
 
                                         attachedTrade.ExchangeStatus = TradeExchangeStatus.ENTERING_ON_EXCHANGE;
-                                        SetStopOnExchange_Synchronised(attachedTrade);
 
                                         SetUpdateRequest(attachedTrade);
                                     }
+                                    SetStopOnExchange_Synchronised(attachedTrade); //trailing stop won't have a line
                                     break;
                                 case TradeAction.TAKE_PROFIT:
                                     var tpLine = AllLinesForSymbol.FirstOrDefault(x => x.TradeId == attachedTrade.Id);
@@ -1875,7 +1879,7 @@ namespace AlgoTrader.Shared
             switch (action)
             {
                 case TradeAction.ORDER:
-                    isClose = v < MIN_ORDER_THRESHOLD;
+                    //isClose = v < MIN_ORDER_THRESHOLD;
                     break;
                 case TradeAction.BREAK_EVEN:
                     isClose = v < BREAK_EVEN_THRESHOLD;

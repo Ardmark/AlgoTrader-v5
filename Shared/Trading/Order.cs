@@ -428,8 +428,8 @@ namespace AlgoTrader.Shared
 
                     void TrailStop()
                     {
-                        if (TradeEngine.STOP_TRAIL > 0)
-                        {
+                        //if (TradeEngine.STOP_TRAIL > 0)
+                        //{
 
                             //adjust the stop price - the action value (percentage) can be set below the initial stop price, so only adjust price if the difference
                             // between current price and stop price is greater than action value percentage
@@ -439,7 +439,7 @@ namespace AlgoTrader.Shared
                                 DoTrail(stop);
                                 tradeEngine.SetUpdateRequest(stop);
                             }
-                        }
+                       // }
                     }
 
                     switch (stop.Stop)
@@ -573,7 +573,7 @@ namespace AlgoTrader.Shared
             //But if there is a stop in a profit position, it won't be added, so replacing a trailing stop with any other stop will remove it.
 
 
-            if (TradeEngine.STOP_TRAIL > 0) //use this as the trail value for now
+            if (TradeEngine.AUTO_SET_TRAILING_STOP) //use this as the trail value for now
             {
                 // var pcDiff = MainObj.GetPriceDiff(currClose, entry.Price, entry.Position) * 100;
                 //if (pcDiff > TradeEngine.SET_TAKE_PROFIT_THRESHOLD_PC)
@@ -608,23 +608,6 @@ namespace AlgoTrader.Shared
                 var currPrice = tradeEngine.currentDataItem.Close;
                 var trailValue = entry.Position == TradePosition.LONG ? currPrice * (1 - pc) : currPrice * (1 + pc);
 
-                //this was very confusing...
-                //if there is a better (i.e. lower/long, higher/short) stop than the trail price would set, do nothing
-                //if (stop != null)
-                //{
-                //    if (stop.Position == TradePosition.LONG ? stop.Price < trailValue : stop.Price > trailValue)
-                //    {
-                //        return;
-                //    }
-                //}
-
-                //if (floor != null)
-                //{
-                //    if (floor.Position == TradePosition.LONG ? floor.Price < trailValue : floor.Price > trailValue)
-                //    {
-                //        return;
-                //    }
-                //}
 
                 //so there is either:
                 //no existing stop or floor
@@ -768,7 +751,7 @@ namespace AlgoTrader.Shared
                 //{
 
                 int numFrames = elapsedTime < TradeEngine.SPIKE_TRIGGER_FRAMES ? (int)elapsedTime : TradeEngine.SPIKE_TRIGGER_FRAMES;
-                if (currentFrame - numFrames > 0)
+                if (numFrames > 0 && currentFrame - numFrames > 0)
                 {
                     var prevPrice = Results[currentFrame - numFrames];
                     var pcDiff = -MainObj.GetPriceDiff(prevPrice.Close, currClose, entry.Position) * 100;

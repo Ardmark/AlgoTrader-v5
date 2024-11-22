@@ -129,7 +129,7 @@ namespace AlgoTrader.Shared
                             var order = tradeEngine.GetTradeForTradeReference(TradeAction.ORDER, chartLine.Trade.TradeReference);
                             var entry = tradeEngine.GetTradeForTradeReference(TradeAction.ENTRY, chartLine.Trade.TradeReference);
 
-                            if (order != null && entry != null)
+                            if (order != null)
                             {
                                 var orderLine = tradeEngine.AllLinesForSymbol.FirstOrDefault(x => x.TradeId == order.Id);
 
@@ -162,8 +162,8 @@ namespace AlgoTrader.Shared
                                             if (attachedTrade != null)
                                             {
                                                 (attachedTrade.Price, _) = _line.GetPriceAtTime(attachedTrade.Timestamp, true);
-
                                                 tradeEngine.UpdateUIList(attachedTrade);
+
                                             }
                                             db.SaveChanges();
                                         }
@@ -175,7 +175,6 @@ namespace AlgoTrader.Shared
 
                                     if (isClose)
                                     {
-
                                         _ChartLine newLine = new();
                                         chartLine.CopyTo(newLine);
                                         CopyLineBack(tradeEngine, chartLine, originalLine);
@@ -206,6 +205,21 @@ namespace AlgoTrader.Shared
                                     
                                 }
 
+                                //extend the line back to the order timestamp, so everything lines up (the stop timestamp will be different but it will be drawn vertically with order anyway)
+                                var gradient = (chartLine.EndPrice - chartLine.StartPrice) / (chartLine.EndTimeStamp - chartLine.StartTimeStamp).Ticks;
+                                if (chartLine.StartTimeStamp > order.Timestamp)
+                                {
+                                    var timediff = (chartLine.EndTimeStamp - chartLine.StartTimeStamp).Ticks;
+                                    chartLine.StartPrice -= gradient * (chartLine.StartTimeStamp - order.Timestamp).Ticks;
+                                    chartLine.StartTimeStamp = order.Timestamp;
+
+                                    //adjust end price and time so the line does not grow when moved away from the order
+                                    chartLine.EndTimeStamp = chartLine.StartTimeStamp.Add(new TimeSpan(timediff));
+                                    chartLine.EndPrice = chartLine.StartPrice + gradient * timediff;
+                                    tradeEngine.UpdateUIList(chartLine);
+                                    tradeEngine.SetUpdateRequest(chartLine);
+                                }
+
                                 //tradeEngine.LineUpTrades_UI_Synchronised(chartLine.Trade, chartLine);
                                 tradeEngine.currentTradeSetReference = chartLine.Trade.TradeReference;
                                 MainObj.DrawCurrentDispatcher(true);
@@ -213,7 +227,6 @@ namespace AlgoTrader.Shared
                         }
                     }
                 }
-
 
                 if (Id == 0)
                 {

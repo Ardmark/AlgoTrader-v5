@@ -24,7 +24,6 @@ namespace AlgoTrader.Windows
             TradeEngine.STOP_LINE_PRICE_GAP_PC = 0; //percent to offset trade stop lines
 
             TradeEngine.INITIAL_TAKE_PROFIT_PERCENT_MARKET = 0; //will auto-set t/p if this value is set
-            TradeEngine.STOP_TRAIL = 0;
             TradeEngine.TARGET_STOP_LOSS = 6; //leverage will scale to always target this as a stop loss
 
 

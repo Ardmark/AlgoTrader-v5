@@ -23,6 +23,7 @@
         <MenuItem Header="MA Stop"                      Command="{Binding MenuItem7_Command}" />
         <MenuItem Header="MA Flip"                      Command="{Binding MenuItem8_Command}" />
         <MenuItem Header="Floor"                        Command="{Binding MenuItem4_Command}" />
+        <MenuItem Header="Trailing stop"                Command="{Binding MenuItem9_Command}" />
         <Separator />
         <MenuItem Header="Order: Market (Long)"         Command="{Binding MenuItem5_Command}" />
         <MenuItem Header="Order: Market (Short)"        Command="{Binding MenuItem6_Command}" />

@@ -87,6 +87,7 @@ namespace AlgoTrader.Shared
         public static double STOPLINE_MIN_VALUE { get; set; } = 0.5; //Do not set to zero. As above, but for moving stop lines. Closer for easier debugging, etc.
         public static double STOP_MIN_VALUE { get; set; } = 1;
         public static double STOP_TRAIL { get; set; } = 0; //trailing extra stop, as a floor level. Will set to b/e (dead) when price excedes entry by this percent, then will trail up.Set to zero if not needed
+        public static bool AUTO_SET_TRAILING_STOP { get; set; } = false; //THIS IS UNTESTED. It uses STOP_TRAIL as the trail percent.
         public static double MAX_SHORT_STOP { get; set; }
         public static int NUM_BARS_FOR_FLOOR { get; set; } = 0; // when this many bars clear (higher lows) will set floor
         public static double MOVE_STOPS_AMT { get; set; } = 0.1;

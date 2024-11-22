@@ -732,7 +732,7 @@ namespace AlgoTrader.Shared
                     if (!MainObj.invertChart && items_chart.Any())
                     {
 
-                        string GetStopText(double stopPC, bool hasEntered, _Trade order)
+                        string GetStopText(double stopPC, bool hasEntered, _Trade order, bool oppOrder = false)
                         {
                             var text = string.Empty;
                             if (stopPC > 0)
@@ -745,7 +745,7 @@ namespace AlgoTrader.Shared
                             var gapText = TradeEngine.ENTRY_LINE_PRICE_GAP_PC > 0
                                 ? " inc.any gap(s) of { TradeEngine.ENTRY_LINE_PRICE_GAP_PC}%"
                                 : string.Empty;
-                            text += hasEntered ? " from entry" : $" from order now{gapText}";
+                            text += oppOrder ? " from opp. order" : hasEntered ? " from entry" : $" from order now{gapText}";
                             //if (!hasEntered)
                             {
                                 var lev = hasEntered 
@@ -820,6 +820,9 @@ namespace AlgoTrader.Shared
                             var close = tradeGroup.FirstOrDefault(x => x.Action == TradeAction.CLOSE);
                             var breakEven = tradeGroup.FirstOrDefault(x => x.Action == TradeAction.BREAK_EVEN);
                             var flipOrder = tradeGroup.FirstOrDefault(x => x.Type == TradeType.FLIP_ORDER);
+
+                            var oppPosition = order.Position == TradePosition.LONG ? TradePosition.SHORT : TradePosition.LONG;
+                            var oppOrder = visibleOrActiveOrders.FirstOrDefault(x => x.Action == TradeAction.ORDER && x.GlobalStatus == TradeGlobalStatus.ACTIVE && x.Position == oppPosition);
 
                             double orderPriceNow = 0;
                             if (entry != null)
@@ -927,6 +930,12 @@ namespace AlgoTrader.Shared
                                             if (trade.ItemStatus == TradeItemStatus.OPEN || trade.GlobalStatus == TradeGlobalStatus.ACTIVE || entry == null)
                                             {
                                                 string extraText = string.Empty;
+
+                                                if (oppOrder != null)
+                                                {
+                                                    var floorPricePC = -MainObj.GetPriceDiff(orderPriceNow, oppOrder.Price, order.Position) * 100;
+                                                    extraText = GetStopText(floorPricePC, false, order, true);
+                                                }
                                                 /*
 
                                                 //this is a locally placed order if it is running with a zero action value. Otherwise it was placed on exchange.
@@ -1016,7 +1025,7 @@ namespace AlgoTrader.Shared
                                                         text += " flip order ";
                                                         break;
                                                     case TradeType.STOP_WAITING:
-                                                        text += " flip stop waiting ";
+                                                        text += " flip order stop ";
                                                         break;
                                                 }
 

@@ -3,6 +3,7 @@ using AlgoTrader.Shared.Logging;
 using AlgoTrader.Shared.Windows;
 using BitMEX;
 using OpenExchangeRates;
+using System.Transactions;
 using System.Windows.Media.Animation;
 using static BitMEX.BitMEXApi;
 
@@ -127,13 +128,14 @@ namespace AlgoTrader.Shared
             var firstOppositeOrder = GetOppositeOrder(Order.Position);
             if (firstOppositeOrder != null)
             {
-                // 1) remove any stop and floor from this trade
+                // 1) remove any stop and floor from this trade since the opposing order will become a flip order stop and any other stop will either 
+                // invalidate this or be left orphaned when this triggers
                 var stop = AllTrades.FirstOrDefault(x =>
                                     x.Action == TradeAction.STOP &&
                                     x.TradeReference == Order.TradeReference);
                 if (stop != null)
                 {
-                    //just remove any line
+                    //remove any line
                     var stopLine = AllLinesForSymbol.FirstOrDefault(x => x.TradeId == stop.Id);
                     if (stopLine != null)
                     {
@@ -142,14 +144,14 @@ namespace AlgoTrader.Shared
 
                     SetUpdateRequest(stop, TradeUpdateRequest.FORCE_DELETE);
                 }
-                //leave the floor
-                //var floor = AllTrades.FirstOrDefault(x =>
-                //                    x.Action == TradeAction.FLOOR &&
-                //                    x.TradeReference == Order.TradeReference);
-                //if (floor != null)
-                //{
-                //    SetUpdateRequest(floor, TradeUpdateRequest.FORCE_DELETE);
-                //}
+                
+                var floor = AllTrades.FirstOrDefault(x =>
+                                    x.Action == TradeAction.FLOOR &&
+                                    x.TradeReference == Order.TradeReference);
+                if (floor != null)
+                {
+                    SetUpdateRequest(floor, TradeUpdateRequest.FORCE_DELETE);
+                }
 
                 // 2) convert any opposing trade stop to waiting stop
                 var oppStop = AllTrades.FirstOrDefault(x =>
@@ -187,6 +189,25 @@ namespace AlgoTrader.Shared
                     oppFloor.Type = TradeType.STOP_WAITING;
                     oppFloor.Action = TradeAction.WAITING_STOP;//convert it to a Stop, although there is no stop line
                     SetUpdateRequest(oppFloor);
+                }
+                else
+                {
+                    //add a waiting stop at the original order price
+                    var trade = Order.Clone();
+                    trade.Id = 0; //so it will be added to db
+                    trade.ItemId = null;
+                    trade.ItemStatus = TradeItemStatus.OPEN;
+                    trade.Action = TradeAction.WAITING_STOP;
+                    trade.Timestamp = DateTime.UtcNow;
+                    trade.TimeFrame = TimeFrame;
+
+                    //this may be an existing Moving Average stop, if so just changing the Type will stop the moving average update loop (see Order::ExecuteStop_synchronised())
+                    trade.Type = TradeType.STOP_WAITING;
+                    //flip side if this is a waiting stop
+                    trade.Quantity = Order.Quantity;
+                    trade.Position = Order.Position == TradePosition.LONG ? TradePosition.SHORT : TradePosition.LONG;
+                    trade.ExchangeStatus = TradeExchangeStatus.ENTERING_ON_EXCHANGE;
+                    SetUpdateRequest(trade);
                 }
 
 
@@ -692,7 +713,7 @@ namespace AlgoTrader.Shared
                                 SetStopOnExchange_Synchronised(Stop);
                                 SetUpdateRequest(Stop);
                             }
-                            else if (STOP_TRAIL == 0) //trailing stop will be subsequently set if this value is > 0, otherwise set a floor
+                            else if (!AUTO_SET_TRAILING_STOP) //trailing stop will be subsequently set if this value is > 0, otherwise set a floor
                             {
                                 //add a floor if there is not already one. The stop will be dynamically updated, so should not be dropped, but if there was an error which caused the stop to be misplaced or lost, a default floor is needed to avoid liquidation
 
@@ -749,6 +770,8 @@ namespace AlgoTrader.Shared
                             break;
                         }
 
+                        var tradeRef = Order.TradeReference;
+
                         LogTrades.WriteLine($"Closing order(s) for {symbolName}");
 
                         if (USE_SIMULATED_EXCHANGE)
@@ -801,16 +824,23 @@ namespace AlgoTrader.Shared
                                             DoFlip_Synchronised();
                                         }
                                     }
-                                    var tr = Close.TradeReference;
-                                    var ex = (double)await GetGBPUSDRate();
-                                    using DataContext db = new(); //Close can drop out of context after the await method call above
-                                    var _close = db.Trades.FirstOrDefault(x => x.TradeReference == tr && x.Action == TradeAction.CLOSE);
-                                    if (_close != null)
+                                    try
                                     {
-                                        _close.ExchangeRate = ex;
-                                        db.SaveChanges();
+                                        //there seems to not be an Order or Close at this point, so the trade reference has been saved previously...
+                                        var ex = (double)await GetGBPUSDRate();
+                                        using DataContext db = new(); //Close can drop out of context after the await method call above
+                                        var _close = db.Trades.FirstOrDefault(x => x.TradeReference == tradeRef && x.Action == TradeAction.CLOSE);
+                                        if (_close != null)
+                                        {
+                                            _close.ExchangeRate = ex;
+                                            db.SaveChanges();
+                                        }
+                                        UpdateAccountEquityForTrade(tradeRef);
                                     }
-                                    UpdateAccountEquityForTrade(tr);
+                                    catch {
+                                        LogTrades.WriteLine("Error saving exchange rate data");
+
+                                    }
                                 }
                             }
 
