@@ -153,13 +153,11 @@ namespace AlgoTrader.Shared
                     SetUpdateRequest(floor, TradeUpdateRequest.FORCE_DELETE);
                 }
 
-                // 2) convert any opposing trade stop to waiting stop
-                var oppStop = AllTrades.FirstOrDefault(x =>
-                    x.TradeReference == firstOppositeOrder.TradeReference &&
-                    x.Action == TradeAction.STOP);
-                var oppFloor = AllTrades.FirstOrDefault(x =>
-                    x.TradeReference == firstOppositeOrder.TradeReference &&
-                    x.Action == TradeAction.FLOOR);
+                // 2) convert any opposing trade stop to waiting stop and remove any opposite take profit, ceiling or break even trades
+                List<_Trade> oppTrades = [.. AllTrades.Where(x => x.TradeReference == firstOppositeOrder.TradeReference)];
+
+                var oppStop = oppTrades.FirstOrDefault(x => x.Action == TradeAction.STOP);
+                var oppFloor = oppTrades.FirstOrDefault(x => x.Action == TradeAction.FLOOR);
                 if (oppStop != null)
                 {
                     //use this stop
@@ -209,6 +207,14 @@ namespace AlgoTrader.Shared
                     trade.ExchangeStatus = TradeExchangeStatus.ENTERING_ON_EXCHANGE;
                     SetUpdateRequest(trade);
                 }
+
+                //remove any take profits, etc.
+                var oppTP = oppTrades.FirstOrDefault(x => x.Action == TradeAction.TAKE_PROFIT);
+                var oppCeiling = oppTrades.FirstOrDefault(x => x.Action == TradeAction.CEILING);
+                var oppBE = oppTrades.FirstOrDefault(x => x.Action == TradeAction.BREAK_EVEN);
+                if (oppTP != null) SetUpdateRequest(oppTP, TradeUpdateRequest.FORCE_DELETE);
+                if (oppCeiling != null) SetUpdateRequest(oppCeiling, TradeUpdateRequest.FORCE_DELETE);
+                if (oppBE != null) SetUpdateRequest(oppBE, TradeUpdateRequest.FORCE_DELETE);
 
 
                 // 3) convert opposing trade to flip order (which is also a stop)
