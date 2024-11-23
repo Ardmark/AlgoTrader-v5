@@ -2031,6 +2031,9 @@ namespace AlgoTrader.Live.ViewModels
                     ShowSetFloorPriceDialog();
                     break;
                 */
+                case Key.N:
+                    ToggleDarkMode();
+                    break;
                 case Key.H:
                     AlgoTrader.Shared.Logging.LogConnection.WriteLine(key.ToString());
                     ToggleHeikinAshi();

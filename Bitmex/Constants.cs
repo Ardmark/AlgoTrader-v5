@@ -20,7 +20,7 @@ namespace AlgoTrader.Windows
             //Trading
             TradeEngine.EXCHANGE = Shared.Enums.ExchangeId.BITMEX;
             TradeEngine.USE_SIMULATED_EXCHANGE = false;
-            TradeEngine.RESTRICTED_TRADE_VALUE = 0;
+            TradeEngine.RESTRICTED_TRADE_VALUE = 200;
 
             TradeEngine.ENTRY_LINE_PRICE_GAP_PC = 0; //percent to offset trade entry lines
             TradeEngine.STOP_LINE_PRICE_GAP_PC = 0; //percent to offset trade stop lines

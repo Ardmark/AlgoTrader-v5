@@ -1,6 +1,7 @@
 ﻿using AlgoTrader.Shared.Enums;
 using AlgoTrader.Shared.TradeIndicators;
 using AlgoTrader.Shared.Windows;
+using System.Diagnostics;
 
 namespace AlgoTrader.Shared
 {
@@ -746,14 +747,6 @@ namespace AlgoTrader.Shared
                 return;
             }
 
-            /*
-            if (entry == null && tradeStop == TradeStop.TAKE_PROFIT_PERCENT)
-            {
-                AlertDialog.Show("Can only place a Take Profit At Percent on a live trade.", "Could not set trade");
-                return;
-            }
-            */
-
             if (tradeType == TradeType.STOP_WAITING)
             {
                 var v = UI_Trades.FirstOrDefault(x =>
@@ -768,26 +761,19 @@ namespace AlgoTrader.Shared
                 }
             }
 
-            /*
-            if (entry != null && tradeStop == TradeStop.TAKE_PROFIT_PERCENT)
+            if (tradeAction == TradeAction.FLOOR)
             {
-                if (SET_TAKE_PROFIT_THRESHOLD_PC <= 0)
+                var v = UI_Trades.FirstOrDefault(x =>
+                           x.Action == TradeAction.STOP &&
+                           x.Type == TradeType.FLIP_ORDER &&
+                           x.Position == entry.Position &&
+                           x.TradeReference == entry.TradeReference);
+                if (v != null)
                 {
-                    AlertDialog.Show($"SET_BREAK_EVEN_THRESHOLD_PC not set");
+                    AlertDialog.Show("Cannot place a Floor whilst there is a Flip Order, or trade will flip when floor triggered");
                     return;
                 }
-                //can this order be placed?
-                var diff = MainObj.GetPriceDiffPercent(currentDataItem, entry.Price, entry.Position) * 100;
-                if (diff < SET_TAKE_PROFIT_THRESHOLD_PC)
-                {
-                    AlertDialog.Show($"Need at least {SET_TAKE_PROFIT_THRESHOLD_PC}% to set a Take Profit At % order");
-                    return;
-                }
-
-                //this is recalculated in Order on each update, but won't go lower
-                price = AlgoTrader.Shared.Order.GetTakeProfitAtPC_Price(entry, currentDataItem.Close);
             }
-            */
 
             //for a flip stop, the orderLine will be the line with the flip stop set on it
             var orderLine = isWaitingStop
@@ -816,7 +802,6 @@ namespace AlgoTrader.Shared
 
                     _Trade trade = GetTradeForTradeReference(tradeAction);
 
-                    //var v = AllTrades.Where(x => x.TradeReference == currentTradeSetReference).ToList();
                     if (trade == null)
                     {
                         //add a new stop derived from the trade
@@ -862,84 +847,125 @@ namespace AlgoTrader.Shared
                     }
 
                     //set stop on exchange
-                    trade.Price = tradeStop == TradeStop.STOP_TRAIL 
+                    trade.Price = tradeStop == TradeStop.STOP_TRAIL
                     ? order.Position == TradePosition.LONG //set this to be safe
                         ? currentDataItem.Close / (1 + price / 100)
                         : currentDataItem.Close * (1 + price / 100)
                     : price; //MA stop will not change price
-                    LineUpTrades_UI_Synchronised(trade, chartLine, false); //this will set the stop on the exchange. It is also called when moving a line, if the stop is not set on the exchange then one is created there.
 
-                    //set floor on exchange
-                    if (trade.Action == TradeAction.FLOOR)
+                    //LineUpTrades_UI_Synchronised(trade, chartLine, false); //this will set the stop on the exchange.
+
+                    var trades = GetTradesForTradeReference(trade.TradeReference);
+                    var lines = GetLinesForTradeReference(trade.TradeReference);
+
+                    if (!trades.Any(x => x.Id == trade.Id))
                     {
-                        SetStopOnExchange_Synchronised(trade);
+                        //add trade to list, as it will not be in the db yet
+                        trades.Add(trade);
                     }
-                    SetUpdateRequest(trade);
 
-                    if (IsActiveTrade(order))
+                    if (order != null)
                     {
-                        switch (tradeAction)
+                        if (chartLine != null)
                         {
-                            //waiting stops will do nothing here, obviously
-                            case TradeAction.STOP:
-                                Stop = trade;
-                                if (Stop.Type == TradeType.FLIP_ORDER)
+                            //line could be for order or stop, and could be for moving the line or when adding a stop
+                            chartLine.TradeId = trade.Id; //won't propagate from the Trade property until save...
+                            SetUpdateRequest(chartLine);
+                        }
+
+                        bool isEntered = order.ItemStatus == TradeItemStatus.CLOSED && order.GlobalStatus == TradeGlobalStatus.ACTIVE;
+
+                        foreach (var attachedTrade in trades)
+                        {
+                            if (attachedTrade != null)
+                            {
+                                switch (attachedTrade.Action)
                                 {
-                                    if (Floor != null)
+                                    case TradeAction.STOP:
+                                    case TradeAction.TAKE_PROFIT:
+                                        LineUpTrades(lines, attachedTrade.Action, order, isEntered);
+                                        break;
+
+                                }
+                            }
+                        }
+
+                        //set stop on exchange
+                        if (isEntered)
+                        {
+                            switch (trade.Action)
+                            {
+                                case TradeAction.STOP:
+                                case TradeAction.FLOOR:
+                                    trade.ExchangeStatus = TradeExchangeStatus.ENTERING_ON_EXCHANGE;
+                                    SetUpdateRequest(trade);
+                                    SetStopOnExchange_Synchronised(trade); //trailing stop won't have a line
+                                    break;
+
+                            }
+                            
+                        }
+
+
+
+                        if (IsActiveTrade(order))
+                        {
+                            switch (tradeAction)
+                            {
+                                //waiting stops will do nothing here, obviously
+                                case TradeAction.STOP:
+                                    Stop = trade;
+                                    if (Stop.Type == TradeType.FLIP_ORDER)
                                     {
-                                        //remove floor or it will flip on this
-                                        SetUpdateRequest(Floor, TradeUpdateRequest.DELETE);
+                                        if (Floor != null)
+                                        {
+                                            //remove floor or it will flip on this.
+                                            //the floor will not be entered anyway but just to be safe...
+                                            if (Floor.ExchangeStatus == TradeExchangeStatus.ENTERED_ON_EXCHANGE)
+                                            {
+                                                RemoveStopFromExchange_Synchronised(Floor);
+                                            }
+                                            SetUpdateRequest(Floor, TradeUpdateRequest.DELETE);
+                                        }
                                     }
-                                }
-                                break;
-                            case TradeAction.FLOOR:
-                                Floor = trade;
-                                if (Stop != null && Stop.Type == TradeType.FLIP_ORDER)
-                                {
-                                    //remove stop or it will flip on the floor
-                                    RemoveTradeFromLine_UI_synchronised(Stop);
-                                    SetUpdateRequest(Stop, TradeUpdateRequest.DELETE);
-                                }
-                                break;
-                            case TradeAction.CEILING:
-                                Ceiling = trade;
-                                break;
-                            case TradeAction.TAKE_PROFIT:
-                                TakeProfit = trade;
-                                break;
-                            case TradeAction.BREAK_EVEN:
-                                BreakEven = trade;
-                                break;
+                                    break;
+                                case TradeAction.CEILING:
+                                    Ceiling = trade;
+                                    break;
+                                case TradeAction.TAKE_PROFIT:
+                                    TakeProfit = trade;
+                                    break;
+                                case TradeAction.BREAK_EVEN:
+                                    BreakEven = trade;
+                                    break;
+                            }
                         }
-                    }
 
-
-
-                    if (chartLine != null)
-                    {
-                        chartLine.TradeReference = trade.TradeReference;
-                        chartLine.TradeId = trade.Id; //in case lines have switched
-                        SetUpdateRequest(chartLine);
-
-                        chartLine.Type = LineType.NONE;
-                        switch (tradeAction)
+                        if (chartLine != null)
                         {
-                            case TradeAction.STOP:
-                            case TradeAction.WAITING_STOP:
-                            case TradeAction.FLOOR:
-                                chartLine.Type = LineType.SUPPORT;
-                                break;
-                            case TradeAction.CEILING:
-                            case TradeAction.TAKE_PROFIT:
-                            case TradeAction.BREAK_EVEN:
-                                chartLine.Type = LineType.RESISTANCE;
-                                break;
-                        }
-                        tradeEngine.SetUpdateRequest(chartLine);
-                    }
-                    tradeEngine.UpdateUIList(trade);
-                    tradeEngine.UpdateUIList(chartLine);
+                            chartLine.TradeReference = trade.TradeReference;
+                            chartLine.TradeId = trade.Id; //in case lines have switched
+                            SetUpdateRequest(chartLine);
 
+                            chartLine.Type = LineType.NONE;
+                            switch (tradeAction)
+                            {
+                                case TradeAction.STOP:
+                                case TradeAction.WAITING_STOP:
+                                case TradeAction.FLOOR:
+                                    chartLine.Type = LineType.SUPPORT;
+                                    break;
+                                case TradeAction.CEILING:
+                                case TradeAction.TAKE_PROFIT:
+                                case TradeAction.BREAK_EVEN:
+                                    chartLine.Type = LineType.RESISTANCE;
+                                    break;
+                            }
+                            tradeEngine.SetUpdateRequest(chartLine);
+                        }
+                        tradeEngine.UpdateUIList(trade);
+                        tradeEngine.UpdateUIList(chartLine);
+                    }
 
                 });
 
@@ -970,6 +996,56 @@ namespace AlgoTrader.Shared
             else
             {
                 SetStop();
+            }
+        }
+
+        internal void LineUpTrades(List<_ChartLine> lines, TradeAction tradeAction, _Trade order, bool isEntered)
+        {
+            var trade = GetTradeForTradeReference(tradeAction, order.TradeReference);
+            if (trade != null)
+            {
+                var _line = lines.FirstOrDefault(x => x.TradeId == trade.Id);
+                var _gradient = (_line.EndPrice - _line.StartPrice) / (_line.EndTimeStamp - _line.StartTimeStamp).Ticks;
+                var _timediff = (_line.EndTimeStamp - _line.StartTimeStamp).Ticks;
+                if (!isEntered)
+                {
+                    if (_line.StartTimeStamp > order.Timestamp)
+                    {
+                        _line.StartPrice -= _gradient * (_line.StartTimeStamp - order.Timestamp).Ticks;
+                        _line.StartTimeStamp = order.Timestamp;
+                    }
+                    if (_line.EndTimeStamp < DateTime.UtcNow)
+                    {
+                        _line.EndTimeStamp = DateTime.UtcNow;
+                        _line.EndPrice = _line.StartPrice + _gradient * (DateTime.UtcNow - _line.StartTimeStamp).Ticks;
+                    }
+                    if (tradeAction != TradeAction.ORDER)
+                    {
+                        (trade.Price, _) = _line.GetPriceAtTime(DateTime.UtcNow, true);
+                    }
+                }
+                else
+                {
+                    if (_line.EndTimeStamp < DateTime.UtcNow)
+                    {
+                        _line.EndTimeStamp = DateTime.UtcNow;
+                        _line.EndPrice = _line.StartPrice + _gradient * (DateTime.UtcNow - _line.StartTimeStamp).Ticks;
+                    }
+                    if (_line.StartTimeStamp > order.Timestamp)
+                    {
+                        _line.StartTimeStamp = order.Timestamp;
+                        _line.StartPrice = _line.EndPrice + _gradient * (order.Timestamp - _line.EndTimeStamp).Ticks;
+                    }
+                    if (tradeAction != TradeAction.ORDER)
+                    {
+                        (trade.Price, _) = _line.GetPriceAtTime(DateTime.UtcNow, true);
+                    }
+                }
+
+                SetUpdateRequest(trade);
+                UpdateUIList(trade);
+                UpdateUIList(_line);
+                SetUpdateRequest(_line);
             }
         }
 

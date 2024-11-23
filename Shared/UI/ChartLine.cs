@@ -174,7 +174,7 @@ namespace AlgoTrader.Shared
                     break;
                 case LineType.SUPPORT:
                     Style = LineStyle.SOLID;
-                    SetColor(0, 0, 0, 200, 200, 200);
+                    SetColor(50, 50, 50, 200, 200, 200);
                     Thickness = lineThickness;
                     break;
                 case LineType.RESISTANCE:

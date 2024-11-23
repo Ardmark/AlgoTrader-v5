@@ -509,19 +509,19 @@ namespace AlgoTrader.Shared
 
         internal List<_Trade> GetTradesForTradeReference(string reference = null)
         {
-            var _reference = reference == null ? currentTradeSetReference : reference;
+            var _reference = reference ?? currentTradeSetReference; //reference == null ? currentTradeSetReference : reference;
             return AllTrades.Where(x => x.TradeReference == _reference).ToList();
         }
 
         internal List<_ChartLine> GetLinesForTradeReference(string reference = null)
         {
-            var _reference = reference == null ? currentTradeSetReference : reference;
+            var _reference = reference ?? currentTradeSetReference;
             return AllLinesForSymbol.Where(x => x.TradeReference == _reference).ToList();
         }
 
         internal _Trade GetTradeForTradeReference(TradeAction action, string reference = null)
         {
-            var _reference = reference == null ? currentTradeSetReference : reference;
+            var _reference = reference ?? currentTradeSetReference;
             return AllTrades.FirstOrDefault(x =>
                         x.Action == action &&
                         x.TradeReference == _reference);
