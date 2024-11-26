@@ -185,7 +185,7 @@
                 <MenuItem Header="Symbols" ItemsSource="{Binding SymbolMenu, Mode=TwoWay}"></MenuItem>
 
             </Menu>
-            <Button Command="{Binding SynchStopsWithExchangeButton_Click}" CommandParameter="0"  ToolTip="Synchronise stops with Exchange" Margin="15,0,5,0" Padding="5, 0, 5, 0" >
+            <Button Command="{Binding SynchStopsWithExchangeButton_Click}" CommandParameter="0"  ToolTip="Restart connection and synchronise stops" Margin="15,0,5,0" Padding="5, 0, 5, 0" >
                 <StackPanel Orientation="Horizontal">
                     <Image Source="Resources/Synch.png" Stretch="Fill"/>
                 </StackPanel>

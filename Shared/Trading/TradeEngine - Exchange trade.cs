@@ -148,10 +148,10 @@ namespace AlgoTrader.Shared
         #region Update live state from exchange 
 
         System.Timers.Timer timer = null;
-        public const double CHECK_EXCHANGE_INTERVAL_SECONDS = 30;
+        public const double CHECK_EXCHANGE_INTERVAL_SECONDS = 15;
         public void InitLiveUpdateTimer()
         {
-            return; //because live state update uses InitForDataContext and this does not always work in an asynch loop
+            //return; //because live state update uses InitForDataContext and this does not always work in an asynch loop
             if (timer == null)
             {
                 try

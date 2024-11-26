@@ -1,5 +1,7 @@
 ﻿using AlgoTrader.Shared.Enums;
 using AlgoTrader.Shared.Windows;
+using static System.Windows.Forms.VisualStyles.VisualStyleElement.ToolTip;
+using System.Windows.Documents;
 
 namespace AlgoTrader.Shared
 {
@@ -154,6 +156,20 @@ namespace AlgoTrader.Shared
                                         {
                                             //then see if order line has moved
                                             (isClose, isWrongSide) = tradeEngine.CanSetTrade(orderLine, chartLine, 0, chartLine.Trade.Action, entry, order.Position);
+                                        }
+                                    }
+                                    else
+                                    {
+                                        var flipOrder = tradeEngine.ActiveTrades.FirstOrDefault(x => x.Action == TradeAction.STOP && x.Type == TradeType.FLIP_ORDER);
+                                        if (flipOrder != null)
+                                        {
+                                            //var flipOrderLine = lines.FirstOrDefault(x => x.TradeId == chartLine.Trade.Id);
+                                            var flipLine = lines.FirstOrDefault(x => x.TradeId == flipOrder.Id);
+                                            var position = flipOrder.Position == TradePosition.SHORT ? TradePosition.LONG : TradePosition.SHORT;
+                                            if (flipLine != null)
+                                            {
+                                                (isClose, isWrongSide) = tradeEngine.CanSetTrade(flipLine, chartLine, flipOrder.Price, chartLine.Trade.Action, entry, position);
+                                            }
                                         }
                                     }
                                     static void CopyLineBack(TradeEngine tradeEngine, _ChartLine chartLine, _ChartLine originalLine)

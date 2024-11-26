@@ -736,7 +736,7 @@ namespace AlgoTrader.Shared
                     if (!MainObj.invertChart && items_chart.Any())
                     {
 
-                        string GetStopText(double stopPC, bool hasEntered, _Trade order, bool oppOrder = false, bool showLoss = true)
+                        string GetStopText(double stopPC, bool hasEntered, _Trade order, bool oppOrder = false, bool showLoss = true, string _text=" from opp order")
                         {
                             var text = string.Empty;
                             if (stopPC > 0)
@@ -749,7 +749,8 @@ namespace AlgoTrader.Shared
                             var gapText = TradeEngine.ENTRY_LINE_PRICE_GAP_PC > 0
                                 ? " inc.any gap(s) of { TradeEngine.ENTRY_LINE_PRICE_GAP_PC}%"
                                 : string.Empty;
-                            text += oppOrder ? " from opp. order" : hasEntered ? " from entry" : $" from order now{gapText}";
+
+                            text += oppOrder ? " from opp. order" : hasEntered ? " from entry" : $" {_text}{gapText}";
                             if (showLoss)
                             {
                                 var lev = hasEntered 
@@ -909,7 +910,18 @@ namespace AlgoTrader.Shared
                                             {
                                                 string extraText = string.Empty;
 
-                                                if (oppOrder != null)
+                                                if (flipOrder != null)
+                                                {
+                                                    var _oppOrderLine = visibleLines.FirstOrDefault(x => x.TradeId == flipOrder.Id);
+                                                    if (_oppOrderLine != null)
+                                                    {
+                                                        (double oppOrderPriceNow, _) = _oppOrderLine.GetPriceAtTime(DateTime.UtcNow, true);
+
+                                                        var floorPricePC = -MainObj.GetPriceDiff(orderPriceNow, oppOrderPriceNow, order.Position) * 100;
+                                                        extraText = GetStopText(floorPricePC, false, order, true);
+                                                    }
+                                                }
+                                                else if (oppOrder != null)
                                                 {
                                                     var _oppOrderLine = visibleLines.FirstOrDefault(x => x.TradeId == oppOrder.Id);
                                                     if (_oppOrderLine != null)
@@ -1015,30 +1027,41 @@ namespace AlgoTrader.Shared
 
 
                                                 double stopPricePC = 0;
-                                                if (trade.Type == TradeType.STOP_WAITING)
+                                                switch (trade.Type)
                                                 {
-                                                    stopPricePC = flipOrder != null
+                                                    case TradeType.STOP_WAITING:
+                                                        stopPricePC = flipOrder != null
                                                         ? -MainObj.GetPriceDiff(flipOrder.Price, trade.Price, order.Position) * 100
                                                         : 0;
+                                                        if (entry == null)
+                                                        {
+                                                            //will add this in when it breaks the entry line
+                                                            stopPricePC -= TradeEngine.ENTRY_LINE_PRICE_GAP_PC;
+                                                        }
+                                                        text += GetStopText(stopPricePC, hasEntered, order);
+                                                        break;
+                                                    case TradeType.FLIP_ORDER:
+                                                        stopPricePC = stopWaiting != null
+                                                        ? -MainObj.GetPriceDiff(stopWaiting.Price, trade.Price, order.Position) * 100
+                                                        : -MainObj.GetPriceDiff(entry.Price, trade.Price, order.Position) * 100;
+                                                        if (entry == null)
+                                                        {
+                                                            //will add this in when it breaks the entry line
+                                                            stopPricePC -= TradeEngine.ENTRY_LINE_PRICE_GAP_PC;
+                                                        }
+                                                        text += GetStopText(stopPricePC, stopWaiting == null, order, false, true, stopWaiting == null ? "" : " from waiting stop");
+                                                        break;
+                                                    default:
+                                                        stopPricePC = -MainObj.GetPriceDiff(orderPriceNow, trade.Price, order.Position) * 100;
+                                                        if (entry == null)
+                                                        {
+                                                            //will add this in when it breaks the entry line
+                                                            stopPricePC -= TradeEngine.ENTRY_LINE_PRICE_GAP_PC;
+                                                        }
+                                                        text += GetStopText(stopPricePC, hasEntered, order);
+                                                        break;
                                                 }
-                                                else
-                                                {
-                                                    stopPricePC = -MainObj.GetPriceDiff(orderPriceNow, trade.Price, order.Position) * 100;
-                                                }
-
-                                                if (trade.Stop == TradeStop.STOP_ON_LINE_BREAK)
-                                                {
-                                                    //will add this in when it breaks the stop line
-                                                    stopPricePC -= TradeEngine.ENTRY_LINE_PRICE_GAP_PC;
-                                                }
-                                                if (entry == null)
-                                                {
-                                                    //will add this in when it breaks the entry line
-                                                    stopPricePC -= TradeEngine.ENTRY_LINE_PRICE_GAP_PC;
-                                                }
-
-
-                                                text += GetStopText(stopPricePC, hasEntered, order);
+        
 
 
                                                 switch (trade.Stop)

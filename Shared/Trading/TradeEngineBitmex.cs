@@ -880,6 +880,8 @@ namespace AlgoTrader.Shared
         bool isManualSynchFloor = false;
         public override void SynchStopsWithExchange_synchronised()
         {
+            MainObj.RefreshConnector();
+
             InitForDataContext(() =>
             {
                 if (Entry != null)
@@ -897,7 +899,7 @@ namespace AlgoTrader.Shared
                 }
                 else
                 {
-                    LogTrades.WriteLine("Not entered on exchange - cannot synchronise stops with exchange.");
+                    //LogTrades.WriteLine("Not entered on exchange - cannot synchronise stops with exchange.");
                 }
                 //do a timed check to make sure this has synchronised correctly
                 var timer = new System.Timers.Timer(2000)

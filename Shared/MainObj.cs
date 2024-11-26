@@ -915,11 +915,15 @@ namespace AlgoTrader.Shared
 
             #endregion
 
+            foreach (var s in SymbolNames.GetSymbolNames())
+            {
+                var tradeEngine = GetTradeEngineForSymbol(s);
+                tradeEngine.InitLiveUpdateTimer();
+            }
 
+                //finish any UI init here
 
-            //finish any UI init here
-
-            Application.Current.Dispatcher.Invoke(() =>
+                Application.Current.Dispatcher.Invoke(() =>
             {
                 //can only run a DispatcherTimer from this thread, so InitConnector here.
                 //launch the exchange connector last, to allow db etc. to fully initialise
@@ -940,7 +944,15 @@ namespace AlgoTrader.Shared
                 ActiveTradeSummary.Init();
             });
 
+            
+
             initComplete = true; //marks so DB can now be backed up
+        }
+
+        public static void RefreshConnector()
+        {
+            exchangeConnector.StopTimers();
+            exchangeConnector = new ExchangeConnector();
         }
 
         public static void SetupSidePanel(Canvas sidePanelCanvas)

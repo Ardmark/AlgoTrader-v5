@@ -1967,6 +1967,7 @@ namespace AlgoTrader.Live.ViewModels
         void SynchStopsWithExchange()
         {
             MainObj.visibleTradeEngine.SynchStopsWithExchange_synchronised();
+            SetProperty("CurrentPrice", "Waiting..."); //does nothing here as it is immediately overwritten with previous price
         }
 
         #endregion

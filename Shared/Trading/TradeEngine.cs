@@ -1681,8 +1681,21 @@ namespace AlgoTrader.Shared
                     //UpdateAccountEquityForTrade(Entry.TradeReference);
                     //SetUpdateRequest(Close); //update adds if there is no Id set
 
+                    if (!allowFlip)
+                    {
+                        //remove the flip stop in case it is close enough to price to trigger another order!!!
+                        var flipStop = AllTrades.FirstOrDefault(x => x.Action == TradeAction.STOP && x.Type == TradeType.FLIP_ORDER);
+                        if (flipStop != null)
+                        {
+                            SetUpdateRequest(flipStop, TradeUpdateRequest.FORCE_DELETE);
+                            AllTrades.Remove(flipStop); //in case this is pulled later
+                            Stop = null;
+                        }
+                    }
+
                     ResetLiveUpdateTimer();
                     StartEntryOrClose_Synchronised(); //will remove stop and floor and do the flip, and will call CloseTradeOnSystem_Synchronised()
+
 
                     //at this point, order will be null and all exchange method scripts will be null. Close will have been added
                     //if (allowFlip)

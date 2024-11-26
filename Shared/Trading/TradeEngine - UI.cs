@@ -1005,6 +1005,10 @@ namespace AlgoTrader.Shared
             if (trade != null)
             {
                 var _line = lines.FirstOrDefault(x => x.TradeId == trade.Id);
+                if (_line == null)
+                {
+                    return;
+                }
                 var _gradient = (_line.EndPrice - _line.StartPrice) / (_line.EndTimeStamp - _line.StartTimeStamp).Ticks;
                 var _timediff = (_line.EndTimeStamp - _line.StartTimeStamp).Ticks;
                 if (!isEntered)
@@ -1366,11 +1370,11 @@ namespace AlgoTrader.Shared
                     var trade = AllTrades.FirstOrDefault(x => x.Id == tradeId);
                     if (trade != null)
                     {
-                        tradesToClose = new List<_Trade>
-                        {
+                        tradesToClose =
+                        [
                             //just the single order to close
                             GetTradeForTradeReference(TradeAction.ORDER, trade.TradeReference)
-                        };
+                        ];
                     }
                 }
                 else
@@ -1397,6 +1401,7 @@ namespace AlgoTrader.Shared
                         else
                         {
                             //order has entered
+
                             CloseTradeLive_synchronised(false);
 
                             //no, even if it is local it still should close on the exchange
@@ -1932,7 +1937,7 @@ namespace AlgoTrader.Shared
             var msg = entry == null ? "projected entry price" : "current entry price";
 
             var basePrice = currentDataItem.Close;
-            if (entry == null)
+            if (entry == null || action == TradeAction.WAITING_STOP)
             {
                 if (orderLine != null)
                 {
@@ -1940,11 +1945,6 @@ namespace AlgoTrader.Shared
                 }
             }
 
-            if (action == TradeAction.WAITING_STOP && orderLine != null)
-            {
-                //waiting stop must be measured against order line
-                (basePrice, _) = orderLine.GetPriceAtTime(currentDataItem.Timestamp, true);
-            }
 
 
             var v = MainObj.GetPriceDiff(basePrice, price, position) * 100;

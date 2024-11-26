@@ -112,6 +112,10 @@ namespace AlgoTrader.Shared.ExchangeConnection
         //set backup folder in Constants (possibly rename to Config???)
         //set up for sequential backups, although disk space may be an issue in Onedrive (perhaps have more than one folder???)
 
+        public void StopTimers()
+        {
+            exchangeDataProcessor.StopTimers();
+        }
         public static async Task BackupDB()
         {
             if (MainObj.initComplete == false)

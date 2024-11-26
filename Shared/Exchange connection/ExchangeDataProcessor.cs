@@ -45,7 +45,7 @@ namespace AlgoTrader.Shared.ExchangeConnection
         public ExchangeDataProcessor(ExchangeId exchangeId)
         {
             this.exchangeId = exchangeId;
-
+            symbolNamesToUpdate.Clear();
             if (MainObj.READ_LIVE_DATA)
             {
                 timer = new DispatcherTimer();
@@ -133,7 +133,7 @@ namespace AlgoTrader.Shared.ExchangeConnection
             }
         }
 
-        void StopTimers()
+        public void StopTimers()
         {
             if (timer != null && timer.IsEnabled)
             {
@@ -145,6 +145,7 @@ namespace AlgoTrader.Shared.ExchangeConnection
                 cleanupTimer.Stop();
             }
         }
+
         #endregion
 
         #region Connection
