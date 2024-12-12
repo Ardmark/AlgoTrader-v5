@@ -66,7 +66,7 @@ namespace AlgoTrader.Shared
         public static double MIN_LEVERAGE_SHORT { get; internal set; } = 1;
         public static double MIN_LEVERAGE_LONG { get; internal set; } = 1.2;
         //public static double DEFAULT_LEVERAGE { get; internal set; } = 1;
-        public static double MAX_LEVERAGE { get; internal set; } = 2;
+        public static double DEFAULT_LEVERAGE { get; internal set; } = 2;
 
 
 
@@ -256,17 +256,32 @@ namespace AlgoTrader.Shared
             stopPC = Math.Abs(stopPC); //to be safe
             if (stopPC == 0)
             {
-                var _leverage = Math.Max(Math.Min(Leverage, MAX_LEVERAGE), minLeverage);
+                var _leverage = Math.Max(Math.Min(Leverage, DEFAULT_LEVERAGE), minLeverage);
                 LogTrades.WriteLine($"No stop to calculate leverage from, using default leverage of {_leverage}");
                 return _leverage;
             }
 
             stopPC += STOP_LINE_PRICE_GAP_PC; //because this will be added in when it stops out, if it is a stop line (just use it anyway)
 
-            var leverage = TARGET_STOP_LOSS / stopPC; //this is the default leverage here
+            //var leverage = MAX_STOP_LOSS / stopPC; //this is the default leverage here
 
             //if leverage is outside of min and max range, clamp it
-            leverage = Math.Max(Math.Min(leverage, MAX_LEVERAGE), minLeverage);
+            //leverage = Math.Max(Math.Min(leverage, MAX_LEVERAGE), minLeverage);
+
+
+            //clamp max loss to a limit by limiting leverage, but keep leverage to the minimum value
+            //don't want every loss (initially set) to be the same large default, it is very bothersome
+            //but also don't want a trade to accidentally set a huge initial loss of, say, 3 * 8 = 24% + spread + fees
+            //e.g. DEFAULT_LEVERAGE = 3, MAX_STOP_LOSS = 9
+            //stop = 1, leverageScale = 1 * 3 / 9 = 0.333, leverage = 3 / 0.333 = 9
+            //stop = 2, leverageScale = 2 * 3 / 9 = 0.667, leverage = 3 / 0.667 = 4.5
+            //stop = 3, leverageScale = 3 * 3 / 9 = 1, leverage = 3 / 1 = 3
+            //stop = 6, leverageScale = 6 * 3 / 9 = 2, leverage = 3 / 2 = 1.5
+            //stop = 9, leverageScale = 9 * 3 / 9 = 3, leverage = 3 / 3 = 1
+            var leverageScale = stopPC * DEFAULT_LEVERAGE / MAX_STOP_LOSS;           
+            var leverage = Math.Min(DEFAULT_LEVERAGE / leverageScale, DEFAULT_LEVERAGE);
+
+
 
             //This algorithm attempts to set the leverage so the maximum allowed loss is always the same.
             //For small initial stops, the leverage may be outside of the max. allowed leverage, so that will clamp the leverage and reduce the
@@ -370,7 +385,7 @@ namespace AlgoTrader.Shared
                 ? Math.Max(leverage, MIN_LEVERAGE_LONG)
                 : Math.Max(leverage, MIN_LEVERAGE_SHORT);
 
-            var stop = TARGET_STOP_LOSS / leverage; //this obviously cannot be greater than the target stop loss
+            var stop = MAX_STOP_LOSS / leverage; //this obviously cannot be greater than the target stop loss
             stop = Math.Max(stop, STOP_MIN_VALUE); //use this minimum stop value as a lower limit
             return stop;
         }

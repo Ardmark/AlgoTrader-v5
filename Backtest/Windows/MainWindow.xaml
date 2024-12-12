@@ -57,11 +57,12 @@
             <RowDefinition Height="10" />
         </Grid.RowDefinitions>
         <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="*"></ColumnDefinition>
+            <ColumnDefinition Width="213*"></ColumnDefinition>
+            <ColumnDefinition Width="1687*"/>
 
         </Grid.ColumnDefinitions>
 
-        <StackPanel Grid.Row="0" Grid.Column="0" Orientation="Horizontal">
+        <StackPanel Grid.Row="0" Grid.Column="0" Orientation="Horizontal" Grid.ColumnSpan="2">
 
             <!-- to bind to a different object, just put it as a property in the main view model and reference the binding method from that-->
             <Button Command="{Binding MoveStops_Click}" CommandParameter="0" Content="Stop &gt;-&lt; $" ToolTip="Move stops towards current price" Margin="10,0,5,0" Padding="5, 0, 5, 0" />
@@ -73,9 +74,9 @@
 
                 <MenuItem Header="File">
                     <MenuItem Header="Backup DB" Command="{Binding BackupDBCommand}" IsEnabled="{Binding BackupDBEnabled}"></MenuItem>
-                    <Separator />
+                    <!--<Separator />
                     <MenuItem Header="{Binding ConnectionMenuTitle, Mode=OneWay}" Command="{Binding ConnectionCommand}"></MenuItem>
-                    <MenuItem Header="Reset" Command="{Binding RestartCommand}"></MenuItem>
+                    <MenuItem Header="Reset" Command="{Binding RestartCommand}"></MenuItem>--><!-- removed as the yinyang button does a full ExchangeConnector reset with a new object created-->
                 </MenuItem>
                 |
                 <MenuItem Header="View" x:Name="ViewMenu">
@@ -238,7 +239,7 @@
 
         </StackPanel>
 
-        <Grid x:Name="PanelsContainer" Grid.Row="1" VerticalAlignment="Stretch" HorizontalAlignment="Stretch" Margin="0">
+        <Grid x:Name="PanelsContainer" Grid.Row="1" Grid.ColumnSpan="2">
             <Grid.RowDefinitions>
                 <RowDefinition Height="*" />
             </Grid.RowDefinitions>
@@ -301,7 +302,7 @@
             </Grid>
         </Grid>
 
-        <Grid Grid.Row="2" x:Name="ButtonsContainer" HorizontalAlignment="Stretch">
+        <Grid Grid.Row="1" x:Name="ButtonsContainer" Grid.ColumnSpan="2" Margin="0,930,0,0" Grid.RowSpan="2">
             <Grid.RowDefinitions>
                 <RowDefinition />
             </Grid.RowDefinitions>

@@ -758,7 +758,7 @@ namespace AlgoTrader.Shared
                                     : TradeEngineBitmex.CalculateLeverageFromStop(Math.Abs(stopPC), order.Position);
                                 var t1 = lev.ToString("F1");
                                 
-                                if (lev == TradeEngineBitmex.MAX_LEVERAGE)
+                                if (lev == TradeEngineBitmex.DEFAULT_LEVERAGE)
                                 {
                                     t1 += " (max)";
                                 }
@@ -767,7 +767,7 @@ namespace AlgoTrader.Shared
                                 var t2 = loss.ToString("F1");
 
                                 var t3 = string.Empty;
-                                if (Math.Abs(loss) > TradeEngine.TARGET_STOP_LOSS)
+                                if (Math.Abs(loss) > TradeEngine.MAX_STOP_LOSS + 0.000001)//just to avoid rounding errors
                                 {
                                     t3 = " (over target)";
                                 }
@@ -1429,43 +1429,52 @@ namespace AlgoTrader.Shared
                                 : $"{quantity} {activeOrder.SymbolName}";
 
                             amt += activeOrder.ExchangeId == ExchangeId.BITMEX ? $" (${quantity})\n" : "\n";
-                            var pc = $"{runningPriceDiff.ToString("0.0")}%\n";
-                            if (runningPriceDiff > 0)
+                            var entry = visibleOrActiveOrders.FirstOrDefault(x => x.Action == TradeAction.ENTRY && x.TradeReference == activeOrder.TradeReference);
+                            if (entry != null)
                             {
-                                pc = "+" + pc;
+                                var _orderPriceNow = entry.Price;
+                                if (tradeEngine.currentDataItem != null)
+                                {
+                                    runningPriceDiff = -MainObj.GetPriceDiff(_orderPriceNow, tradeEngine.currentDataItem.Close, entry.Position) * 100;
+                                }
+                                var pc = $"{runningPriceDiff:0.0}%\n";
+                                if (runningPriceDiff > 0)
+                                {
+                                    pc = "+" + pc;
+                                }
+                                var pos = activeOrder.Position == TradePosition.LONG ? "Long\n" : "Short\n";
+
+                                string extraText = string.Empty;
+
+                                switch (activeOrder.Type)
+                                {
+                                    case TradeType.HMA_BREAK_ORDER:
+                                        extraText = $"HMA break";
+                                        break;
+                                    case TradeType.LINE_BREAK_ORDER:
+                                        extraText = $"Line break";
+                                        break;
+                                    case TradeType.PRICE_BREAK_ORDER:
+                                        extraText = $"Price break";
+                                        break;
+                                    case TradeType.MARKET_ORDER:
+                                        extraText = $"Market";
+                                        break;
+                                    case TradeType.LIMIT_ORDER:
+                                        extraText = $"Limit";
+                                        break;
+                                    case TradeType.AUTO_ORDER:
+                                        extraText = $"Auto";
+                                        break;
+                                }
+
+                                extraText += " order\n";
+                                var s = activeOrder.TimeFrame > 1 ? "s" : "";
+
+                                var timeFrame = $"{activeOrder.TimeFrame}min{s}\n";
+
+                                SetOverlay($"{sn}{system}{paused}\n-------------------------\n\n{pc}\n{amt}\n{pos}\n{leverage}\n{timeFrame}\n{extraText}\n-------------------------\n{hideAllButSelected}{hideWaiting}{hideClosed}{hideAll}");
                             }
-                            var pos = activeOrder.Position == TradePosition.LONG ? "Long\n" : "Short\n";
-
-                            string extraText = string.Empty;
-
-                            switch (activeOrder.Type)
-                            {
-                                case TradeType.HMA_BREAK_ORDER:
-                                    extraText = $"HMA break";
-                                    break;
-                                case TradeType.LINE_BREAK_ORDER:
-                                    extraText = $"Line break";
-                                    break;
-                                case TradeType.PRICE_BREAK_ORDER:
-                                    extraText = $"Price break";
-                                    break;
-                                case TradeType.MARKET_ORDER:
-                                    extraText = $"Market";
-                                    break;
-                                case TradeType.LIMIT_ORDER:
-                                    extraText = $"Limit";
-                                    break;
-                                case TradeType.AUTO_ORDER:
-                                    extraText = $"Auto";
-                                    break;
-                            }
-
-                            extraText += " order\n";
-                            var s = activeOrder.TimeFrame > 1 ? "s" : "";
-
-                            var timeFrame = $"{activeOrder.TimeFrame}min{s}\n";
-
-                            SetOverlay($"{sn}{system}{paused}\n-------------------------\n\n{pc}\n{amt}\n{pos}\n{leverage}\n{timeFrame}\n{extraText}\n-------------------------\n{hideAllButSelected}{hideWaiting}{hideClosed}{hideAll}");
                         }
                         else
                         {

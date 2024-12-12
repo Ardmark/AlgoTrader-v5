@@ -91,7 +91,7 @@ namespace AlgoTrader.Shared
         public static double MAX_SHORT_STOP { get; set; }
         public static int NUM_BARS_FOR_FLOOR { get; set; } = 0; // when this many bars clear (higher lows) will set floor
         public static double MOVE_STOPS_AMT { get; set; } = 0.1;
-        public static double TARGET_STOP_LOSS { get; internal set; } = 1;
+        public static double MAX_STOP_LOSS { get; internal set; } = 1;
 
         //take profit (unused)
         public static double INITIAL_TAKE_PROFIT_PERCENT_MARKET { get; set; } = 0; //initial take profit percent (set to zero to block setting TP initially) - set to any % to place an initial take profit  

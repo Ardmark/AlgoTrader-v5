@@ -24,7 +24,7 @@ namespace AlgoTrader.Windows
             TradeEngine.STOP_LINE_PRICE_GAP_PC = 0; //percent to offset trade stop lines
 
             TradeEngine.INITIAL_TAKE_PROFIT_PERCENT_MARKET = 0; //will auto-set t/p if this value is set
-            TradeEngine.TARGET_STOP_LOSS = 6; //leverage will scale to always target this as a stop loss
+            TradeEngine.MAX_STOP_LOSS = 9; //leverage will scale to always target this as a stop loss if actual loss is greater from default leverage
 
 
             /* 
@@ -36,7 +36,7 @@ namespace AlgoTrader.Windows
              * */
             TradeEngineBitmex.MIN_LEVERAGE_SHORT = 1;
             TradeEngineBitmex.MIN_LEVERAGE_LONG = 1.333;
-            TradeEngineBitmex.MAX_LEVERAGE = 5;
+            TradeEngineBitmex.DEFAULT_LEVERAGE = 3;
             TradeEngine.MINIMUM_TRADE_TIME = 120;
 
             TradeEngine.STOP_MIN_VALUE = 1;

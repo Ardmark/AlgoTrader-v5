@@ -1966,6 +1966,7 @@ namespace AlgoTrader.Live.ViewModels
 
         void SynchStopsWithExchange()
         {
+            LogTrades.WriteLine("Killing ExchangeConnector and restarting connection.");
             MainObj.visibleTradeEngine.SynchStopsWithExchange_synchronised();
             SetProperty("CurrentPrice", "Waiting..."); //does nothing here as it is immediately overwritten with previous price
         }
@@ -2338,13 +2339,13 @@ namespace AlgoTrader.Live.ViewModels
         public void SetWindowTitle()
         {
 
-            var executionType = MainObj.BACKTEST ? " Testnet trading " : " LIVE TRADING ";
-            var orderLimit = TradeEngine.RESTRICTED_TRADE_VALUE > 0 ? $", ${TradeEngine.RESTRICTED_TRADE_VALUE} trade limit " : "";
+            var executionType = MainObj.BACKTEST ? "Testnet trading " : "LIVE TRADING ";
+            var orderLimit = TradeEngine.RESTRICTED_TRADE_VALUE > 0 ? $" | ${TradeEngine.RESTRICTED_TRADE_VALUE} trade limit " : "";
             var exchange = TradeEngine.EXCHANGE.GetEnumDisplayName();
-            string title = $"{exchange} " + (TradeEngine.USE_SIMULATED_EXCHANGE ? "using SIMULATED EXCHANGE" : $"{executionType} - {TradeEngine.Leverage}X leverage {orderLimit}");
+            string title = $"{exchange} " + (TradeEngine.USE_SIMULATED_EXCHANGE ? "using SIMULATED EXCHANGE" : $"{executionType} | {TradeEngine.Leverage}X market leverage | {TradeEngineBitmex.DEFAULT_LEVERAGE}X fixed price break leverage | {TradeEngineBitmex.MAX_STOP_LOSS}% fixed max. loss {orderLimit}");
 
 #if BACKTEST
-            title += " - Backtest build";
+            title += " | Backtest build";
 #endif
 #if AUTO_ORDER
             tiel += " - auto order enabled";
