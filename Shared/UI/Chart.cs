@@ -638,7 +638,7 @@ namespace AlgoTrader.Shared
 
                     var lastVisibleCandle = rightEdgeTimestamp.AddMinutes(-TimeFrame * 3); //or will scale to the next non-visible one
                     var _range = items_chart.Where(x => x.Timestamp > leftEdgeTimestamp && x.Timestamp <= lastVisibleCandle).Select(x => new { x.Low, x.High });
-                    if (_range.Any())
+                    if (_range.Count() != 0)
                     {
                         High = _range.Max(x => x.High);
                         Low = _range.Min(x => x.Low);
@@ -1547,7 +1547,7 @@ namespace AlgoTrader.Shared
 
         public void MouseMove(double mouseX, double mouseY, bool mouseDown, bool shiftDown, bool ctrlDown, bool toggleDraw)
         {
-            if (items_chart == null || !items_chart.Any())
+            if (items_chart == null || items_chart.Count == 0)
             {
                 return;
             }
@@ -2032,7 +2032,7 @@ namespace AlgoTrader.Shared
 
         public int GetFrameForTimestamp(DateTime timestamp, bool isDrawingLine = false)
         {
-            if (!Results.Any())
+            if (Results.Count == 0)
             {
                 return 0;
             }
@@ -2066,7 +2066,7 @@ namespace AlgoTrader.Shared
 
         internal DateTime GetTimestampFromFrameNum(int frameNum)
         {
-            if (!Results.Any())
+            if (Results.Count == 0)
             {
                 return DateTime.UtcNow;
             }

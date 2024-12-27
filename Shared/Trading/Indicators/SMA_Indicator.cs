@@ -20,32 +20,6 @@ namespace AlgoTrader.Shared.TradeIndicators
             movingAverages.Add(indicator = new SMA(candlePosition, chart, length));
         }
 
-        //ItemAdded - called when an item is added to the DB, this can be used for example with a moving average
-        //public override void ItemAdded(_SymbolDataItem item, bool canComputeTradeEntry, bool liveItem)//, bool redrawOnly)
-        //{
-        //    base.ItemAdded(item, canComputeTradeEntry, liveItem);
-
-        //    //foreach (var timeFrame in MainObj.timeFrames)
-        //    //{
-        //    //    indicator?.ItemAdded(item, timeFrame);
-        //    //}
-        //}
-
         public override void Draw(bool shallow) => DrawLineOverlayChart(indicator, lineThickness, color, space);
-
-        /*     public override void Draw(int startFrame, int numFrames, DataContext db)
-             {
-                 canvas.Children.Clear();
-
-                 List<double> items_smaD = indicator.GetResults(startFrame, numFrames);
-
-                 Low = double.MaxValue;
-                 High = double.MinValue;
-                 SetScaling(new[] { items_smaD });
-
-                 DrawLineSegments(items_smaD, 1, Brushes.Blue); //blue
-
-             }
-     */
     }
 }

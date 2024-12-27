@@ -81,7 +81,7 @@ namespace AlgoTrader.Shared.MovingAverages
         #region Init
         public MovingAverage(CandlePosition candlePosition, Chart chart, int length)
         {
-            //chart = this.chart;
+            this.chart = chart;
             this.candlePosition = candlePosition;
             movingAverageLength = length;
         }
@@ -122,7 +122,7 @@ namespace AlgoTrader.Shared.MovingAverages
         #endregion
 
         #region Add item
-        public double ItemAdded(_SymbolDataItem item, int timeFrame)
+        public virtual double ItemAdded(_SymbolDataItem item, int timeFrame)
         {
             var aggregator = GetAggregator(timeFrame);
             return AddElement(aggregator.AggregateEveryFrame(item), timeFrame, aggregator);

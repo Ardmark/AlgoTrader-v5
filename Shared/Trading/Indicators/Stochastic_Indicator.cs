@@ -20,26 +20,15 @@ namespace AlgoTrader.Shared.TradeIndicators
 
         #endregion
 
-        /// <summary>
-        /// Constructor
-        /// </summary>
-        /// <param name="mainViewModel">Main view model    </param>
-        /// <param name="canvas">Canvas - either Chart (to overlay main display) or separate canvas    </param>
-        /// <param name="length">Moving average length          </param>
-        /// <param name="candlePosition">Open, Close, High or Low   </param>
-        /// <param name="lineThicknessK">Line thickness for stochastic   </param>
-        /// <param name="colorK">Line color for stochastic   </param>
-        /// <param name="lineThicknessD">Line thickness for SMA   </param>
-        /// <param name="colorD">color thickness for SMA   </param>
-
-        public Stochastic_Indicator(int timeInterval, TradeEngine tradeEngine, Chart chart, int length, CandlePosition candlePosition, int lineThicknessK, SolidColorBrush colorK, int lineThicknessD, SolidColorBrush colorD) : base(null, timeInterval, tradeEngine, chart)
+        public Stochastic_Indicator(int timeInterval, TradeEngine tradeEngine, Chart chart, int length, CandlePosition candlePosition, int lineThickness, SolidColorBrush color) : base(null, timeInterval, tradeEngine, chart)
         {
-            this.lineThicknessK = lineThicknessK;
-            this.colorK = colorK;
+            this.lineThicknessK = lineThickness;
+            this.colorK = color;
 
-            this.lineThicknessD = lineThicknessD;
-            this.colorD = colorD;
+            this.lineThicknessD = lineThickness;
+            this.colorD = color;
 
+            canvas = MainObj.indicator1_Canvas;
             movingAverages.Add(stochastic = new Stochastic(candlePosition, chart, length));
             movingAverages.Add(smaK = new SMA(candlePosition, chart, 3));
             movingAverages.Add(smaD = new SMA(candlePosition, chart, 3));
@@ -47,8 +36,6 @@ namespace AlgoTrader.Shared.TradeIndicators
 
         public override void ItemAdded(_SymbolDataItem item, bool canComputeTradeEntry, bool liveItem)//, bool redrawOnly)
         {
-            base.ItemAdded(item, canComputeTradeEntry, liveItem);
-
             foreach (var timeFrame in MainObj.timeFrames)
             {
                 smaD.AddElementNoAggregation(smaK.AddElementNoAggregation(stochastic.ItemAdded(item, timeFrame), timeFrame), timeFrame);
@@ -64,6 +51,7 @@ namespace AlgoTrader.Shared.TradeIndicators
             {
                 return;
             }
+
             InitDraw();
             canvas.Children.Clear();
             List<double> items_smaK = stochastic.GetResults(startFrame, numFrames, Chart.TimeFrame);
@@ -72,13 +60,7 @@ namespace AlgoTrader.Shared.TradeIndicators
             #region set the scaling to exactly fill the panel
             Low = double.MaxValue;
             High = double.MinValue;
-            SetScaling(new[] { items_smaK, items_smaD });
-            #endregion
-
-            #region set scaling to 0-100 range
-            //     Low = 0;
-            //     High = 100;
-            //     SetScaling();
+            SetScaling([items_smaK, items_smaD]);
             #endregion
 
             DrawLineSegments(items_smaK, lineThicknessK, colorK); //blue

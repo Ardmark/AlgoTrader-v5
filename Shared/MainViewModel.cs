@@ -88,7 +88,7 @@ namespace AlgoTrader.Live.ViewModels
             var clear = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromArgb(0, 255, 255, 255));
             try
             {
-                CloseAllOrdersEnabled = activeTrades.Any();
+                CloseAllOrdersEnabled = activeTrades.Count != 0;
                 if (price != null)
                 {
                     SetProperty("CurrentPrice", price);
@@ -1349,7 +1349,8 @@ namespace AlgoTrader.Live.ViewModels
             {
                 //this is fine but there is no need for any indicators now...
                 //new HMA_Indicator(0, tradeEngine, chart, 100, CandlePosition.CLOSE, 2, System.Windows.Media.Brushes.Blue),
-                new SMA_Indicator(0, tradeEngine, chart, 22, CandlePosition.CLOSE, 1, System.Windows.Media.Brushes.LightGreen),
+                new RMA_Indicator(0, tradeEngine, chart, 22, CandlePosition.CLOSE, 1, System.Windows.Media.Brushes.LightGreen),
+                new StochasticRSI_Indicator(0, tradeEngine, chart, 22, CandlePosition.CLOSE, 1, System.Windows.Media.Brushes.LightGreen),
             };
 
         }

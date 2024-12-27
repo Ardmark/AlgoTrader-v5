@@ -276,10 +276,11 @@ namespace AlgoTrader.Shared
         {
             foreach (List<double> list in lists)
             {
-                var min = list.Min();
-                var max = list.Max();
-                if (min < Low) Low = min;
-                if (max > High) High = max;
+                if (list.Count != 0)
+                {
+                    Low = Math.Min(list.Min(), Low);
+                    High = Math.Max(list.Max(), High);
+                }
             }
             double range = rangeScale * (High - Low);
 
@@ -310,8 +311,8 @@ namespace AlgoTrader.Shared
             Scale = Chart.Scale;
 
             //returned values are latest at [0], earliest at end
-            Point start = new Point();
-            Point end = new Point();
+            Point start = new();
+            Point end = new();
             int count = 0;
             if (_continue == false)
             {
@@ -349,7 +350,7 @@ namespace AlgoTrader.Shared
         ///points[0] is the earliest point in time
         /// </summary>
         /// <param name="yCoords">The list of y-coords, the point representing the earliest time is at index [0].</param>
-        protected void DrawLineSegments(List<double> yCoords, int thickness, SolidColorBrush brushColor)
+        protected void DrawLineSegments(List<double> yCoords, int thickness, SolidColorBrush brushColor, bool noOffset = true)
         {
             if (!Chart.canDraw)
             {
@@ -364,7 +365,7 @@ namespace AlgoTrader.Shared
             {
                 var item = yCoords[i];
                 double lineX = GetX(i) + rectWidth / 2;
-                double lineY = GetY_ForPrice(item);
+                double lineY = noOffset ? GetY_ForPriceNoOffset(item) : GetY_ForPrice(item);
                 if (lines.Count <= DrawObjectListOffset)
                 {
                     lines.Add(new Line());
@@ -417,7 +418,7 @@ namespace AlgoTrader.Shared
             endX = GetX(endX);// - space;
             endY = GetY_ForPrice_dc(endY);
 
-            Pen pen = new Pen(brushColor, thickness);
+            Pen pen = new(brushColor, thickness);
             dc.DrawLine(pen, new Point(startX + space, startY), new Point(endX + space, endY));
 
         }

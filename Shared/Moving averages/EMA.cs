@@ -4,7 +4,7 @@ namespace AlgoTrader.Shared.MovingAverages
 {
     public class EMATimeFrame : MovingAverageTimeframe
     {
-        public double ema, alpha;
+        public double ema, alpha, alphaDividend;
 
         public EMATimeFrame(int timeFrame) : base(timeFrame)
         {
@@ -13,8 +13,12 @@ namespace AlgoTrader.Shared.MovingAverages
     }
     public class EMA : MovingAverage
     {
+        double alphaDividend;
 
-        public EMA(CandlePosition candlePosition, Chart chart, int length) : base(candlePosition, chart, length) { }
+        public EMA(CandlePosition candlePosition, Chart chart, int length, double alphaDividend = 2) : base(candlePosition, chart, length) 
+        { 
+            this.alphaDividend = alphaDividend;
+        }
 
         (double ema, double alpha) GetEmaAlpha(int timeFrame)
         {
@@ -39,7 +43,7 @@ namespace AlgoTrader.Shared.MovingAverages
             var values = GetValues(timeFrame);
             (var ema, var alpha) = GetEmaAlpha(timeFrame);
             //can just get the SMA to start with, but better to correctly calculate the ema for the initial series, although it seems to make no perceptible difference
-            alpha = 2.0 / (values.Count + 1);
+            alpha = alphaDividend / (values.Count + 1);
 
             //ema = values.Select(x => x.Close).Reverse().Aggregate((ema, nextQuote) => (float)alpha * nextQuote + (1 - (float)alpha) * ema);
             switch (candlePosition)

@@ -82,7 +82,7 @@ namespace AlgoTrader.Shared
 
         public void Reset(List<_SymbolDataItem> items)
         {
-            if (items == null || !items.Any())
+            if (items == null || items.Count == 0)
             {
                 return;
             }
