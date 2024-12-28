@@ -246,8 +246,8 @@ namespace AlgoTrader.Shared.TradeIndicators
                     {
                         var curr = items_hist[i];
 
-                        Point start = new Point(i - 1, 0);// - NUM_BARS_RISING_FOR_ENTRY, 0);
-                        Point end = new Point(i, 0);// - NUM_BARS_RISING_FOR_ENTRY, 0);
+                        Point start = new(i - 1, 0);// - NUM_BARS_RISING_FOR_ENTRY, 0);
+                        Point end = new(i, 0);// - NUM_BARS_RISING_FOR_ENTRY, 0);
 
                         var col = curr <= 0 ? Candle.CANDLE_COLOR_DOWN_HA : Candle.CANDLE_COLOR_UP_HA; ;
 
@@ -269,7 +269,8 @@ namespace AlgoTrader.Shared.TradeIndicators
             {
 
             }
-            /*        for (int i=0; i < items_macd.Count; i++)
+            /*       
+              for (int i=0; i < items_macd.Count; i++)
                     {
 
                         if (MovingIndicatorBase.Crossover(macd, signal, startFrame + i)) //the stored results are latest first, but the iterator returns earliest first so must reverse frame order

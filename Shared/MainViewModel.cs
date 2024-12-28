@@ -1348,9 +1348,7 @@ namespace AlgoTrader.Live.ViewModels
             return new List<DisplayPanel>
             {
                 //this is fine but there is no need for any indicators now...
-                //new HMA_Indicator(0, tradeEngine, chart, 100, CandlePosition.CLOSE, 2, System.Windows.Media.Brushes.Blue),
-                new RMA_Indicator(0, tradeEngine, chart, 22, CandlePosition.CLOSE, 1, System.Windows.Media.Brushes.LightGreen),
-                new StochasticRSI_Indicator(0, tradeEngine, chart, 22, CandlePosition.CLOSE, 1, System.Windows.Media.Brushes.LightGreen),
+                new StochasticRSI_Indicator(0, tradeEngine, chart, 7, CandlePosition.CLOSE, 1, System.Windows.Media.Brushes.LightGreen),
             };
 
         }

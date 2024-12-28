@@ -459,6 +459,42 @@ namespace AlgoTrader.Shared
             DrawObjectListOffset++;
         }
 
+        protected void DrawLineSegmentNoOffset(Point start, Point end, double thickness, SolidColorBrush brushColor, double space = 0)
+        {
+            //return;
+            if (!Chart.canDraw)
+            {
+                return;
+            }
+            if (_ChartLine.movingLine != null)
+            {
+                return;
+            }
+
+            double startX = GetX(start.X);// + space;
+            double startY = GetY_ForPriceNoOffset(start.Y);
+            double endX = GetX(end.X);// - space;
+            double endY = GetY_ForPriceNoOffset(end.Y);
+
+            if (lines.Count <= DrawObjectListOffset)
+            {
+                lines.Add(new Line());
+            }
+            if (DrawObjectListOffset < MAX_DRAWING_OBJECTS)
+            {
+                Line line = lines[DrawObjectListOffset];
+                line.X1 = startX + space;
+                line.Y1 = startY;
+                line.X2 = endX + space;
+                line.Y2 = endY;
+                line.StrokeThickness = thickness;
+                line.Stroke = brushColor;
+                canvas.Children.Add(line);
+            }
+
+            DrawObjectListOffset++;
+        }
+
 
         #endregion
 

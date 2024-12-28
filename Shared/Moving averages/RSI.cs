@@ -34,8 +34,8 @@ namespace AlgoTrader.Shared.MovingAverages
             {
                 var x0 = items[^1]; //same as items[items.Count - 1]
                 var x1 = items[^2];
-                var u = Math.Max(x0.Close - x1.Close, 0);
-                var d = Math.Max(x1.Close - x0.Close, 0);
+                double u = Math.Max(x0.Close - x1.Close, 0);
+                double d = Math.Max(x1.Close - x0.Close, 0);
                 var item1 = item.Clone();
                 var item2 = item.Clone();
                 item1.Close = u;
