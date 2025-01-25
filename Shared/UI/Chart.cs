@@ -372,10 +372,7 @@ namespace AlgoTrader.Shared
             //reset current candle to item close value
             if (liveItem)
             {
-                if (currentCandle != null)
-                {
-                    currentCandle.Reset(item, yOffset, this);
-                }
+                currentCandle?.Reset(item, yOffset, this);
                 //UpdateCurrentPriceMarker(); - no, items_chart is null
             }
         }

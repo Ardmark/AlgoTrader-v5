@@ -850,7 +850,7 @@ namespace AlgoTrader.Shared.ExchangeConnection
         #endregion
 
         #region Receive data
-        List<DateTime> errors = new List<DateTime>();
+        List<DateTime> errors = [];
         protected override void CaptureOutput(object sender, DataReceivedEventArgs e)
         {
             void HandleError()

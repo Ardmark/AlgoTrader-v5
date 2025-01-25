@@ -192,6 +192,11 @@ namespace AlgoTrader.Shared
                     SetColorFromSolidColorBrush(Chart.CANCELLED_COLOR_L, Chart.CANCELLED_COLOR_D);
                     Thickness = lineThickness;
                     break;
+                case LineType.MARKER:
+                    Style = LineStyle.DOTTED;
+                    SetColor(0, 0, 255, 128, 128, 255);
+                    Thickness = lineThickness;
+                    break;
             }
 
             DoubleCollection dashes = null;

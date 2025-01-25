@@ -14,7 +14,7 @@
         public TimeFrameAggregator(int timeFrame)
         {
             this.timeFrame = timeFrame;
-            timeframeAggregatedItems = new List<_SymbolDataItem>();
+            timeframeAggregatedItems = [];
         }
 
         public void Init(int timeFrame)

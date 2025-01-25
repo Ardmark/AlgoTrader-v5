@@ -25,7 +25,8 @@ namespace AlgoTrader.Windows
 
             TradeEngine.INITIAL_TAKE_PROFIT_PERCENT_MARKET = 0; //will auto-set t/p if this value is set
             TradeEngine.MAX_STOP_LOSS = 9; //leverage will scale to always target this as a stop loss if actual loss is greater from default leverage
-
+           
+            TradeEngine.NUM_BARS_FOR_FLOOR = 6;
 
             /* 
              * Reason for not scaling leverage to stop depth:

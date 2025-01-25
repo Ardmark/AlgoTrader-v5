@@ -933,7 +933,11 @@ namespace AlgoTrader.Shared
                     {
                         if (Entry.ExchangeMethodScript == null)
                         {
-                            currentTradeIndicator.ExecuteEntry_synchronised();
+                            if (currentTradeIndicator.ExecuteEntry_synchronised(itemAdded))
+                            {
+                                redrawRequired = true;
+                            }
+                            
                             //entry should never terminate trade (in backtesting) so cannot return false
 
                             //RunTrade_exchangeSpecific();

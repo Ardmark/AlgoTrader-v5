@@ -187,10 +187,10 @@ namespace AlgoTrader.Shared
         }
 
         //anything which needs to be done outside of the stop or take profit handlers
-        internal virtual void ExecuteEntry_synchronised()
+        internal virtual bool ExecuteEntry_synchronised(bool itemAdded)
         {
             //may not be a stop auto-added, could be a floor instead, so test for spike here
-            TestForMoveToBE_synchronised();
+            return TestForMoveToBE_synchronised(itemAdded);
 
         }
 
@@ -547,7 +547,7 @@ namespace AlgoTrader.Shared
         #region Spike and take profit at %
 
 
-        internal void TestForMoveToBE_synchronised()
+        internal bool TestForMoveToBE_synchronised(bool itemAdded)
         {
 
             _Trade activeOrder = tradeEngine.Order;
@@ -555,8 +555,10 @@ namespace AlgoTrader.Shared
 
             if (entry == null)
             {
-                return;
+                return false;
             }
+
+            bool redrawRequired = false;
 
             var floor = tradeEngine.Floor;
             var stop = tradeEngine.Stop;
@@ -572,6 +574,9 @@ namespace AlgoTrader.Shared
             //So the stop will trail down but won't override a lower stop (i.e. it won't be added), but when it is the lowest stop it will be added.
             //But if there is a stop in a profit position, it won't be added, so replacing a trailing stop with any other stop will remove it.
 
+            //////////////////////////////////////////////////////////////////////////////////
+            ///CHANGES MADE TO SPIKE AND TRAILING STOP, DO NOT RE-ENABLE WITHOUT TESTING FIRST
+            //////////////////////////////////////////////////////////////////////////////////
 
             if (TradeEngine.AUTO_SET_TRAILING_STOP) //use this as the trail value for now
             {
@@ -589,55 +594,68 @@ namespace AlgoTrader.Shared
 
                 //if there is a stop or floor in profit, do nothing
                 var breakEvenPrice = GetBreakEvenPrice(entry);
+                bool canSet = true;
                 if (stop != null)
                 {
                     if (stop.Position == TradePosition.LONG ? stop.Price > breakEvenPrice : stop.Price < breakEvenPrice)
                     {
-                        return;
+                        canSet = false;
                     }
                 }
                 else if (floor != null)
                 {
                     if (floor.Position == TradePosition.LONG ? floor.Price > breakEvenPrice : floor.Price < breakEvenPrice)
                     {
-                        return;
+                        canSet = false;
                     }
                 }
 
-                var pc = TradeEngine.STOP_TRAIL / 100;
-                var currPrice = tradeEngine.currentDataItem.Close;
-                var trailValue = entry.Position == TradePosition.LONG ? currPrice * (1 - pc) : currPrice * (1 + pc);
-
-
-                //so there is either:
-                //no existing stop or floor
-                //any stop or floor is not better than the trail value
-                //any stop or floor is not in profit
-
-                if (stop == null)
+                if (canSet)
                 {
-                    stop = SetFloorStop_synchronised(DateTime.UtcNow, trailValue, TradeAction.STOP);
-                    stop.Quantity = -entry.Quantity;
-                }
-                else
-                {
-                    if (stop.Type == TradeType.FLIP_ORDER)
+                    var pc = TradeEngine.STOP_TRAIL / 100;
+                    var currPrice = tradeEngine.currentDataItem.Close;
+                    var trailValue = entry.Position == TradePosition.LONG ? currPrice * (1 - pc) : currPrice * (1 + pc);
+
+
+                    //so there is either:
+                    //no existing stop or floor
+                    //any stop or floor is not better than the trail value
+                    //any stop or floor is not in profit
+
+                    canSet = false;
+                    if (stop == null)
                     {
-                        //a flip order, which will often be placed, cannot be used as a trailing stop as it is set at a specific price level
-                        //If a trailing stop is required, then the flip would be changed to a floor or line break stop, and the trail would then execute separately.
-                        return; 
+                        stop = SetFloorStop_synchronised(DateTime.UtcNow, trailValue, TradeAction.STOP);
+                        stop.Quantity = -entry.Quantity;
+                        canSet = true;
                     }
-                    //detach stop from any line
-                    var line = tradeEngine.ActiveLines.GetLineForTrade(stop);
-                    if (line != null)
+                    else
                     {
-                        tradeEngine.RemoveTradeFromLine_UI_synchronised(stop);
-                        tradeEngine.SetUpdateRequest(line);
+                        if (stop.Type != TradeType.FLIP_ORDER)
+                        {
+                            //a flip order, which will often be placed, cannot be used as a trailing stop as it is set at a specific price level
+                            //If a trailing stop is required, then the flip would be changed to a floor or line break stop, and the trail would then execute separately.
+
+                            //detach stop from any line
+                            var line = tradeEngine.ActiveLines.GetLineForTrade(stop);
+                            if (line != null)
+                            {
+                                tradeEngine.RemoveTradeFromLine_UI_synchronised(stop);
+                                tradeEngine.SetUpdateRequest(line);
+                            }
+                        }
+                        else
+                        {
+                            canSet = true;
+                        }
+                    }
+                    if (canSet)
+                    {
+                        stop.Stop = TradeStop.STOP_TRAIL;
+                        stop.ActionValue = TradeEngine.STOP_TRAIL / 100;
+                        tradeEngine.SetUpdateRequest(stop);
                     }
                 }
-                stop.Stop = TradeStop.STOP_TRAIL;
-                stop.ActionValue = TradeEngine.STOP_TRAIL / 100;
-                tradeEngine.SetUpdateRequest(stop);
 
                 /*
                 if (canPlaceStop)
@@ -700,41 +718,113 @@ namespace AlgoTrader.Shared
              * */
             if (TradeEngine.NUM_BARS_FOR_FLOOR > 0)
             {
-                var tradeTimeframe = entry.TimeFrame;
-                var numBarsBack = tradeTimeframe % TimeFrame + tradeTimeframe * TradeEngine.NUM_BARS_FOR_FLOOR;
-                var startBar = currentFrame - numBarsBack;
-                var low = double.MaxValue;
-                if (tradeEngine.results.Count > startBar + numBarsBack)
+                if (itemAdded) //only on bar close
                 {
-                    for (int i = startBar; i < startBar + numBarsBack; i++)
+                    if (entry.Stop != TradeStop.FLOOR_SET_TO_PREV_BAR)
                     {
-                        if (tradeEngine.results[i].Low < low)
+                        if (TradeEngine.results.Count % entry.TimeFrame == 0)
                         {
-                            low = tradeEngine.results[i].Low;
-                        }
-                    }
 
-                    low /= 1.005; //reduce the low by half a percent to give a little clearance
+                            //only do this test once. If the trend moves away, set a floor.
+                            entry.Stop = TradeStop.FLOOR_SET_TO_PREV_BAR;
+                            tradeEngine.SetUpdateRequest(entry);
+                            var numBarsBack = entry.TimeFrame * TradeEngine.NUM_BARS_FOR_FLOOR;
+                            var startBar = currentFrame - numBarsBack;
+                            var _pos = entry.Position;
+                            var low = _pos == TradePosition.LONG ? double.MaxValue : double.MinValue;
 
-                    var minBreakEven = entry.Price * 1.005;
-                    if (minBreakEven < low)
-                    {
-                        if (floor == null)
-                        {
-                            SetFloorStop_synchronised(currTimestamp, minBreakEven, TradeAction.FLOOR);
-                            LogTrades.WriteLine($"Setting dead break even floor for {entry.SymbolName}");
-                        }
-                        else
-                        {
-                            if (floor.Price < low && floor.Price < minBreakEven)
+                            if (tradeEngine.results.Count >= currentFrame)
                             {
-                                floor.Price = minBreakEven;
-                                tradeEngine.SetUpdateRequest(floor);//);
-                                LogTrades.WriteLine($"Moving to dead break even floor for {entry.SymbolName}");
+                                for (int i = startBar; i < currentFrame; i++)
+                                {
+                                    var resultLow = _pos == TradePosition.LONG ? tradeEngine.results[i].Low : tradeEngine.results[i].High;
+
+                                    if (_pos == TradePosition.LONG && resultLow < low || _pos == TradePosition.SHORT && resultLow > low)
+                                    {
+                                        low = resultLow;
+                                    }
+                                }
+
+                                //don't set floor if it is too close, must have a minimum of 0.5%
+                                var minFloor = 0.005; //1/2 %
+                                var actualFloor = MainObj.GetPriceDiff(tradeEngine.currentDataItem.Close, low, _pos);
+                                if (actualFloor < 0)
+                                {
+                                    LogTrades.WriteLine("2 bar floor not placed as floor wrong side of price");
+                                }
+                                else
+                                {
+                                    if (actualFloor < minFloor)
+                                    {
+                                        LogTrades.WriteLine($"Setting {TradeEngine.NUM_BARS_FOR_FLOOR}-bar floor at minimum value of {minFloor * 100}%");
+                                        actualFloor = minFloor;
+                                    }
+                                    else
+                                    {
+                                        LogTrades.WriteLine($"Setting {TradeEngine.NUM_BARS_FOR_FLOOR}-bar floor at {actualFloor}%");
+                                    }
+                                    //just invert the method to get the percent
+                                    var price = _pos == TradePosition.LONG ? (1 - actualFloor) * tradeEngine.currentDataItem.Close : tradeEngine.currentDataItem.Close / (1 - actualFloor);
+
+                                    //set floor at price
+                                    var startTimestamp = tradeEngine.Results[startBar].Timestamp;
+                                    var endTimestamp = startTimestamp.AddMinutes(tradeEngine.TimeFrame * 4);
+
+                                    var line = new _ChartLine
+                                    {
+                                        SymbolName = symbolName,
+                                        TradeReference = entry.TradeReference,
+                                        StartTimeStamp = startTimestamp,
+                                        EndTimeStamp = endTimestamp,
+                                        StartPrice = price,
+                                        EndPrice = price,
+                                        Type = LineType.MARKER
+                                    };
+
+                                    line.InitLine(false);
+                                    tradeEngine.SetUpdateRequest(line);
+
+                                    //TODO - uncomment this to set floor, it is tested
+
+                                    //if (floor == null)
+                                    //{
+                                    //    SetFloorStop_synchronised(currTimestamp, price, TradeAction.FLOOR);
+                                    //}
+                                    //else
+                                    //{
+                                    //    if (_pos == TradePosition.LONG && floor.Price < price || (_pos == TradePosition.SHORT && floor.Price > price))
+                                    //    {
+                                    //        floor.Price = price;
+                                    //        tradeEngine.SetUpdateRequest(floor);
+                                    //    }
+                                    //}
+                                    redrawRequired = true;
+                                }
                             }
                         }
                     }
+                    #region old break even code (unused)
+                    //var minBreakEven = entry.Price * 1.005;
+                    //if (minBreakEven < low)
+                    //{
+                    //    if (floor == null)
+                    //    {
+                    //        SetFloorStop_synchronised(currTimestamp, minBreakEven, TradeAction.FLOOR);
+                    //        LogTrades.WriteLine($"Setting dead break even floor for {entry.SymbolName}");
+                    //    }
+                    //    else
+                    //    {
+                    //        if (floor.Price < low && floor.Price < minBreakEven)
+                    //        {
+                    //            floor.Price = minBreakEven;
+                    //            tradeEngine.SetUpdateRequest(floor);//);
+                    //            LogTrades.WriteLine($"Moving to dead break even floor for {entry.SymbolName}");
+                    //        }
+                    //    }
+                    //}
+                    #endregion
                 }
+
             }
             #endregion
 
@@ -804,12 +894,14 @@ namespace AlgoTrader.Shared
                             {
                                 tradeEngine.SetUpdateRequest(breakEven, TradeUpdateRequest.DELETE);
                             }
+                            redrawRequired = true;
                         }
                     }
                 }
                 // }
             }
             #endregion
+            return redrawRequired;
         }
 
         #endregion

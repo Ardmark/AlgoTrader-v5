@@ -190,6 +190,7 @@ namespace AlgoTrader.Shared.Enums
         TAKE_PROFIT_MA_CROSS,          //for a Stop which is set on a moving average (it is a stop but is only used as a take profit)
         STOP_TRAIL,             // - a trailing stop
         STOP_TRAIL_SPIKE,       // - for a spike event
+        FLOOR_SET_TO_PREV_BAR   // - marks the entry as having set a floor at a previous bar
         //TAKE_PROFIT_PERCENT,         //this is for a Floor which is auto-set at some percent between entry and current high
     }
 
@@ -211,7 +212,8 @@ namespace AlgoTrader.Shared.Enums
         SUPPORT,
         RESISTANCE,
         CLOSED_ENTERED,
-        CLOSED_UNENTERED
+        CLOSED_UNENTERED,
+        MARKER
     }
 
     public enum LineStyle
