@@ -8,11 +8,11 @@ insert into [AlgoTrader.Perpetual.Backtest].dbo.XBTUSD([Timestamp],[Open],[Close
 drop table [AlgoTrader.Backtest].dbo.XBTUSD
 select * into [AlgoTrader.Backtest].dbo.XBTUSD	   from [AlgoTrader.Bitmex].dbo.XBTUSD  
 
---drop table [AlgoTrader.Backtest].dbo._ChartLines
---select * into [AlgoTrader.Backtest].dbo._ChartLines	   from [AlgoTrader.Bitmex].dbo._ChartLines
+drop table [AlgoTrader.Backtest].dbo._ChartLines
+select * into [AlgoTrader.Backtest].dbo._ChartLines	   from [AlgoTrader.Bitmex].dbo._ChartLines
 
---drop table [AlgoTrader.Backtest].dbo._Trades
---select * into [AlgoTrader.Backtest].dbo._Trades	   from [AlgoTrader.Bitmex].dbo._Trades  
+drop table [AlgoTrader.Backtest].dbo._Trades
+select * into [AlgoTrader.Backtest].dbo._Trades	   from [AlgoTrader.Bitmex].dbo._Trades  
 
 --delete from [AlgoTrader.Backtest].dbo._ChartLines
 --delete from [AlgoTrader.Backtest].dbo._Trades

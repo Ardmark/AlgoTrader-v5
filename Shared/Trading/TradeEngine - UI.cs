@@ -752,8 +752,8 @@ namespace AlgoTrader.Shared
                 var v = UI_Trades.FirstOrDefault(x =>
                             x.Action == TradeAction.STOP &&
                             x.Type == TradeType.FLIP_ORDER &&
-                            x.Position == entry.Position &&
-                            x.TradeReference == entry.TradeReference);
+                            x.Position == order.Position &&
+                            x.TradeReference == order.TradeReference);
                 if (v == null)
                 {
                     AlertDialog.Show("Cannot place a Flip Order Stop without a flip order!");
@@ -766,8 +766,8 @@ namespace AlgoTrader.Shared
                 var v = UI_Trades.FirstOrDefault(x =>
                            x.Action == TradeAction.STOP &&
                            x.Type == TradeType.FLIP_ORDER &&
-                           x.Position == entry.Position &&
-                           x.TradeReference == entry.TradeReference);
+                           x.Position == order.Position &&
+                           x.TradeReference == order.TradeReference);
                 if (v != null)
                 {
                     AlertDialog.Show("Cannot place a Floor whilst there is a Flip Order, or trade will flip when floor triggered");
