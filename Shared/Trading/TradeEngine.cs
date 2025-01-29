@@ -1542,6 +1542,20 @@ namespace AlgoTrader.Shared
 
                 #endregion
 
+                if (Stop == null && Floor == null)
+                {
+                    //var entryPrice = Entry.Price != 0 ? Entry.Price : Order.Price;
+                    ////take profit trade is just a permanent trigger so it does not use Price, only ActionValue 
+                    //var floorPrice = Order.Position == TradePosition.LONG
+                    //    ? entryPrice * (1 - STOP_MIN_VALUE / 100)
+                    //    : entryPrice * (1 + STOP_MIN_VALUE / 100);
+
+                    //var _floor = Entry.Clone();
+                    //Floor = _floor;
+                    //_floor.Price = floorPrice;
+                    //_floor.Action = TradeAction.FLOOR;
+                    //SetUpdateRequest(Floor);
+                }
                 if (Entry.Price == 0)
                 {
                     LogTrades.WriteLine($"New entry price was 0 for {Order.SymbolName} in EnterTradeOnSystem()");

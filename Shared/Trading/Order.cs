@@ -710,12 +710,6 @@ namespace AlgoTrader.Shared
 
             #region if enabled, move to break even when some bars are clear
 
-            /*
-             * Defined behaviour:
-             * Will set a MA stop if there is no stop already, or if the current stop is below b/e
-             * but - if current stop is above b/e, then it will leave it where it is and not set a m/a stop,
-             * so a line stop generally overrides a MA stop
-             * */
             if (TradeEngine.NUM_BARS_FOR_FLOOR > 0)
             {
                 if (itemAdded) //only on bar close

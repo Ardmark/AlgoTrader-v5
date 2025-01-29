@@ -747,7 +747,7 @@ namespace AlgoTrader.Shared
                                 {
                                     Floor = Entry.Clone();
 
-                                    var stopOffsetPC_Leveraged = CalculateStopFromLeverage(Entry.Leverage, Entry.Position);
+                                    var stopOffsetPC_Leveraged = STOP_MIN_VALUE;// CalculateStopFromLeverage(Entry.Leverage, Entry.Position);
 
                                     var floorPrice = Order.Position == TradePosition.LONG
                                                 ? Entry.Price / (1 + stopOffsetPC_Leveraged / 100)

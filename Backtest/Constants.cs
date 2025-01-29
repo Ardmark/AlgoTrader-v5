@@ -26,7 +26,6 @@ namespace AlgoTrader.Windows
             TradeEngine.INITIAL_TAKE_PROFIT_PERCENT_MARKET = 0; //will auto-set t/p if this value is set
             TradeEngine.MAX_STOP_LOSS = 9; //leverage will scale to always target this as a stop loss if actual loss is greater from default leverage
            
-            TradeEngine.NUM_BARS_FOR_FLOOR = 6;
 
             /* 
              * Reason for not scaling leverage to stop depth:
@@ -40,7 +39,7 @@ namespace AlgoTrader.Windows
             TradeEngineBitmex.DEFAULT_LEVERAGE = 3;
             TradeEngine.MINIMUM_TRADE_TIME = 120;
 
-            TradeEngine.STOP_MIN_VALUE = 1;
+            TradeEngine.STOP_MIN_VALUE = 1.25; //will move stop or floor to this value when trade enters, and will auto-set floor at this level if there is no floor
             TradeEngine.MAX_ENTRY_DIFF_PERCENT = 0.5;
 
 
