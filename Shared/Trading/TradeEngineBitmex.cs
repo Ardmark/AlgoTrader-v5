@@ -256,9 +256,8 @@ namespace AlgoTrader.Shared
             stopPC = Math.Abs(stopPC); //to be safe
             if (stopPC == 0)
             {
-                var _leverage = Math.Max(Math.Min(Leverage, DEFAULT_LEVERAGE), minLeverage);
-                LogTrades.WriteLine($"No stop to calculate leverage from, using default leverage of {_leverage}");
-                return _leverage;
+                LogTrades.WriteLine($"No stop to calculate leverage from, using default leverage of {DEFAULT_LEVERAGE}");
+                return DEFAULT_LEVERAGE;
             }
 
             stopPC += STOP_LINE_PRICE_GAP_PC; //because this will be added in when it stops out, if it is a stop line (just use it anyway)
@@ -754,6 +753,7 @@ namespace AlgoTrader.Shared
                                                 : Entry.Price * (1 + stopOffsetPC_Leveraged / 100);
 
                                     Floor.Price = (double)floorPrice;
+                                    LogTrades.WriteLine($"Setting Floor at default level of {STOP_MIN_VALUE}");
 
                                 }
 
@@ -1350,6 +1350,21 @@ namespace AlgoTrader.Shared
                                     Stop = nextStop;
                                     SetStopOnExchange_Synchronised(Stop);
                                     SetUpdateRequest(Stop);
+                                }
+                                else
+                                {
+                                    //set default stop
+                                    Floor = Order.Clone();
+                                    Floor.Action = TradeAction.FLOOR;
+                                    Floor.Timestamp = DateTime.UtcNow;
+                                    Floor.Position = position;
+                                    Floor.Quantity = orderQuantity;
+                                    Floor.TradeReference = newReference;
+                                    Floor.GlobalStatus = TradeGlobalStatus.ACTIVE;
+                                    Floor.ItemStatus = TradeItemStatus.OPEN;
+                                    SetUpdateRequest(Floor);
+                                    SetStopOnExchange_Synchronised(Floor);
+                                    SetUpdateRequest(Floor);
                                 }
                             }
                         }
