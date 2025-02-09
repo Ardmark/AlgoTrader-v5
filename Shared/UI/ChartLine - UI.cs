@@ -257,7 +257,7 @@ namespace AlgoTrader.Shared
                                 tradeEngine.currentTradeSetReference = chartLine.Trade.TradeReference;
                                 MainObj.DrawCurrentDispatcher(true);
 
-                                if (chartLine.Trade.Action == TradeAction.STOP)
+                                if (chartLine.Trade.Action == TradeAction.STOP && chartLine.Trade.ExchangeStatus == TradeExchangeStatus.ENTERED_ON_EXCHANGE)
                                 {
                                     tradeEngine.SetStopOnExchange_Synchronised(chartLine.Trade);
                                 } 

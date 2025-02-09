@@ -906,8 +906,6 @@ namespace AlgoTrader.Shared
                             
                         }
 
-
-
                         if (IsActiveTrade(order))
                         {
                             switch (tradeAction)
@@ -929,6 +927,9 @@ namespace AlgoTrader.Shared
                                         }
                                     }
                                     break;
+                                case TradeAction.FLOOR:
+                                    Floor = trade;
+                                    break;
                                 case TradeAction.CEILING:
                                     Ceiling = trade;
                                     break;
@@ -940,6 +941,8 @@ namespace AlgoTrader.Shared
                                     break;
                             }
                         }
+
+                        SetUpdateRequest(trade);
 
                         if (chartLine != null)
                         {
