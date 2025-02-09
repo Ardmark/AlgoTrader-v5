@@ -1299,14 +1299,16 @@ namespace AlgoTrader.Shared
                 {
                     if (!MainObj.BACKTEST)
                     {
-                        var lastClose = AllTrades.OrderByDescending(x => x.Timestamp).FirstOrDefault(x => x.Action == TradeAction.CLOSE);
-                        if (lastClose != null)
+                        if (MINIMUM_TRADE_TIME > 0)
                         {
-
-                            var timeDiff = DateTime.UtcNow.Subtract(lastClose.Timestamp).TotalMinutes;
-                            if (timeDiff < MINIMUM_TRADE_TIME)
+                            var lastClose = AllTrades.OrderByDescending(x => x.Timestamp).FirstOrDefault(x => x.Action == TradeAction.CLOSE);
+                            if (lastClose != null)
                             {
-                                reason = OrderFrequency.PREV_CLOSE_TOO_CLOSE;
+                                var timeDiff = DateTime.UtcNow.Subtract(lastClose.Timestamp).TotalMinutes;
+                                if (timeDiff < MINIMUM_TRADE_TIME)
+                                {
+                                    reason = OrderFrequency.PREV_CLOSE_TOO_CLOSE;
+                                }
                             }
                         }
                     }

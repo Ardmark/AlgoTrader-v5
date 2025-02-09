@@ -118,120 +118,125 @@ namespace AlgoTrader.Shared
             #endregion
 
             #region Set flip from opposing trade
+            //if there is a stop or floor set, then use this and ignore any opposite trade entirely
+            // 
+            //otherwise, if there is an opposing trade:
+            // 1) convert any opposing trade stop to waiting stop
+            // 2) convert opposing trade to flip order
 
-            //if there is an opposing trade:
-            // 1) remove any stop and floor from this trade
-            // 2) convert any opposing trade stop to waiting stop
-            // 3) convert opposing trade to flip order
-
-            //var oppositeSide = Order.Position == TradePosition.LONG ? TradePosition.SHORT : TradePosition.LONG;
-            var firstOppositeOrder = GetOppositeOrder(Order.Position);
-            if (firstOppositeOrder != null)
+            var stop = AllTrades.FirstOrDefault(x =>
+                    x.Action == TradeAction.STOP &&
+                    x.TradeReference == Order.TradeReference);
+            var floor = AllTrades.FirstOrDefault(x =>
+                    x.Action == TradeAction.FLOOR &&
+                    x.TradeReference == Order.TradeReference);
+            if (stop == null && floor == null)
             {
-                // 1) remove any stop and floor from this trade since the opposing order will become a flip order stop and any other stop will either 
-                // invalidate this or be left orphaned when this triggers
-                var stop = AllTrades.FirstOrDefault(x =>
-                                    x.Action == TradeAction.STOP &&
-                                    x.TradeReference == Order.TradeReference);
-                if (stop != null)
+
+                var firstOppositeOrder = GetOppositeOrder(Order.Position);
+                if (firstOppositeOrder != null)
                 {
-                    //remove any line
-                    var stopLine = AllLinesForSymbol.FirstOrDefault(x => x.TradeId == stop.Id);
-                    if (stopLine != null)
+
+                    // remove any stop and floor from this trade since the opposing order will become a flip order stop and any other stop will either 
+                    // invalidate this or be left orphaned when this triggers
+
+                    //if (stop != null)
+                    //{
+                    //    //remove any line
+                    //    var stopLine = AllLinesForSymbol.FirstOrDefault(x => x.TradeId == stop.Id);
+                    //    if (stopLine != null)
+                    //    {
+                    //        SetUpdateRequest(stopLine, TradeUpdateRequest.FORCE_DELETE);
+                    //    }
+
+                    //    SetUpdateRequest(stop, TradeUpdateRequest.FORCE_DELETE);
+                    //}
+
+                    //if (floor != null)
+                    //{
+                    //    SetUpdateRequest(floor, TradeUpdateRequest.FORCE_DELETE);
+                    //}
+
+                    // 1) convert any opposing trade stop to waiting stop and remove any opposite take profit, ceiling or break even trades
+                    List<_Trade> oppTrades = [.. AllTrades.Where(x => x.TradeReference == firstOppositeOrder.TradeReference)];
+
+                    var oppStop = oppTrades.FirstOrDefault(x => x.Action == TradeAction.STOP);
+                    var oppFloor = oppTrades.FirstOrDefault(x => x.Action == TradeAction.FLOOR);
+                    if (oppStop != null)
                     {
-                        SetUpdateRequest(stopLine, TradeUpdateRequest.FORCE_DELETE);
+                        //use this stop
+                        oppStop.TradeReference = Order.TradeReference;
+                        oppStop.Type = TradeType.STOP_WAITING;
+                        oppStop.Action = TradeAction.WAITING_STOP;
+                        SetUpdateRequest(oppStop);
+
+                        var oppStopLine = AllLinesForSymbol.FirstOrDefault(x => x.TradeReference == oppStop.TradeReference);
+                        if (oppStopLine != null)
+                        {
+                            oppStopLine.TradeReference = Order.TradeReference;
+                            oppStopLine.Type = LineType.SUPPORT;
+                            SetUpdateRequest(oppStopLine);
+                        }
+
+                        //remove any floor
+                        if (oppFloor != null)
+                        {
+                            SetUpdateRequest(oppFloor, TradeUpdateRequest.FORCE_DELETE); //we don't want a floor with a stop, the stop will have converted but the floor will not be usable
+                        }
+                    }
+                    else if (oppFloor != null)
+                    {
+                        //use this as stop
+                        oppFloor.TradeReference = Order.TradeReference;
+                        oppFloor.Type = TradeType.STOP_WAITING;
+                        oppFloor.Action = TradeAction.WAITING_STOP;//convert it to a Stop, although there is no stop line
+                        SetUpdateRequest(oppFloor);
+                    }
+                    else
+                    {
+                        //add a waiting stop at the original order price
+                        var trade = Order.Clone();
+                        trade.Id = 0; //so it will be added to db
+                        trade.ItemId = null;
+                        trade.ItemStatus = TradeItemStatus.OPEN;
+                        trade.Action = TradeAction.WAITING_STOP;
+                        trade.Timestamp = DateTime.UtcNow;
+                        trade.TimeFrame = TimeFrame;
+
+                        //this may be an existing Moving Average stop, if so just changing the Type will stop the moving average update loop (see Order::ExecuteStop_synchronised())
+                        trade.Type = TradeType.STOP_WAITING;
+                        //flip side if this is a waiting stop
+                        trade.Quantity = Order.Quantity;
+                        trade.Position = Order.Position == TradePosition.LONG ? TradePosition.SHORT : TradePosition.LONG;
+                        trade.ExchangeStatus = TradeExchangeStatus.ENTERING_ON_EXCHANGE;
+                        SetUpdateRequest(trade);
                     }
 
-                    SetUpdateRequest(stop, TradeUpdateRequest.FORCE_DELETE);
-                }
-                
-                var floor = AllTrades.FirstOrDefault(x =>
-                                    x.Action == TradeAction.FLOOR &&
-                                    x.TradeReference == Order.TradeReference);
-                if (floor != null)
-                {
-                    SetUpdateRequest(floor, TradeUpdateRequest.FORCE_DELETE);
-                }
+                    //remove any take profits, etc.
+                    var oppTP = oppTrades.FirstOrDefault(x => x.Action == TradeAction.TAKE_PROFIT);
+                    var oppCeiling = oppTrades.FirstOrDefault(x => x.Action == TradeAction.CEILING);
+                    var oppBE = oppTrades.FirstOrDefault(x => x.Action == TradeAction.BREAK_EVEN);
+                    if (oppTP != null) SetUpdateRequest(oppTP, TradeUpdateRequest.FORCE_DELETE);
+                    if (oppCeiling != null) SetUpdateRequest(oppCeiling, TradeUpdateRequest.FORCE_DELETE);
+                    if (oppBE != null) SetUpdateRequest(oppBE, TradeUpdateRequest.FORCE_DELETE);
 
-                // 2) convert any opposing trade stop to waiting stop and remove any opposite take profit, ceiling or break even trades
-                List<_Trade> oppTrades = [.. AllTrades.Where(x => x.TradeReference == firstOppositeOrder.TradeReference)];
 
-                var oppStop = oppTrades.FirstOrDefault(x => x.Action == TradeAction.STOP);
-                var oppFloor = oppTrades.FirstOrDefault(x => x.Action == TradeAction.FLOOR);
-                if (oppStop != null)
-                {
-                    //use this stop
-                    oppStop.TradeReference = Order.TradeReference;
-                    oppStop.Type = TradeType.STOP_WAITING;
-                    oppStop.Action = TradeAction.WAITING_STOP;
-                    SetUpdateRequest(oppStop);
-
-                    var oppStopLine = AllLinesForSymbol.FirstOrDefault(x => x.TradeReference == oppStop.TradeReference);
-                    if (oppStopLine != null)
+                    // 2) convert opposing trade to flip order (which is also a stop)
+                    var line = AllLinesForSymbol.FirstOrDefault(x => x.TradeReference == firstOppositeOrder.TradeReference);
+                    if (line != null)
                     {
-                        oppStopLine.TradeReference = Order.TradeReference;
-                        oppStopLine.Type = LineType.SUPPORT;
-                        SetUpdateRequest(oppStopLine);
+                        line.TradeReference = Order.TradeReference;
+                        line.Type = LineType.SUPPORT;
+                        SetUpdateRequest(line);
                     }
 
-                    //remove any floor
-                    if (oppFloor != null)
-                    {
-                        SetUpdateRequest(oppFloor, TradeUpdateRequest.FORCE_DELETE); //we don't want a floor with a stop, the stop will have converted but the floor will not be usable
-                    }
+                    firstOppositeOrder.TradeReference = Order.TradeReference;
+                    firstOppositeOrder.Action = TradeAction.STOP;
+                    firstOppositeOrder.Type = TradeType.FLIP_ORDER;
+                    firstOppositeOrder.Position = Order.Position; //because a flip is the same side as the order it is flipping.
+                    SetUpdateRequest(firstOppositeOrder);
+
                 }
-                else if (oppFloor != null)
-                {
-                    //use this as stop
-                    oppFloor.TradeReference = Order.TradeReference;
-                    oppFloor.Type = TradeType.STOP_WAITING;
-                    oppFloor.Action = TradeAction.WAITING_STOP;//convert it to a Stop, although there is no stop line
-                    SetUpdateRequest(oppFloor);
-                }
-                else
-                {
-                    //add a waiting stop at the original order price
-                    var trade = Order.Clone();
-                    trade.Id = 0; //so it will be added to db
-                    trade.ItemId = null;
-                    trade.ItemStatus = TradeItemStatus.OPEN;
-                    trade.Action = TradeAction.WAITING_STOP;
-                    trade.Timestamp = DateTime.UtcNow;
-                    trade.TimeFrame = TimeFrame;
-
-                    //this may be an existing Moving Average stop, if so just changing the Type will stop the moving average update loop (see Order::ExecuteStop_synchronised())
-                    trade.Type = TradeType.STOP_WAITING;
-                    //flip side if this is a waiting stop
-                    trade.Quantity = Order.Quantity;
-                    trade.Position = Order.Position == TradePosition.LONG ? TradePosition.SHORT : TradePosition.LONG;
-                    trade.ExchangeStatus = TradeExchangeStatus.ENTERING_ON_EXCHANGE;
-                    SetUpdateRequest(trade);
-                }
-
-                //remove any take profits, etc.
-                var oppTP = oppTrades.FirstOrDefault(x => x.Action == TradeAction.TAKE_PROFIT);
-                var oppCeiling = oppTrades.FirstOrDefault(x => x.Action == TradeAction.CEILING);
-                var oppBE = oppTrades.FirstOrDefault(x => x.Action == TradeAction.BREAK_EVEN);
-                if (oppTP != null) SetUpdateRequest(oppTP, TradeUpdateRequest.FORCE_DELETE);
-                if (oppCeiling != null) SetUpdateRequest(oppCeiling, TradeUpdateRequest.FORCE_DELETE);
-                if (oppBE != null) SetUpdateRequest(oppBE, TradeUpdateRequest.FORCE_DELETE);
-
-
-                // 3) convert opposing trade to flip order (which is also a stop)
-                var line = AllLinesForSymbol.FirstOrDefault(x => x.TradeReference == firstOppositeOrder.TradeReference);
-                if (line != null)
-                {
-                    line.TradeReference = Order.TradeReference;
-                    line.Type = LineType.SUPPORT;
-                    SetUpdateRequest(line);
-                }
-
-                firstOppositeOrder.TradeReference = Order.TradeReference;
-                firstOppositeOrder.Action = TradeAction.STOP;
-                firstOppositeOrder.Type = TradeType.FLIP_ORDER;
-                firstOppositeOrder.Position = Order.Position; //because a flip is the same side as the order it is flipping.
-                SetUpdateRequest(firstOppositeOrder);
-
             }
 
             #endregion
