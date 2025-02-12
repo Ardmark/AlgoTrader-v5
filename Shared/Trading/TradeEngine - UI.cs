@@ -2,6 +2,7 @@
 using AlgoTrader.Shared.TradeIndicators;
 using AlgoTrader.Shared.Windows;
 using System.Diagnostics;
+using System.Transactions;
 
 namespace AlgoTrader.Shared
 {
@@ -1661,6 +1662,19 @@ namespace AlgoTrader.Shared
                     SetUpdateRequest(line);
                     currentTradeSetReference = order.TradeReference;
                 }
+
+                //set a floor
+                var floorPC = 1 + STOP_MIN_VALUE / 100;
+                var floorPrice = position == TradePosition.LONG
+                                ? line.StartPrice / floorPC : line.StartPrice * floorPC;
+
+                //add a new stop derived from the trade
+                var trade = order.Clone(); //this should only happen if a stop has been deleted completely
+                trade.ItemId = null; //because Bitmex will have a new ID for the stop
+                trade.Action = TradeAction.FLOOR;
+                trade.Price = floorPrice;
+                SetUpdateRequest(trade);
+
 
                 return order;
             }
