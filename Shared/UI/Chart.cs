@@ -1,5 +1,6 @@
 ﻿using AlgoTrader.Shared.Enums;
 using Shared.Drawings;
+using System.Diagnostics;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -1035,18 +1036,21 @@ namespace AlgoTrader.Shared
                                                             //will add this in when it breaks the entry line
                                                             stopPricePC -= TradeEngine.ENTRY_LINE_PRICE_GAP_PC;
                                                         }
-                                                        text += GetStopText(stopPricePC, hasEntered, order);
+                                                        text += GetStopText(stopPricePC, false, order);
                                                         break;
                                                     case TradeType.FLIP_ORDER:
-                                                        stopPricePC = stopWaiting != null
-                                                        ? -MainObj.GetPriceDiff(stopWaiting.Price, trade.Price, order.Position) * 100
-                                                        : -MainObj.GetPriceDiff(entry.Price, trade.Price, order.Position) * 100;
+                                                        stopPricePC = entry != null
+                                                        ? -MainObj.GetPriceDiff(entry.Price, trade.Price, order.Position) * 100
+                                                        : stopWaiting != null
+                                                            ? -MainObj.GetPriceDiff(stopWaiting.Price, trade.Price, order.Position) * 100
+                                                            : 0;
                                                         if (entry == null)
                                                         {
                                                             //will add this in when it breaks the entry line
                                                             stopPricePC -= TradeEngine.ENTRY_LINE_PRICE_GAP_PC;
                                                         }
-                                                        text += GetStopText(stopPricePC, stopWaiting == null, order, false, true, stopWaiting == null ? "" : " from waiting stop");
+
+                                                        text += GetStopText(stopPricePC, stopWaiting == null, order, false, true, entry == null ? "" : " from entry");
                                                         break;
                                                     default:
                                                         stopPricePC = -MainObj.GetPriceDiff(orderPriceNow, trade.Price, order.Position) * 100;
@@ -1542,7 +1546,7 @@ namespace AlgoTrader.Shared
         }
 
 
-        public void MouseMove(double mouseX, double mouseY, bool mouseDown, bool shiftDown, bool ctrlDown, bool toggleDraw)
+        public void MouseMove(double mouseX, double mouseY, bool mouseDown, bool shiftDown, bool keydown_D, bool toggleDraw)
         {
             if (items_chart == null || items_chart.Count == 0)
             {
@@ -1563,16 +1567,16 @@ namespace AlgoTrader.Shared
             //handle move of a line
             if (_ChartLine.movingLine != null)
             {
-                currentLine?.MoveLine_UI(this.mouseX, mouseX, this.mouseY, mouseY, shiftDown, ctrlDown, this);
+                currentLine?.MoveLine_UI(this.mouseX, mouseX, this.mouseY, mouseY, shiftDown, keydown_D, this);
             }
             else
             {
                 //handle mouse down for drag of chart
                 if (mouseDown)
                 {
-                    if (!shiftDown)
-                    {
-                        if (ctrlDown || toggleDraw)
+                   // if (!shiftDown)
+                   // {
+                        if (keydown_D) //dd || toggleDraw)
                         {
                             //draw line
                             if (currentLine == null)
@@ -1586,12 +1590,19 @@ namespace AlgoTrader.Shared
                             }
 
                             (currentLine.EndTimeStamp, currentLine.EndPrice) = GetTimeAndPriceFromLastMouse();
+
+                            if (shiftDown)
+                            {
+                                currentLine.EndPrice = currentLine.StartPrice;
+                            }
+
                             //currentLine.SetMinimumLength(TimeFrame);
                             currentLine.InitLine(false);
                             currentLine.Draw_UI(this); //if no chart scroll, must draw the line here
                         }
-                        else
+                        if (!keydown_D && !shiftDown)
                         {
+
                             //drag chart
                             double diffX = this.mouseX - mouseX;
                             double diffY = this.mouseY - mouseY;
@@ -1627,8 +1638,8 @@ namespace AlgoTrader.Shared
                                 drawRequired = true;
                             }
                         }
-                    }
-                    else
+                    //}
+                    if (!keydown_D && shiftDown)
                     {
                         if (!ShowBox)
                         {

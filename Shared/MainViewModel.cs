@@ -1996,10 +1996,10 @@ namespace AlgoTrader.Live.ViewModels
                 case Key.LeftCtrl:
                     MainObj.visibleChart.canvas.Cursor = System.Windows.Input.Cursors.Pen;
                     break;
-                case Key.D:
-                    AlgoTrader.Shared.Logging.LogConnection.WriteLine(key.ToString());
-                    ToggleDrawingMode();
-                    break;
+                //case Key.D:
+                //    AlgoTrader.Shared.Logging.LogConnection.WriteLine(key.ToString());
+                //    ToggleDrawingMode();
+                //    break;
                 //case Key.X:
                 case Key.Delete:
                     AlgoTrader.Shared.Logging.LogConnection.WriteLine(key.ToString());
@@ -2106,17 +2106,17 @@ namespace AlgoTrader.Live.ViewModels
                     MainObj.StopSound();
                     break;
 
-                case Key.S: //this only fires once for some reason????
-                    AlgoTrader.Shared.Logging.LogConnection.WriteLine(key.ToString());
-                    if (IsKeyDown(Key.LeftShift))
-                    {
-                        GoToPrevSymbol();
-                    }
-                    else
-                    {
-                        GoToNextSymbol();
-                    }
-                    break;
+                //case Key.S: //this only fires once for some reason????
+                //    AlgoTrader.Shared.Logging.LogConnection.WriteLine(key.ToString());
+                //    if (IsKeyDown(Key.LeftShift))
+                //    {
+                //        GoToPrevSymbol();
+                //    }
+                //    else
+                //    {
+                //        GoToNextSymbol();
+                //    }
+                //    break;
 
                 case Key.R:
                     AlgoTrader.Shared.Logging.LogConnection.WriteLine(key.ToString());
@@ -2305,7 +2305,7 @@ namespace AlgoTrader.Live.ViewModels
 #endif
             if (popupMenuWindow == null)
             {
-                MainObj.visibleChart?.MouseMove(mouseX, mouseY, mouseDown, IsKeyDown(Key.LeftShift) || IsKeyDown(Key.RightShift), IsKeyDown(Key.LeftCtrl) || IsKeyDown(Key.RightCtrl), toggleDraw);
+                MainObj.visibleChart?.MouseMove(mouseX, mouseY, mouseDown, IsKeyDown(Key.LeftShift), IsKeyDown(Key.D), toggleDraw);
             }
         }
 
@@ -2317,7 +2317,7 @@ namespace AlgoTrader.Live.ViewModels
                 popupMenuWindow.Close();
                 popupMenuWindow = null;
             }
-            MainObj.visibleChart?.MouseDown(IsKeyDown(Key.LeftShift) || IsKeyDown(Key.RightShift), IsKeyDown(Key.LeftCtrl) || IsKeyDown(Key.RightCtrl), toggleDraw);
+            MainObj.visibleChart?.MouseDown(IsKeyDown(Key.LeftShift), IsKeyDown(Key.D), toggleDraw);
         }
 
         public void MouseLeave()
