@@ -67,6 +67,7 @@ namespace AlgoTrader.Shared
         {
             var a = Math.Sqrt((mouseX - line.X1) * (mouseX - line.X1) + (mouseY - line.Y1) * (mouseY - line.Y1)) < endDistToDrag;
             var b = Math.Sqrt((mouseX - line.X2) * (mouseX - line.X2) + (mouseY - line.Y2) * (mouseY - line.Y2)) < endDistToDrag;
+
             line.Cursor = a || b ? Cursors.ScrollWE : Cursors.ScrollAll;
             return (a, b);
         }

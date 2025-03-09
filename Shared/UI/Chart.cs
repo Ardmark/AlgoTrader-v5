@@ -734,7 +734,7 @@ namespace AlgoTrader.Shared
                     if (!MainObj.invertChart && items_chart.Any())
                     {
 
-                        string GetStopText(double stopPC, bool hasEntered, _Trade order, bool oppOrder = false, bool showLoss = true, string _text=" from opp order")
+                        string GetStopText(double stopPC, bool hasEntered, _Trade order, bool oppOrder = false, bool showLoss = true, string _text="")
                         {
                             var text = string.Empty;
                             if (stopPC > 0)
@@ -742,13 +742,13 @@ namespace AlgoTrader.Shared
                                 text += "+";
                             }
 
-                            //var lossProfit = price < 0 ? "loss" : price == 0 ? "" : "profit";
-                            text += $" {stopPC.ToString("0.0")}%";
+                            var lossProfit = stopPC < 0 ? "loss" : stopPC == 0 ? "" : "profit";
+                            text += $" {stopPC:0.0}%";
                             var gapText = TradeEngine.ENTRY_LINE_PRICE_GAP_PC > 0
                                 ? " inc.any gap(s) of { TradeEngine.ENTRY_LINE_PRICE_GAP_PC}%"
                                 : string.Empty;
-
-                            text += oppOrder ? " from opp. order" : hasEntered ? " from entry" : $" {_text}{gapText}";
+                             text += oppOrder ? " from opp. order" : hasEntered ? " from entry" : $" {_text}{gapText}";
+                            
                             if (showLoss)
                             {
                                 var lev = hasEntered 
@@ -756,21 +756,21 @@ namespace AlgoTrader.Shared
                                     : TradeEngineBitmex.CalculateLeverageFromStop(Math.Abs(stopPC), order.Position);
                                 var t1 = lev.ToString("F1");
                                 
-                                if (lev == TradeEngineBitmex.DEFAULT_LEVERAGE)
-                                {
-                                    t1 += " (max)";
-                                }
-                                var loss = (stopPC * lev);
+                                //if (lev == TradeEngineBitmex.DEFAULT_LEVERAGE)
+                                //{
+                                //    t1 += " (max)";
+                                //}
+                                //var loss = stopPC * lev;
 
-                                var t2 = loss.ToString("F1");
+                                //var t2 = loss.ToString("F1");
 
-                                var t3 = string.Empty;
-                                if (Math.Abs(loss) > TradeEngine.MAX_STOP_LOSS + 0.000001)//just to avoid rounding errors
-                                {
-                                    t3 = " (over target)";
-                                }
+                                //var t3 = string.Empty;
+                                //if (Math.Abs(loss) > TradeEngine.MAX_STOP_LOSS + 0.000001)//just to avoid rounding errors
+                                //{
+                                //    t3 = " (over target)";
+                                //}
 
-                                text += $"   Lev. {t1}   Loss {t2}% {t3}\n";
+                                text += $" {t1}X";//   {lossProfit} {t2}% {t3}\n";
                             }
 
                             return text;
@@ -1599,6 +1599,7 @@ namespace AlgoTrader.Shared
                             //currentLine.SetMinimumLength(TimeFrame);
                             currentLine.InitLine(false);
                             currentLine.Draw_UI(this); //if no chart scroll, must draw the line here
+
                         }
                         if (!keydown_D && !shiftDown)
                         {

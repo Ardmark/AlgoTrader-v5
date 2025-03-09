@@ -33,7 +33,7 @@ namespace AlgoTrader.Windows
             TradeEngineBitmex.MIN_LEVERAGE_LONG = 1.333;
             TradeEngineBitmex.DEFAULT_LEVERAGE = 3;
             TradeEngine.MINIMUM_TRADE_TIME = 0; //this is zero because one opposite order can exit on a floor then the other could trigger very quickly; if no floor or stop on first order, the second would be a flip anyway
-            TradeEngine.STOP_MIN_VALUE = 1.25; //will move stop or floor to this value when trade enters, and will auto-set floor at this level if there is no floor
+            TradeEngine.STOP_MIN_VALUE = 1.35; //will move stop or floor to this value when trade enters, and will auto-set floor at this level if there is no floor
             TradeEngine.MAX_ENTRY_DIFF_PERCENT = 0.5;
 
             /*************************************************************/

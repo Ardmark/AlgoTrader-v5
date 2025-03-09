@@ -3,6 +3,7 @@ using AlgoTrader.Shared.Logging;
 using AlgoTrader.Shared.MovingAverages;
 using AlgoTrader.Shared.Windows;
 using System.Data.Entity;
+using System.Security.Policy;
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Threading;
@@ -97,6 +98,9 @@ namespace AlgoTrader.Shared
         public static double INITIAL_TAKE_PROFIT_PERCENT_MARKET { get; set; } = 0; //initial take profit percent (set to zero to block setting TP initially) - set to any % to place an initial take profit  
         public static double SET_TAKE_PROFIT_THRESHOLD_PC { get; set; } = 2; //percent above break even which will trigger a break-even (if no break even set manually)
         public static double TAKE_PROFIT_PERCENT_PC { get; set; } = 25; //will set a floor to track this difference between entry and current high
+
+        //break even
+        public static double BREAK_EVEN_PERCENT { get; set; } = 10;
 
         //spike
         public static int SPIKE_TRIGGER_PERCENT { get; set; } = 5;   //set to zero to disable spike. 

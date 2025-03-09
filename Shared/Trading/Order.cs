@@ -822,6 +822,34 @@ namespace AlgoTrader.Shared
             }
             #endregion
 
+            #region if enabled, move to break even when profit reaches certain level
+
+            if (TradeEngine.BREAK_EVEN_PERCENT > 0)
+            {
+                var entryPrice = entry.Price;
+                var pos = entry.Position;
+                var high = pos == TradePosition.LONG
+                   ? entryPrice * (1 + TradeEngine.BREAK_EVEN_PERCENT / 100)
+                   : entryPrice / (1 + TradeEngine.BREAK_EVEN_PERCENT / 100);
+
+                if ((pos == TradePosition.LONG && tradeEngine.currentDataItem.Close > high) || (pos == TradePosition.SHORT && tradeEngine.currentDataItem.Close < high))
+                {
+                    if (floor == null)
+                    {
+                        SetFloorStop_synchronised(currTimestamp, entry.Price, TradeAction.FLOOR);
+                    }
+                    else
+                    {
+                        if ((pos == TradePosition.LONG && floor.Price < entryPrice) || (pos == TradePosition.SHORT && floor.Price > entryPrice))
+                        {
+                            floor.Price = entryPrice;
+                            tradeEngine.SetUpdateRequest(floor);
+                        }
+                    }
+                }
+            }
+            #endregion
+
             #region Spike
             if (TradeEngine.SPIKE_TRIGGER_PERCENT > 0)
             {
