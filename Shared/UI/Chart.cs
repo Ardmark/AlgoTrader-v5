@@ -743,7 +743,7 @@ namespace AlgoTrader.Shared
                             }
 
                             var lossProfit = stopPC < 0 ? "loss" : stopPC == 0 ? "" : "profit";
-                            text += $" {stopPC:0.0}%";
+                            text += $" {stopPC:0.00}%";
                             var gapText = TradeEngine.ENTRY_LINE_PRICE_GAP_PC > 0
                                 ? " inc.any gap(s) of { TradeEngine.ENTRY_LINE_PRICE_GAP_PC}%"
                                 : string.Empty;

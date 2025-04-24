@@ -307,6 +307,8 @@ namespace AlgoTrader.Shared.ViewModels
                      * Will only show live total. To get all totalled, including concurrent trades, must get result in the backtest project,
                      *  and have ENTER_CONCURRENT_TRADES_AS_TESTS set to true
                      * */
+
+
                     var result = close.Result - 0.2;
 
                     var c = result * close.Leverage;

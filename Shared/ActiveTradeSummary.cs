@@ -269,7 +269,7 @@ namespace AlgoTrader.Shared
                             prevClose = _closedOrders[^2]; //same as _closedOrders[closedOrders-2]
                         }
                         sb.Append("Closed trades:\n");
-                        sb.Append("Symbol\tAmount\tEntry: Date\tTime\tPrice\tBalance\tExit: Date\tTime\tPrice\tBalance\tResult\tRes.Lev.\ttLev.\tStop\tSide\tTF\tP/L\n");
+                        sb.Append("Symbol\tAmount\tEntry: Date\tTime\tPrice\tBalance\tExit: Date\tTime\tPrice\tBalance\tResult\tRes.Balance\ttLev.\tStop\tSide\tTF\tP/L\n");
                         //e.g. Closed: Binance THETABTC +2.3%  (Market Break)
                         foreach (var close in closedOrders)
                         {
@@ -339,7 +339,7 @@ namespace AlgoTrader.Shared
 
                                 var leverage = close.Leverage == 0 ? 1 : close.Leverage; //just to be safe
                                 var result = close.Result; //already adjusted for fees
-                                var resultLeveraged = result * leverage;
+                                var resultLeveraged = (close.Balance / entry.Balance - 1) * 100;
                                 var profit = close.Balance - entry.Balance;
                                 var pos = close.Position == TradePosition.LONG ? "long" : "short";
                                 var stopResult = order != null ? order.Result.ToString("F1") : "--";
@@ -350,18 +350,18 @@ namespace AlgoTrader.Shared
                                     $"{entry.Timestamp:d}\t" +
                                     $"{entry.Timestamp:t}\t" +
                                     $"{PriceFormatter.Format(entry.Price)}\t" +
-                                    $"{entry.Balance.ToString("F2")}\t" +
+                                    $"{entry.Balance:F2}\t" +
                                     $"{close.Timestamp:d}\t" +
                                     $"{close.Timestamp:t}\t" +
                                     $"{PriceFormatter.Format(close.Price)}\t" +
-                                    $"{close.Balance.ToString("F2")}\t" +
-                                    $"{result.ToString("F")}%\t" +
+                                    $"{close.Balance:F2}\t" +
+                                    $"{result:F}%\t" +
                                     $"{resultLeveraged.ToString("F")}%\t" +
-                                    $"{leverage.ToString("F1")}\t" +
+                                    $"{leverage:F1}\t" +
                                     $"{stopResult}\t" +
                                     $"{pos}\t" +
                                     $"{close.TimeFrame}\t" +
-                                    $"{profit.ToString("F")}\t" +
+                                    $"{profit:F}\t" +
                                      "\t" +
                                     $"{close.ExchangeRate}"
                                 );
@@ -374,7 +374,7 @@ namespace AlgoTrader.Shared
                         sb.Append(string.Concat("Total: ", total.ToString("F"), "%\n"));
 
                         #endregion
-
+                        sb.Append("Always check balance after trade closes, this is the figure that profit is calculated from for tax purposes\n");
                         sb.Append(SPACER);
 
                         MainObj.TradeSummary = sb.ToString();
