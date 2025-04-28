@@ -531,7 +531,7 @@ namespace AlgoTrader.Shared
                             LogTrades.WriteLine($"GetWalletSingleCurrency() returned {amount} for new order");
 
                             //save balance and exchange rate before entering trade
-                            Entry.Balance = GetAccountEquity(wallet1);
+                            (Entry.Balance, Entry.Equity) = GetAccountEquity(wallet1);
                             SetUpdateRequest(Entry);
 
                             //if this has just restarted, will try to enter any trades immediately but the price won't be available from the websocket yet.
@@ -1616,7 +1616,7 @@ namespace AlgoTrader.Shared
 
         #region Get account balances
 
-        protected override double GetAccountEquity(List<Wallet> wallet = null)
+        protected override (double, double) GetAccountEquity(List<Wallet> wallet = null)
         {
             if (wallet == null)
             {
@@ -1625,16 +1625,17 @@ namespace AlgoTrader.Shared
             if (wallet == null)
             {
                 LogTrades.WriteLine("Failed to get Wallet for account balances");
-                return 0;
+                return (0, 0);
             }
             // Total equity
-            double totalEquity = 0;
+            double quoteEquity = 0;
+            double baseEquity = 0;
             foreach (var w in wallet)
             {
                 if (w.Currency.ToUpper() == SymbolNames.FIAT_ASSET)
                 {
                     //just the fiat balance
-                    totalEquity += w.Amount / fiatDivisor;
+                    quoteEquity += w.Amount / fiatDivisor;
                 }
                 else
                 {
@@ -1646,11 +1647,12 @@ namespace AlgoTrader.Shared
                     }
                     else
                     {
-                        totalEquity += w.Amount / XBTdivisor * lastQuoteValue;
+                        quoteEquity += w.Amount / XBTdivisor * lastQuoteValue;
+                        baseEquity += w.Amount / XBTdivisor;
                     }
                 }
             }
-            return totalEquity;
+            return (quoteEquity, baseEquity);
         }
 
         //get account balances - this is for display only, it is not part of trade placement
@@ -1672,7 +1674,7 @@ namespace AlgoTrader.Shared
             if (wallet != null)
             {
                 // Total equity
-                totalEquity = GetAccountEquity(wallet);
+                (totalEquity, _) = GetAccountEquity(wallet);
 
                 // Individual balances
                 foreach (var w in wallet)

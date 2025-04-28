@@ -269,7 +269,7 @@ namespace AlgoTrader.Shared
                             prevClose = _closedOrders[^2]; //same as _closedOrders[closedOrders-2]
                         }
                         sb.Append("Closed trades:\n");
-                        sb.Append("Symbol\tAmount\tEntry: Date\tTime\tPrice\tBalance\tExit: Date\tTime\tPrice\tBalance\tResult\tRes.Balance\ttLev.\tStop\tSide\tTF\tP/L\n");
+                        sb.Append("Symbol\tAmount\tEntry: Date\tTime\tPrice\tBalance\tExit: Date\tTime\tPrice\tBalance\tEquity\tResult\tRes.Balance\ttLev.\tStop\tSide\tTF\tP/L\n");
                         //e.g. Closed: Binance THETABTC +2.3%  (Market Break)
                         foreach (var close in closedOrders)
                         {
@@ -321,7 +321,8 @@ namespace AlgoTrader.Shared
                                             $"{entry.Timestamp:d}\t" +
                                             $"{entry.Timestamp:t}\t" +
                                             $"{PriceFormatter.Format(entry.Price)}\t" +
-                                            $"{entry.Balance.ToString("F2")}\t" +
+                                            $"{entry.Balance:F2}\t" +
+                                            "\t" +
                                             "\t" +
                                             "\t" +
                                             "\t" +
@@ -355,6 +356,7 @@ namespace AlgoTrader.Shared
                                     $"{close.Timestamp:t}\t" +
                                     $"{PriceFormatter.Format(close.Price)}\t" +
                                     $"{close.Balance:F2}\t" +
+                                    $"{close.Equity:F6}\t" +
                                     $"{result:F}%\t" +
                                     $"{resultLeveraged.ToString("F")}%\t" +
                                     $"{leverage:F1}\t" +

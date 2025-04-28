@@ -1425,9 +1425,9 @@ namespace AlgoTrader.Shared
         {
 
         }
-        protected virtual double GetAccountEquity(List<Wallet> wallet = null)
+        protected virtual (double, double) GetAccountEquity(List<Wallet> wallet = null)
         {
-            return 0;
+            return (0, 0);
         }
 
         protected void EnterTradeOnSystem_synchronised(decimal price, double quantity, TradeExchangeStatus orderType)
@@ -1754,7 +1754,7 @@ namespace AlgoTrader.Shared
                     timer.Stop();
                     try
                     {
-                        var balance = GetAccountEquity(); //this will just return 0 with Binance, as it is too awkward to get this asynchronously with the data being fed into stdout
+                        var (balance, equity) = GetAccountEquity(); //this will just return 0 with Binance, as it is too awkward to get this asynchronously with the data being fed into stdout
                         if (balance != 0)
                         {
                             using (DataContext db = new DataContext())
@@ -1763,6 +1763,7 @@ namespace AlgoTrader.Shared
                                 if (closedTrade != null)
                                 {
                                     closedTrade.Balance = balance;
+                                    closedTrade.Equity = equity; 
                                     db.SaveChanges();
                                     LogTrades.WriteLine($"Saving final closing balance of {balance}");
                                 }

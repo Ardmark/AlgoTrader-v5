@@ -49,6 +49,9 @@ namespace AlgoTrader.Shared
         public double Balance { get; set; }
         public double ExchangeRate { get; set; }
 
+        public double Equity {  get ; set; }
+
+
         #region Drawing (one - to - many, unused)
         //adding this seems to change the entire db structure, renaming dbo.ChartLines to dbo.DrawingBases....
         //but this is pointless anyway, as a trade can only be attached to a single ui drawing object anyway
