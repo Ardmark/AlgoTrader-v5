@@ -1356,21 +1356,22 @@ namespace AlgoTrader.Shared
                                     SetStopOnExchange_Synchronised(Stop);
                                     SetUpdateRequest(Stop);
                                 }
-                                else
-                                {
-                                    //set default stop
-                                    Floor = Order.Clone();
-                                    Floor.Action = TradeAction.FLOOR;
-                                    Floor.Timestamp = DateTime.UtcNow;
-                                    Floor.Position = position;
-                                    Floor.Quantity = orderQuantity;
-                                    Floor.TradeReference = newReference;
-                                    Floor.GlobalStatus = TradeGlobalStatus.ACTIVE;
-                                    Floor.ItemStatus = TradeItemStatus.OPEN;
-                                    SetUpdateRequest(Floor);
-                                    SetStopOnExchange_Synchronised(Floor);
-                                    SetUpdateRequest(Floor);
-                                }
+                                //floor is already set before this method is called
+                                //else
+                                //{
+                                //    //set default stop
+                                //    Floor = Order.Clone();
+                                //    Floor.Action = TradeAction.FLOOR;
+                                //    Floor.Timestamp = DateTime.UtcNow;
+                                //    Floor.Position = position;
+                                //    Floor.Quantity = orderQuantity;
+                                //    Floor.TradeReference = newReference;
+                                //    Floor.GlobalStatus = TradeGlobalStatus.ACTIVE;
+                                //    Floor.ItemStatus = TradeItemStatus.OPEN;
+                                //    SetUpdateRequest(Floor);
+                                //    SetStopOnExchange_Synchronised(Floor);
+                                //    SetUpdateRequest(Floor);
+                                //}
                             }
                         }
                     }
