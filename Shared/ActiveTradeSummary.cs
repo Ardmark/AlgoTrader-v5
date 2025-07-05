@@ -310,6 +310,8 @@ namespace AlgoTrader.Shared
                                     if (prevClose != null)
                                     {
                                         var _profit = entry.Balance - prevClose.Balance;
+                                        var _result = (entry.Price / prevClose.Price - 1) * 100;
+                                        var _gbp = _profit * entry.ExchangeRate;
 
                                         sb.Append(
                                             "BTC\t" +
@@ -323,14 +325,15 @@ namespace AlgoTrader.Shared
                                             $"{PriceFormatter.Format(entry.Price)}\t" +
                                             $"{entry.Balance:F2}\t" +
                                             "\t" +
+                                            $"{_result:F2}%" +
                                             "\t" +
                                             "\t" +
                                             "\t" +
                                             "\t" +
                                             "\t" +
                                             "\t" +
-                                            $"{_profit.ToString("F")}\t" +
-                                            "\t" +
+                                            $"{_profit.ToString("F4")}\t" +
+                                            $"{_gbp:F2}\t" +
                                             $"{entry.ExchangeRate}"
                                         );
                                         sb.Append("\n");
@@ -340,10 +343,12 @@ namespace AlgoTrader.Shared
 
                                 var leverage = close.Leverage == 0 ? 1 : close.Leverage; //just to be safe
                                 var result = close.Result; //already adjusted for fees
-                                var resultLeveraged = (close.Balance / entry.Balance - 1) * 100;
+
+                                var resultLeveraged = (close.Balance / entry.Balance - 1) * 100; 
                                 var profit = close.Balance - entry.Balance;
                                 var pos = close.Position == TradePosition.LONG ? "long" : "short";
                                 var stopResult = order != null ? order.Result.ToString("F1") : "--";
+                                var gbp = profit * entry.ExchangeRate;
 
                                 sb.Append(
                                     $"{symbolName}\t" +
@@ -358,13 +363,13 @@ namespace AlgoTrader.Shared
                                     $"{close.Balance:F2}\t" +
                                     $"{close.Equity:F6}\t" +
                                     $"{result:F}%\t" +
-                                    $"{resultLeveraged.ToString("F")}%\t" +
+                                    $"{resultLeveraged:F}%\t" +
                                     $"{leverage:F1}\t" +
                                     $"{stopResult}\t" +
                                     $"{pos}\t" +
                                     $"{close.TimeFrame}\t" +
                                     $"{profit:F}\t" +
-                                     "\t" +
+                                    $"{gbp:F2}\t" +
                                     $"{close.ExchangeRate}"
                                 );
                                 sb.Append("\n");

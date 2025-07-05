@@ -771,7 +771,7 @@ namespace AlgoTrader.Shared
                                 SetUpdateRequest(Floor);
                             }
 
-                            using (DataContext db = new DataContext())
+                            using (DataContext db = new())
                             {
                                 var tr = Entry.TradeReference;                    
                                 var ex = (double)await GetGBPUSDRate();
@@ -1356,7 +1356,7 @@ namespace AlgoTrader.Shared
                                     SetStopOnExchange_Synchronised(Stop);
                                     SetUpdateRequest(Stop);
                                 }
-                                //floor is already set before this method is called
+                                //floor is already set before this method is called, but Floor will be null from the above code - doesn't matter, it is on the exchange and in the DB
                                 //else
                                 //{
                                 //    //set default stop

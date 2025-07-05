@@ -50,7 +50,7 @@ namespace AlgoTrader.Windows
             TradeEngine.MAX_SHORT_STOP = 500000;
 
             //Display
-            MainObj.NUM_DAYS_TO_SHOW = 90;
+            MainObj.NUM_DAYS_TO_SHOW = 300;
             MainObj.INITIAL_TIMEFRAME = 60;
 
         }
