@@ -1676,6 +1676,17 @@ namespace AlgoTrader.Shared
                 trade.Price = floorPrice;
                 SetUpdateRequest(trade);
 
+                var oppositeSide = position == TradePosition.LONG ? TradePosition.SHORT : TradePosition.LONG;
+                var oppOrder = AllTrades.FirstOrDefault(x =>
+                                                x.Action == TradeAction.ORDER &&
+                                                x.Position == oppositeSide &&
+                                                x.ItemStatus == TradeItemStatus.OPEN &&
+                                                x.GlobalStatus == TradeGlobalStatus.ACTIVE);
+
+                if (oppOrder != null)
+                {
+                    AlertDialog.Show("Leverage will be set from opposite order price, so may be less than (but not exceding) default.\nStops will be removed on trade entry, and opposite order will be set as a flip stop.", "WARNING");
+                }
 
                 return order;
             }

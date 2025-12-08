@@ -59,7 +59,10 @@ namespace AlgoTrader.Live.ViewModels
         #region IMainViewModel implementation
         public void SetItemPrice(_SymbolDataItem item)
         {
-            var s = item.Close == 0 ? WAITING_TEXT : PriceFormatter.Format(item.Close); //0 is just a flag for initialisation, see MainObj.ItemUpdated()
+            var timeDiff = DateTime.UtcNow - item.Timestamp;
+            var s = item.Close == 0 ? WAITING_TEXT : $"{PriceFormatter.Format(item.Close)}, {timeDiff.TotalSeconds:0} seconds lag"; //0 is just a flag for initialisation, see MainObj.ItemUpdated()
+            //s += timeDiff.TotalSeconds > 60 ? $" (last update {timeDiff.TotalMinutes:0} min ago)" : $" (last update {timeDiff.TotalSeconds:0} sec ago)";
+
             SetProperty("CurrentPrice", s);
         }
 

@@ -235,7 +235,7 @@
             </Button>
             <!--<TextBox  Grid.Row="0" TextWrapping="Wrap" Margin="6,0,0,0" IsEnabled="False" Text="{Binding ProgressPercent, Mode=OneWay}" Width="100"></TextBox>
             <TextBox  Grid.Row="0" TextWrapping="Wrap" Margin="6,0,0,0" IsEnabled="False" Text="{Binding ProgressPercent1, Mode=OneWay}" Width="60"></TextBox>-->
-            <TextBox Grid.Row="0" TextWrapping="Wrap" Margin="6,0,0,0" Text="{Binding CurrentPrice, Mode=OneWay}" IsEnabled="False" Width="75"/>
+            <TextBox Grid.Row="0" TextWrapping="Wrap" Margin="6,0,0,0" Text="{Binding CurrentPrice, Mode=OneWay}" IsEnabled="False" Width="150"/>
             <TextBox Grid.Row="0" TextWrapping="Wrap" Margin="6,0,0,0" Text="{Binding CountDownText, Mode=OneWay}" IsEnabled="False" Width="95"/>
 
         </StackPanel>
