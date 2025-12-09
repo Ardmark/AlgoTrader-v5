@@ -1069,6 +1069,11 @@ namespace AlgoTrader.Shared
         #endregion
 
         #region Update item
+        public static void __DebugOut(string s)
+        {
+            mainViewModel.__DebugOut(s);
+        }
+        static DateTime? lastTime = null;
         public static void ItemUpdated(_SymbolDataItem _item, string symbolName)
         {
             rateCount++;
@@ -1099,13 +1104,28 @@ namespace AlgoTrader.Shared
                         }
                     }
                 }
+                    
+                var timeDiff = (DateTime.UtcNow - item.Timestamp).TotalSeconds;
 
-                var timeDiff = DateTime.UtcNow - item.Timestamp;
-                if (timeDiff.TotalSeconds > 10)
+                //if (lastTime == null)
+                //{
+                //    lastTime = DateTime.UtcNow;
+                //}
+                //else
+                //{
+                //    var numSecs = DateTime.UtcNow.Subtract(lastTime.Value).TotalSeconds;
+                //    if (numSecs > 30)
+                //    {
+                //        LogConnection.WriteLineTimestamp($"{timeDiff} sec delay");
+                //        lastTime = DateTime.UtcNow;
+                //    }
+                //}
+                if (timeDiff > 30)
                 {
                     RefreshConnector();
-                    LogTrades.WriteLine($"Data delay at {DateTime.UtcNow:g}, {timeDiff.TotalSeconds:0} seconds behind real time. Refreshing connection.");
+                    LogConnection.WriteLineTimestamp($"{timeDiff:0} sec lag, restarting connection.");
                 }
+
             }
             catch (Exception ex)
             {

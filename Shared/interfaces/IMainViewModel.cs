@@ -4,6 +4,7 @@ namespace AlgoTrader.Shared.Interfaces
 {
     public interface IMainViewModel
     {
+        void __DebugOut(string message);
         void SetItemPrice(_SymbolDataItem item);
         void ExceptionAlert(string shortMsg, string longMsg);
         void PopupMenuForLine(object sender, MouseButtonEventArgs e);

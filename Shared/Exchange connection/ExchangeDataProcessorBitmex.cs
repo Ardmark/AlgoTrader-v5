@@ -192,6 +192,8 @@ namespace AlgoTrader.Shared.ExchangeConnection
                     int start = 0;
                     bool OK = true;
 
+
+
                     while (end - start > 0)
                     {
                         if (data[start] == null)
@@ -262,7 +264,14 @@ namespace AlgoTrader.Shared.ExchangeConnection
                                     currentSymbolDataItem.Update(lastReadItem);
                                     currentSymbolDataItem.CopyTo(ret); //just assignment and timestamp will be reset in ret when currentItem loses its seconds in SetTimestamp()
                                     //must clone currentItem as it will be changed next loop so that could change data somewhere else with unexpected results
-                                    MainObj.ItemUpdated(currentSymbolDataItem.Clone(), symbolName); //don't want to do this dozens of times each update, just for the final aggregated value
+                                    var item = currentSymbolDataItem.Clone();
+                                    MainObj.ItemUpdated(item, symbolName); //don't want to do this dozens of times each update, just for the final aggregated value
+                                   
+                                    //var timeDiff = DateTime.UtcNow - lastReadItem.timestamp;
+                                    //var p = $"{timeDiff.TotalMilliseconds:0} ms ";
+                                    //var s = $"{p} lag";
+                                    //MainObj.__DebugOut(s);
+
                                 }
                                 else
                                 {
@@ -272,7 +281,7 @@ namespace AlgoTrader.Shared.ExchangeConnection
                                     *  - currentItem is null and ret is returned as a new BitmexDataItem with the timestamp of 0001,01,01
                                     *    so need to set the timestamp to the current item timestamp at this point
                                     *    */
-
+                                    Debug.WriteLine("Ran to end of data");
 
                                     currentSymbolDataItem.SetTimestamp(); //will remove seconds to correctly set timestamp as start of minute
 

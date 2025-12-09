@@ -57,6 +57,10 @@ namespace AlgoTrader.Live.ViewModels
     public partial class MainViewModel : INotifyPropertyChanged, IMainViewModel
     {
         #region IMainViewModel implementation
+        public void __DebugOut(string s)
+        {
+            SetProperty("CurrentPrice", s);
+        }
         public void SetItemPrice(_SymbolDataItem item)
         {
             var timeDiff = DateTime.UtcNow - item.Timestamp;
