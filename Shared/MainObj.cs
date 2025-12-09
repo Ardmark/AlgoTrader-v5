@@ -1099,6 +1099,13 @@ namespace AlgoTrader.Shared
                         }
                     }
                 }
+
+                var timeDiff = DateTime.UtcNow - item.Timestamp;
+                if (timeDiff.TotalSeconds > 10)
+                {
+                    RefreshConnector();
+                    LogTrades.WriteLine($"Data delay at {DateTime.UtcNow:g}, {timeDiff.TotalSeconds:0} seconds behind real time. Refreshing connection.");
+                }
             }
             catch (Exception ex)
             {
