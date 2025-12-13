@@ -381,7 +381,7 @@ namespace AlgoTrader.Live.ViewModels
         ICommand connectionCommand, restartCommand, backupDBCommand;
         public ICommand ConnectionCommand => connectionCommand ?? (connectionCommand = new CommandHandler1(() => ToggleConnection(), true));
         public ICommand RestartCommand => restartCommand ?? (restartCommand = new CommandHandler1(() => RestartConnection(), true));
-        public ICommand BackupDBCommand => backupDBCommand ?? (backupDBCommand = new CommandHandler1(async () => await ExchangeConnector.BackupDB(), true));
+        public ICommand BackupDBCommand => backupDBCommand ?? (backupDBCommand = new CommandHandler1(async () => await MainObj.BackupDB(), true));
         #endregion
 
         #region Time

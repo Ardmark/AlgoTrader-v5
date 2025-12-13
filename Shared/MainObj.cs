@@ -8,8 +8,10 @@ using System.Data;
 using System.Data.Entity.Core.Common.CommandTrees.ExpressionBuilder;
 using System.Data.SqlClient;
 using System.Diagnostics;
+using System.IO;
 using System.Windows.Controls;
 using System.Windows.Media;
+using System.Windows.Threading;
 using Application = System.Windows.Application;
 using Brushes = System.Windows.Media.Brushes;
 using Color = System.Windows.Media.Color;
@@ -18,6 +20,25 @@ namespace AlgoTrader.Shared
 {
     public static partial class MainObj
     {
+        #region Backup parameters
+        /*
+    * Database will be backed up using the database name and the current time in ticks. Use the Modified time to get the last one saved
+    * To restore:
+    * 1) Must create the database first, this can be done in Microsoft SQL Server Management Studio but name MUST match the backed up database name
+    * 2) In Microsoft SQL Server Management Studio:
+    *      R-click Databases and choose Restore Database
+    *      Select Device as source, click Add and browse to .bak file
+    *      Select Destination database
+    *      That's it.
+    * 
+    * Note, that a Bacpac file will be MUCH smaller, restoring from backup will also restore the .ldf file which will bloat.
+    * To clean this out, do a Bacpac backup - restore.
+    * */
+        public static int NUM_INCREMENTAL_BACKUPS = 2;
+        public static string BACKUP_FOLDER = "C:\\Users\\richa\\MyFiles\\Visual Studio Projects\\AlgoTrader DB Backups";
+        public static int BACKUP_FREQUENCY_HOURS = 24;
+        #endregion
+
         #region Per-project constants
         public static int NUM_DAYS_TO_SHOW; //this is not an exact figure, just skips all but this number of weeks then looks for the first midnight boundary
         public static bool READ_LIVE_DATA; //if true, will update items live. If writing to DB, this is ignored
@@ -947,6 +968,95 @@ namespace AlgoTrader.Shared
             
 
             initComplete = true; //marks so DB can now be backed up
+
+            if (MainObj.BACKTEST == false && BACKUP_FOLDER != null && NUM_INCREMENTAL_BACKUPS > 0)
+            {
+                try
+                {
+                    //start backup
+                    DispatcherTimer backupTimer = new();
+                    DateTime lastBackupTime = DateTime.UtcNow;
+
+                    backupTimer.Tick += new EventHandler(async (source, eventArgs) =>
+                    {
+                        lastBackupTime = DateTime.UtcNow;
+                        await BackupDB();
+                    });
+
+                    backupTimer.Interval = new TimeSpan(BACKUP_FREQUENCY_HOURS, 0, 0);
+                    backupTimer.Start();
+                }
+                catch (Exception e)
+                {
+                    //todo - callback
+                    LogConnection.WriteLine("Exception thrown while initialising database backup: " + e.ToString());
+                }
+            }
+        }
+        public static async Task BackupDB()
+        {
+            if (MainObj.initComplete == false)
+            {
+                return;
+            }
+            try
+            {
+                var connString = System.Configuration.ConfigurationManager.ConnectionStrings["DataContext"];
+                var csb = new SqlConnectionStringBuilder(connString.ToString());
+                var dbName = csb["initial catalog"].ToString();
+                var timeStamp = DateTime.UtcNow.ToString("dd/MM/yy HH:mm:ss");
+
+                using DataContext dbBackup = new();
+                var files = Directory.EnumerateFiles(BACKUP_FOLDER).Where(x => x.Contains(dbName) && x.Contains(".bak"));
+                while (files.Any() && files.Count() >= NUM_INCREMENTAL_BACKUPS)
+                {
+                    DateTime earliestFileDate = new(DateTime.UtcNow.Year + 1, DateTime.UtcNow.Month, DateTime.UtcNow.Day);
+                    string earliestFile = null;
+                    foreach (var f in files)
+                    {
+                        //var s = file.IndexOf(dbName) + dbName.Count;
+                        var creationTime = File.GetCreationTime(Path.Combine(f));
+                        if (creationTime < earliestFileDate)
+                        {
+                            earliestFileDate = creationTime;
+                            earliestFile = f;
+                        }
+                    }
+                    if (earliestFile != null)
+                    {
+                        File.Delete(earliestFile);
+                    }
+
+                }
+                //filename will be DB name combined with ticks when created
+                string fileName = Path.Combine(BACKUP_FOLDER, dbName + "_" + DateTime.UtcNow.Ticks.ToString() + ".bak");
+                //if (File.Exists(fileName))
+                //{
+                //    FileStream fs = new FileStream(fileName, FileMode.Truncate); //need to zero the file or it will get appended
+                //    fs.Close();
+                //    fs.Dispose();
+                //}
+                //else
+                //{
+                FileStream fs = new FileStream(fileName, FileMode.CreateNew); //need to zero the file or it will get appended
+                fs.Close();
+                fs.Dispose();
+                //}
+
+                DateTime dt = DateTime.UtcNow;
+                var result = await dbBackup.Database.ExecuteSqlCommandAsync(System.Data.Entity.TransactionalBehavior.DoNotEnsureTransaction,
+                "BACKUP DATABASE @DB_Name TO DISK = @fileName",
+                    new SqlParameter("@DB_Name", dbName),
+                    new SqlParameter("@fileName", fileName)
+                    );
+                double backupTime = DateTime.UtcNow.Subtract(dt).TotalMilliseconds;
+                TimeSpan upTime = DateTime.UtcNow.Subtract(startTime);
+                LogBackups.WriteLine(string.Format("Database backed up at {0} in {1}ms; uptime is {2} days, {3} hours, {4} mins, {5} secs", DateTime.UtcNow.ToString(), backupTime.ToString(), upTime.Days, upTime.Hours, upTime.Minutes, upTime.Seconds));
+            }
+            catch (Exception e)
+            {
+                LogConnection.WriteLine("DB backup threw exception: " + e.ToString());
+            }
         }
 
         public static void RefreshConnector()
@@ -1123,7 +1233,7 @@ namespace AlgoTrader.Shared
                 if (timeDiff > 30)
                 {
                     RefreshConnector();
-                    LogConnection.WriteLineTimestamp($"{timeDiff:0} sec lag, restarting connection.");
+                    LogTrades.WriteLine($"{DateTime.UtcNow:g}: {timeDiff:0} sec lag, restarting connection.");
                 }
 
             }
