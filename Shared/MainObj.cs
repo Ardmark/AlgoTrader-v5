@@ -1131,6 +1131,10 @@ namespace AlgoTrader.Shared
                 AddItemDirect(items[i], displayPanelsForSymbol[symbolName], false);
             }
         }
+        internal static void AddSingleItemLive(_SymbolDataItem item, string symbolName)
+        {
+            AddItemDirect(item, displayPanelsForSymbol[symbolName], true);      
+        }
 
         //this is called live for each new item
         internal static void AddItem(_SymbolDataItem item, string symbolName, bool liveItem)

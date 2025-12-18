@@ -345,7 +345,7 @@ namespace AlgoTrader.Shared.ExchangeConnection
                 }
 
                 MainObj.AddItems(itemsToAdd, symbolName); //add as non-live items
-                MainObj.AddItem(item, symbolName, true); //add the live item
+                MainObj.AddSingleItemLive(item, symbolName); //add the live item
                 itemsToAdd.Add(item); //return all items to add
             }
             //update last item added in dictionary

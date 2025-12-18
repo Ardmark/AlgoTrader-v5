@@ -53,21 +53,12 @@ namespace AlgoTrader.Shared.ExchangeConnection
                 dynamic dyn = JsonConvert.DeserializeObject(e.Data);
                 if (dyn.error != null)
                 {
-                    try
-                    {
-                        LogConnection.WriteLineTimestamp(dyn.error);
-                    }
-                    catch { }
+                    LogConnection.WriteLineTimestamp(dyn.error);
                     //Bitmex errors, data is served as normal
                 }
                 if (dyn.message != null)
                 {
-                    try
-                    {
-                        LogConnection.WriteLineTimestamp(dyn.message);
-                    }
-                    catch { }
-                    //any arbitrary message
+                    LogConnection.WriteLineTimestamp(dyn.message.ToString());
                 }
                 if (dyn.symbol != null && dyn.table != null)
                 {
@@ -97,7 +88,8 @@ namespace AlgoTrader.Shared.ExchangeConnection
                                 if (currentItem != null)
                                 {
                                     //var t = DateTime.UtcNow.Subtract(lastCaptureTimestamp).TotalSeconds;
-                                    //if (t > 20)
+                                    //Debug.WriteLine(t);
+                                    //if (t > 5)
                                     //{
                                     //    /*
                                     //     * this is always with 1000 data elements and last element is < element count, e.g.
@@ -138,7 +130,9 @@ namespace AlgoTrader.Shared.ExchangeConnection
                 LogConnection.WriteLineTimestamp("Bitmex capture output exception: " + ex.ToString());
             }
         }
-        List<_SymbolDataItem> itemsToSave = new List<_SymbolDataItem>();
+        List<_SymbolDataItem> itemsToSave = [];
+        DateTime lastUpdatedItemTime;
+        static int __c = 0;
         protected _SymbolDataItem ProcessData(dynamic dyn)
         {
             __iterationCount = 0;
@@ -175,7 +169,7 @@ namespace AlgoTrader.Shared.ExchangeConnection
                             price = data[0].bidPrice,
                             symbolName = symbol
                         };
-                        lastSavedItemTime = lastReadItemTime = lastReadItem.timestamp;
+                        lastSavedItemTime = lastReadItemTime = lastUpdatedItemTime = lastReadItem.timestamp;
 
                         first = false;
                     }
@@ -231,8 +225,16 @@ namespace AlgoTrader.Shared.ExchangeConnection
                     }
                     if (OK)
                     {
+                        //if (__c++ > 100)
+                        //if (count == 1000)
+                        //{
+                        //    __c = 0;
+                        //    Debug.WriteLine($"{start} {count}, {data[0].timestamp} {data[start].timestamp} {data[count - 1].timestamp} ");
+                        //}
+
                         if (start < count)
                         {
+
                             lastReadItem.timestamp = data[start].timestamp;
                             lastReadItem.price = data[start].bidPrice;
                             lastReadItem.symbolName = data[start].symbol;
@@ -241,61 +243,70 @@ namespace AlgoTrader.Shared.ExchangeConnection
                             __iterationCount++;
                             DateTime nextMinute = GetAsMinute(lastSavedItemTime).AddMinutes(1);
 
+
                             //read forward from this position until rolling over to next minute, then save out
-                            for (dataCount = start; dataCount < count; dataCount++)
+                            /*
+                             * ISSUE - can't handle the data throughput (since full fibre??),, getting huge lag between last read item and
+                             * the actual item time in MainObj. Data here is always current. Seems like there are just too many calls into the UI,
+                             * causing this method to be too slow and the process calls just stack up. Once 20 seconds is reached, MainObj just resets connection.
+                             * This would happen in higher volatility periods mainly, because generally only the last element was used each time in low vol. periods.
+                             * 1) Changed so it only called MainObj.UpdateItem(..) when there was actually a change in timestamp, as it was calling this every single
+                             *    time before. Helped a little
+                             * 2) Just use the very last item instead of reading through the list. Helped massively.
+                             * 3) Since the list is not used, connector.js now just requesting 10 items (although only 1 needed really)
+                             * */
+                            //for (dataCount = start; dataCount < count; dataCount++)
+                            dataCount = count-1;
                             {
                                 dynamic obj = data[dataCount];
-                                DateTime timestamp = GetAsMinute(obj.timestamp);
-
-                                lastReadItem.price = obj.bidPrice;
-                                lastReadItem.timestamp = obj.timestamp;
-                                lastReadItem.symbolName = obj.symbol;
-
-                                if (DateTime.Compare(nextMinute, timestamp) > 0)
+                                DateTime objTimeStamp = obj.timestamp;
+                                if (objTimeStamp > lastUpdatedItemTime)
                                 {
-                                    /*
-                                     * edge case: runs to end of data, last element goes to next minute so item is saved.
-                                     * next data set adds just one element, or no elements (i.e. same data set sent):
-                                     *  - FindNextItem returns the last element, so there is just one iteration, currentItem is set to new BitmexDataItem so timestamp is 
-                                     *    never changed. This could happen repeatedly so it will result in a long period of 'dropout' of captured data, apparently
-                                     *    So must always set timestamp for returned object (which is done in currentItem.Update(...))
-                                     * */
+                                    lastUpdatedItemTime = objTimeStamp;
+                                    DateTime timestamp = GetAsMinute(obj.timestamp);
 
-                                    currentSymbolDataItem.Update(lastReadItem);
-                                    currentSymbolDataItem.CopyTo(ret); //just assignment and timestamp will be reset in ret when currentItem loses its seconds in SetTimestamp()
-                                    //must clone currentItem as it will be changed next loop so that could change data somewhere else with unexpected results
-                                    var item = currentSymbolDataItem.Clone();
-                                    MainObj.ItemUpdated(item, symbolName); //don't want to do this dozens of times each update, just for the final aggregated value
-                                   
-                                    //var timeDiff = DateTime.UtcNow - lastReadItem.timestamp;
-                                    //var p = $"{timeDiff.TotalMilliseconds:0} ms ";
-                                    //var s = $"{p} lag";
-                                    //MainObj.__DebugOut(s);
+                                    lastReadItem.price = obj.bidPrice;
+                                    lastReadItem.timestamp = obj.timestamp;
+                                    lastReadItem.symbolName = obj.symbol;
 
-                                }
-                                else
-                                {
-                                    /*
-                                    * edge case: runs to end of data, last element goes to next minute so item is saved.
-                                    * next data set adds just one element, or no elements (i.e. same data set sent):
-                                    *  - currentItem is null and ret is returned as a new BitmexDataItem with the timestamp of 0001,01,01
-                                    *    so need to set the timestamp to the current item timestamp at this point
-                                    *    */
-                                    Debug.WriteLine("Ran to end of data");
+                                    if (DateTime.Compare(nextMinute, timestamp) > 0)
+                                    {
+                                        currentSymbolDataItem.Update(lastReadItem);
+                                        currentSymbolDataItem.CopyTo(ret); //just assignment and timestamp will be reset in ret when currentItem loses its seconds in SetTimestamp()
+                                                                           //must clone currentItem as it will be changed next loop so that could change data somewhere else with unexpected results
+                                        var item = currentSymbolDataItem.Clone();
+                                        MainObj.ItemUpdated(item, symbolName); //don't want to do this dozens of times each update, just for the final aggregated value
 
-                                    currentSymbolDataItem.SetTimestamp(); //will remove seconds to correctly set timestamp as start of minute
+                                        //var timeDiff = DateTime.UtcNow - lastReadItem.timestamp;
+                                        //var p = $"{timeDiff.TotalMilliseconds:0} ms ";
+                                        //var s = $"{p} lag";
+                                        //MainObj.__DebugOut(s);
 
-                                    //must clone currentItem as it will be changed next loop so that could change data somewhere else with unexpected results
-                                    itemsToSave.AddRange(GetItemsToSave(currentSymbolDataItem.Clone(), symbolName)); //this adds to the private list in case this is called in a loop
+                                    }
+                                    else
+                                    {
+                                        /*
+                                        * runs to end of data, last element goes to next minute so item is saved.
+                                        * next data set adds just one element, or no elements (i.e. same data set sent):
+                                        *  - currentItem is null and ret is returned as a new BitmexDataItem with the timestamp of 0001,01,01
+                                        *    so need to set the timestamp to the current item timestamp at this point
+                                        *    */
+                                        Debug.WriteLine("Ran to end of data");
 
-                                    //Debug.WriteLine($"{currentSymbolDataItem.Open}, {currentSymbolDataItem.High}, {currentSymbolDataItem.Low}");    
-                                    lastSavedItemTime = lastReadItem.timestamp;
-                                    nextMinute = timestamp.AddMinutes(1);
+                                        currentSymbolDataItem.SetTimestamp(); //will remove seconds to correctly set timestamp as start of minute
 
-                                    //currentSymbolDataItem is a reference from the currentSymbols[] array, so need to hold on to this - 
-                                    // creating a new object will prevent the retrieved object from being updated, obviously
-                                    currentSymbolDataItem.High = currentSymbolDataItem.Low = currentSymbolDataItem.Open = currentSymbolDataItem.Close = lastReadItem.price;
-                                    currentSymbolDataItem.CopyTo(ret);
+                                        //must clone currentItem as it will be changed next loop so that could change data somewhere else with unexpected results
+                                        itemsToSave.AddRange(GetItemsToSave(currentSymbolDataItem.Clone(), symbolName)); //this adds to the private list in case this is called in a loop
+
+                                        //Debug.WriteLine($"{currentSymbolDataItem.Open}, {currentSymbolDataItem.High}, {currentSymbolDataItem.Low}");    
+                                        lastSavedItemTime = lastReadItem.timestamp;
+                                        nextMinute = timestamp.AddMinutes(1);
+
+                                        //currentSymbolDataItem is a reference from the currentSymbols[] array, so need to hold on to this - 
+                                        // creating a new object will prevent the retrieved object from being updated, obviously
+                                        currentSymbolDataItem.High = currentSymbolDataItem.Low = currentSymbolDataItem.Open = currentSymbolDataItem.Close = lastReadItem.price;
+                                        currentSymbolDataItem.CopyTo(ret);
+                                    }
                                 }
                             }
 

@@ -787,15 +787,14 @@ namespace AlgoTrader.Shared
                 dataReady = true;
 
                 UpdateLiveState(); //conflicts somewhat with setting stop after stop movement, so went to a timer but that did not seem to update db as it is asynchronous and old values still persisted
-                _Trade entry = null;
-                InitForDataContext(() =>
-                {
-                    entry = Entry;
-                });
+                //InitForDataContext(() =>
+                //{
+
+                //});
 
                 using DataContext db = new();
                 GetUILists(db); //just to synch with db, in case something has been removed or not saved correctly
-                var _entry = db.Trades.FirstOrDefault(x => x.Id == entry.Id);
+
             }
             catch
             {

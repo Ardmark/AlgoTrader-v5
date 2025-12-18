@@ -89,9 +89,13 @@ namespace AlgoTrader.Shared.Logging
 
         internal static void WriteLineTimestamp(string text)
         {
-            var s = string.Format("{0}: {1}", DateTime.UtcNow.ToString(), text);
-            s = LogBase.Write(s, "LogConnection.txt");
-            MainObj.mainViewModel.DisplayLogConnection(s);
+            try
+            {
+                var s = string.Format("{0}: {1}", DateTime.UtcNow.ToString(), text);
+                s = LogBase.Write(s, "LogConnection.txt");
+                MainObj.mainViewModel.DisplayLogConnection(s);
+            }
+            catch { }
         }
     }
 
