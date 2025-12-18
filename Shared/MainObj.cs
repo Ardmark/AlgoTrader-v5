@@ -1,4 +1,4 @@
-﻿using AlgoTrader.Shared.Enums;
+using AlgoTrader.Shared.Enums;
 using AlgoTrader.Shared.ExchangeConnection;
 using AlgoTrader.Shared.Interfaces;
 using AlgoTrader.Shared.Logging;
@@ -1131,41 +1131,31 @@ namespace AlgoTrader.Shared
                 AddItemDirect(items[i], displayPanelsForSymbol[symbolName], false);
             }
         }
+
         internal static void AddSingleItemLive(_SymbolDataItem item, string symbolName)
         {
-            AddItemDirect(item, displayPanelsForSymbol[symbolName], true);      
-        }
-
-        //this is called live for each new item
-        internal static void AddItem(_SymbolDataItem item, string symbolName, bool liveItem)
-        {
+            //Application.Current.Dispatcher.Invoke(() =>
+            //{
             try
             {
-                Application.Current.Dispatcher.Invoke(() =>
+                var panelList = displayPanelsForSymbol[symbolName]; //exchange data, so there is a panel list created
+
+                AddItemDirect(item, panelList, true);
+                if (symbolName == CurrentSymbol)
                 {
-                    // Code causing the exception or requires UI thread access
-                    var panelList = displayPanelsForSymbol[symbolName]; //exchange data, so there is a panel list created
-
-                    AddItemDirect(item, panelList, liveItem);
-
-                    foreach (DisplayPanel panel in panelList)
-                    {
-                        if (symbolName == CurrentSymbol)
-                        {
-                            mainViewModel.SetItemPrice(item);
-                        }
-                        panel.ItemUpdated(item, true);
-                    }
-                    if (liveItem)
-                    {
-                        DrawCurrentDispatcher();
-                    }
-                });
+                    mainViewModel.SetItemPrice(item);
+                }
+                foreach (DisplayPanel panel in panelList)
+                {
+                    panel.ItemUpdated(item, true);
+                }
+                DrawCurrentDispatcher(); //if this is not called here, the UI hangs for some reason (?initialisation somewhere)
             }
             catch (Exception ex)
             {
-                Debug.WriteLine("Exception in AddItem(): " + ex.ToString());
+                Debug.WriteLine("Exception in AddSingleItemLiveItem(): " + ex.ToString());
             }
+            //});
         }
 
         internal static void AddItemDirect(_SymbolDataItem item, List<DisplayPanel> panelList, bool liveItem)
@@ -1188,6 +1178,7 @@ namespace AlgoTrader.Shared
             mainViewModel.__DebugOut(s);
         }
         static DateTime? lastTime = null;
+        public static bool isRefreshing = true;
         public static void ItemUpdated(_SymbolDataItem _item, string symbolName)
         {
             rateCount++;
@@ -1221,23 +1212,11 @@ namespace AlgoTrader.Shared
                     
                 var timeDiff = (DateTime.UtcNow - item.Timestamp).TotalSeconds;
 
-                //if (lastTime == null)
-                //{
-                //    lastTime = DateTime.UtcNow;
-                //}
-                //else
-                //{
-                //    var numSecs = DateTime.UtcNow.Subtract(lastTime.Value).TotalSeconds;
-                //    if (numSecs > 30)
-                //    {
-                //        LogConnection.WriteLineTimestamp($"{timeDiff} sec delay");
-                //        lastTime = DateTime.UtcNow;
-                //    }
-                //}
-                if (timeDiff > 30)
+                if (timeDiff > 10 && !isRefreshing)
                 {
+                    isRefreshing = true;
                     RefreshConnector();
-                    LogTrades.WriteLine($"{DateTime.UtcNow:g}: {timeDiff:0} sec lag, restarting connection.");
+                    LogTrades.WriteLine($"Data delay at {DateTime.UtcNow:g}, {timeDiff:0} seconds behind real time. Refreshing connection.");
                 }
 
             }

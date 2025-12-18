@@ -133,6 +133,7 @@ namespace AlgoTrader.Shared.ExchangeConnection
         List<_SymbolDataItem> itemsToSave = [];
         DateTime lastUpdatedItemTime;
         static int __c = 0;
+        DateTime processTimeCounter = DateTime.UtcNow;
         protected _SymbolDataItem ProcessData(dynamic dyn)
         {
             __iterationCount = 0;
@@ -142,232 +143,232 @@ namespace AlgoTrader.Shared.ExchangeConnection
 
             string log = string.Empty;
 
-            using (DataContext db = new DataContext())
+            try
             {
-                try
+                var symbol = dyn.symbol;
+                //var table       = dyn.table;
+                var data = dyn.data;
+                int dataCount = data.Count;
+
+                if (dataCount == 0 || data[0] == null || data[dataCount - 1] == null)
                 {
-                    var symbol = dyn.symbol;
-                    //var table       = dyn.table;
-                    var data = dyn.data;
-                    int dataCount = data.Count;
+                    LogConnection.WriteLineTimestamp("Data is null or count is zero");
+                    return null;
+                }
 
-                    if (dataCount == 0 || data[0] == null || data[dataCount - 1] == null)
+                DateTime ts = data[dataCount - 1].timestamp;
+
+                //if just launched, initialise with the very first data item, as if this was the previous item saved to the DB, so it will be in the previous minute
+                if (first)
+                {
+                    DateTime ds = data[0].timestamp;
+                    lastReadItem = new ExchangeConnector.FeedDataItem
                     {
-                        LogConnection.WriteLineTimestamp("Data is null or count is zero");
-                        return null;
+                        timestamp = ds,
+                        price = data[0].bidPrice,
+                        symbolName = symbol
+                    };
+                    lastSavedItemTime = lastReadItemTime = lastUpdatedItemTime = lastReadItem.timestamp;
+
+                    first = false;
+                }
+
+                _SymbolDataItem currentSymbolDataItem = GetCurrentSymbolDataItem(symbol.Value);
+
+
+                //find the next entry in the data which is later than the last saved entry in the FeedDataItems list
+                //testing shows that it reads around 400 elements from the end of the data list each time, so stick with 1000 as the number downloaded
+                //find the first item which is imediately after the FeedDataItem param, by doing a binary partition search (or whatever it's called, quicksort type algorithm?)
+                var lastReadItemTimestamp = lastReadItem.timestamp;
+                int count = data.Count;
+                int end = count - 1;
+                int start = 0;
+                bool OK = false;
+
+                /*
+ * ISSUE - can't handle the data throughput (since full fibre??), getting huge lag between last read item and
+ * the actual item time in MainObj. Data here is always current. Seems like there are just too many calls into the UI,
+ * causing this method to be too slow and the process calls just stack up. Once 20 seconds is reached, MainObj just resets connection.
+ * This would happen in higher volatility periods mainly, because generally only the last element was used each time in low vol. periods.
+ * 1) Changed so it only called MainObj.UpdateItem(..) when there was actually a change in timestamp, as it was calling this every single
+ *    time before. Helped a little
+ * 2) Just use the very last item instead of reading through the list. Helped somewhat but did not solve the problem, the main issue is with 
+ *     requesting 1000 elements through the node connector. Can be assumed that there is overlap between sequential datasets, and in any case the
+ *     data is returned with great frequency, up to 46 process calls per second (regardless of data size). So can just use the last item.
+ * 3) Since the list is not used, connector.js now just requesting 4 items (although only 1 needed really)- system does not like setting connector to just poll 1 data point, so using 4 instead
+ * 4) Also limiting the actual number of data process calls to just 4 per second, rather than the 50 or so which can be sent from the connector
+ * 5) NOTE - changing the AddSingleItem() call so it does not redraw freezes the UI, so be careful making changes here.
+ * */
+
+                //while (end - start > 0)
+                //{
+                //    if (data[start] == null)
+                //    {
+                //        OK = false;
+                //        break;
+                //    }
+
+                //    if (end - start < 2)
+                //    {
+                //        //can only move one step foward now anyway, so this is the termination point
+                //        //but if start was set before end in the back step, start and end will be zero on the next back step
+                //        //this would result in an endless loop otherwise
+                //        start = end; //start was before timestamp, so end is the return value, or both are the same anyway (zero index)
+                //        break;
+                //    }
+
+                //    if (DateTime.Compare((DateTime)data[start].timestamp, lastReadItemTimestamp) <= 0)
+                //    {
+                //        start = start + (end - start) / 2;
+                //    }
+                //    else
+                //    {
+                //        //moving back, so new end is old start (since this now defines the bounds of the new cell), new start is start - (half way between start and end)
+                //        int _start = start;
+                //        start = start - (end - start) / 2;
+                //        end = _start;
+
+                //        //if some data has been dropped, the earliest timestamp might be later than the lastReadItem, which will result in a negative start position (obviously, it tries to partition before zero)
+                //        if (start < 0)
+                //        {
+                //            start = 0;
+                //        }
+                //    }
+                //}
+                if (count > 0)
+                {
+                    start = count - 1;
+                    //limit the number of calls to just a few, rather than the 50 per second which can be sent
+                    if ((DateTime.UtcNow - processTimeCounter).TotalMilliseconds > 250)
+                    {
+                        OK = true;
+                        processTimeCounter = DateTime.UtcNow;
                     }
 
-                    DateTime ts = data[dataCount - 1].timestamp;
+                }
+                if (OK)
+                {
 
-                    //if just launched, initialise with the very first data item, as if this was the previous item saved to the DB, so it will be in the previous minute
-                    if (first)
+                    MainObj.isRefreshing = false;
+                    if (start < count)
                     {
-                        DateTime ds = data[0].timestamp;
-                        lastReadItem = new ExchangeConnector.FeedDataItem
+
+                        lastReadItem.timestamp = data[start].timestamp;
+                        lastReadItem.price = data[start].bidPrice;
+                        lastReadItem.symbolName = data[start].symbol;
+                        var symbolName = data[start].symbol.Value;
+
+                        __iterationCount++;
+                        DateTime nextMinute = GetAsMinute(lastSavedItemTime).AddMinutes(1);
+
+
+                        //read forward from this position until rolling over to next minute, then save out
+
+                        //for (dataCount = start; dataCount < count; dataCount++)
+                        dataCount = count - 1;
                         {
-                            timestamp = ds,
-                            price = data[0].bidPrice,
-                            symbolName = symbol
-                        };
-                        lastSavedItemTime = lastReadItemTime = lastUpdatedItemTime = lastReadItem.timestamp;
-
-                        first = false;
-                    }
-
-                    _SymbolDataItem currentSymbolDataItem = GetCurrentSymbolDataItem(symbol.Value);
-
-
-                    //find the next entry in the data which is later than the last saved entry in the FeedDataItems list
-                    //testing shows that it reads around 400 elements from the end of the data list each time, so stick with 1000 as the number downloaded
-                    //find the first item which is imediately after the FeedDataItem param, by doing a binary partition search (or whatever it's called, quicksort type algorithm?)
-                    var lastReadItemTimestamp = lastReadItem.timestamp;
-                    int count = data.Count;
-                    int end = count - 1;
-                    int start = 0;
-                    bool OK = true;
-
-
-
-                    while (end - start > 0)
-                    {
-                        if (data[start] == null)
-                        {
-                            OK = false;
-                            break;
-                        }
-
-                        if (end - start < 2)
-                        {
-                            //can only move one step foward now anyway, so this is the termination point
-                            //but if start was set before end in the back step, start and end will be zero on the next back step
-                            //this would result in an endless loop otherwise
-                            start = end; //start was before timestamp, so end is the return value, or both are the same anyway (zero index)
-                            break;
-                        }
-
-                        if (DateTime.Compare((DateTime)data[start].timestamp, lastReadItemTimestamp) <= 0)
-                        {
-                            start = start + (end - start) / 2;
-                        }
-                        else
-                        {
-                            //moving back, so new end is old start (since this now defines the bounds of the new cell), new start is start - (half way between start and end)
-                            int _start = start;
-                            start = start - (end - start) / 2;
-                            end = _start;
-
-                            //if some data has been dropped, the earliest timestamp might be later than the lastReadItem, which will result in a negative start position (obviously, it tries to partition before zero)
-                            if (start < 0)
+                            dynamic obj = data[dataCount];
+                            DateTime objTimeStamp = obj.timestamp;
+                            if (objTimeStamp > lastUpdatedItemTime)
                             {
-                                start = 0;
-                            }
-                        }
-                    }
-                    if (OK)
-                    {
-                        //if (__c++ > 100)
-                        //if (count == 1000)
-                        //{
-                        //    __c = 0;
-                        //    Debug.WriteLine($"{start} {count}, {data[0].timestamp} {data[start].timestamp} {data[count - 1].timestamp} ");
-                        //}
+                                lastUpdatedItemTime = objTimeStamp;
+                                DateTime timestamp = GetAsMinute(obj.timestamp);
 
-                        if (start < count)
-                        {
+                                lastReadItem.price = obj.bidPrice;
+                                lastReadItem.timestamp = obj.timestamp;
+                                lastReadItem.symbolName = obj.symbol;
 
-                            lastReadItem.timestamp = data[start].timestamp;
-                            lastReadItem.price = data[start].bidPrice;
-                            lastReadItem.symbolName = data[start].symbol;
-                            var symbolName = data[start].symbol.Value;
-
-                            __iterationCount++;
-                            DateTime nextMinute = GetAsMinute(lastSavedItemTime).AddMinutes(1);
-
-
-                            //read forward from this position until rolling over to next minute, then save out
-                            /*
-                             * ISSUE - can't handle the data throughput (since full fibre??),, getting huge lag between last read item and
-                             * the actual item time in MainObj. Data here is always current. Seems like there are just too many calls into the UI,
-                             * causing this method to be too slow and the process calls just stack up. Once 20 seconds is reached, MainObj just resets connection.
-                             * This would happen in higher volatility periods mainly, because generally only the last element was used each time in low vol. periods.
-                             * 1) Changed so it only called MainObj.UpdateItem(..) when there was actually a change in timestamp, as it was calling this every single
-                             *    time before. Helped a little
-                             * 2) Just use the very last item instead of reading through the list. Helped massively.
-                             * 3) Since the list is not used, connector.js now just requesting 10 items (although only 1 needed really)
-                             * */
-                            //for (dataCount = start; dataCount < count; dataCount++)
-                            dataCount = count-1;
-                            {
-                                dynamic obj = data[dataCount];
-                                DateTime objTimeStamp = obj.timestamp;
-                                if (objTimeStamp > lastUpdatedItemTime)
+                                if (DateTime.Compare(nextMinute, timestamp) > 0)
                                 {
-                                    lastUpdatedItemTime = objTimeStamp;
-                                    DateTime timestamp = GetAsMinute(obj.timestamp);
-
-                                    lastReadItem.price = obj.bidPrice;
-                                    lastReadItem.timestamp = obj.timestamp;
-                                    lastReadItem.symbolName = obj.symbol;
-
-                                    if (DateTime.Compare(nextMinute, timestamp) > 0)
-                                    {
-                                        currentSymbolDataItem.Update(lastReadItem);
-                                        currentSymbolDataItem.CopyTo(ret); //just assignment and timestamp will be reset in ret when currentItem loses its seconds in SetTimestamp()
-                                                                           //must clone currentItem as it will be changed next loop so that could change data somewhere else with unexpected results
-                                        var item = currentSymbolDataItem.Clone();
-                                        MainObj.ItemUpdated(item, symbolName); //don't want to do this dozens of times each update, just for the final aggregated value
-
-                                        //var timeDiff = DateTime.UtcNow - lastReadItem.timestamp;
-                                        //var p = $"{timeDiff.TotalMilliseconds:0} ms ";
-                                        //var s = $"{p} lag";
-                                        //MainObj.__DebugOut(s);
-
-                                    }
-                                    else
-                                    {
-                                        /*
-                                        * runs to end of data, last element goes to next minute so item is saved.
-                                        * next data set adds just one element, or no elements (i.e. same data set sent):
-                                        *  - currentItem is null and ret is returned as a new BitmexDataItem with the timestamp of 0001,01,01
-                                        *    so need to set the timestamp to the current item timestamp at this point
-                                        *    */
-                                        Debug.WriteLine("Ran to end of data");
-
-                                        currentSymbolDataItem.SetTimestamp(); //will remove seconds to correctly set timestamp as start of minute
-
-                                        //must clone currentItem as it will be changed next loop so that could change data somewhere else with unexpected results
-                                        itemsToSave.AddRange(GetItemsToSave(currentSymbolDataItem.Clone(), symbolName)); //this adds to the private list in case this is called in a loop
-
-                                        //Debug.WriteLine($"{currentSymbolDataItem.Open}, {currentSymbolDataItem.High}, {currentSymbolDataItem.Low}");    
-                                        lastSavedItemTime = lastReadItem.timestamp;
-                                        nextMinute = timestamp.AddMinutes(1);
-
-                                        //currentSymbolDataItem is a reference from the currentSymbols[] array, so need to hold on to this - 
-                                        // creating a new object will prevent the retrieved object from being updated, obviously
-                                        currentSymbolDataItem.High = currentSymbolDataItem.Low = currentSymbolDataItem.Open = currentSymbolDataItem.Close = lastReadItem.price;
-                                        currentSymbolDataItem.CopyTo(ret);
-                                    }
-                                }
-                            }
-
-
-                            __numItemsSaved = itemsToSave.Count;
-                            if (MainObj.WRITE_TO_DB == true)
-                            {
-                                if (itemsToSave.Count > 0)
-                                {
-                                    var value = System.Configuration.ConfigurationManager.ConnectionStrings["DataContext"];
-                                    using (SqlConnection conn = new SqlConnection(value.ToString()))
-                                    {
-                                        conn.Open();
-
-                                        foreach (var p in itemsToSave)
-                                        {
-                                            lastProcessTimestamp = DateTime.UtcNow; //stops reconnection during long saves, probably not an issue with this but EF methods just took hours
-                                            p.ExecuteInsertCommand(symbolName, conn);
-
-                                        }
-                                    }
-                                }
-                            }
-                            if (symbolNamesToUpdate.Count > 0 && symbolNamesToUpdate.Contains(lastReadItem.symbolName))
-                            {
-                                symbolNamesToUpdate.Remove(symbolName);
-
-                                if (symbolNamesToUpdate.Count > 0)
-                                {
-                                    var s = string.Join(", ", symbolNamesToUpdate);
-                                    LogConnection.WriteLine($"Symbols remaining to connect: {s}");
+                                    currentSymbolDataItem.Update(lastReadItem);
+                                    currentSymbolDataItem.CopyTo(ret); //just assignment and timestamp will be reset in ret when currentItem loses its seconds in SetTimestamp()
+                                                                       //must clone currentItem as it will be changed next loop so that could change data somewhere else with unexpected results
+                                    var item = currentSymbolDataItem.Clone();
+                                    MainObj.ItemUpdated(item, symbolName); //don't want to do this dozens of times each update, just for the final aggregated value
                                 }
                                 else
                                 {
-                                    LogConnection.WriteLine("All symbols connected.");
-                                    MainObj.OutputCompletedInitialisationTime();
+                                    /*
+                                    * runs to end of data, last element goes to next minute so item is saved.
+                                    * next data set adds just one element, or no elements (i.e. same data set sent):
+                                    *  - currentItem is null and ret is returned as a new BitmexDataItem with the timestamp of 0001,01,01
+                                    *    so need to set the timestamp to the current item timestamp at this point
+                                    *    */
+                                    Debug.WriteLine("Ran to end of data");
+
+                                    currentSymbolDataItem.SetTimestamp(); //will remove seconds to correctly set timestamp as start of minute
+
+                                    //must clone currentItem as it will be changed next loop so that could change data somewhere else with unexpected results
+                                    itemsToSave.AddRange(GetItemsToSave(currentSymbolDataItem.Clone(), symbolName)); //this adds to the private list in case this is called in a loop
+
+                                    //Debug.WriteLine($"{currentSymbolDataItem.Open}, {currentSymbolDataItem.High}, {currentSymbolDataItem.Low}");    
+                                    lastSavedItemTime = lastReadItem.timestamp;
+                                    nextMinute = timestamp.AddMinutes(1);
+
+                                    //currentSymbolDataItem is a reference from the currentSymbols[] array, so need to hold on to this - 
+                                    // creating a new object will prevent the retrieved object from being updated, obviously
+                                    currentSymbolDataItem.High = currentSymbolDataItem.Low = currentSymbolDataItem.Open = currentSymbolDataItem.Close = lastReadItem.price;
+                                    currentSymbolDataItem.CopyTo(ret);
                                 }
                             }
-
-                            var elapsedSecs = lastReadItem.timestamp.Subtract(lastReadItemTime).TotalSeconds;
-                            lastReadItemTime = lastReadItem.timestamp;
-                            MainObj.SetCurrentSeconds(elapsedSecs);
                         }
+
+
+                        __numItemsSaved = itemsToSave.Count;
+                        if (MainObj.WRITE_TO_DB == true)
+                        {
+                            if (itemsToSave.Count > 0)
+                            {
+                                var value = System.Configuration.ConfigurationManager.ConnectionStrings["DataContext"];
+                                using (SqlConnection conn = new SqlConnection(value.ToString()))
+                                {
+                                    conn.Open();
+
+                                    foreach (var p in itemsToSave)
+                                    {
+                                        lastProcessTimestamp = DateTime.UtcNow; //stops reconnection during long saves, probably not an issue with this but EF methods just took hours
+                                        p.ExecuteInsertCommand(symbolName, conn);
+
+                                    }
+                                }
+                            }
+                        }
+                        if (symbolNamesToUpdate.Count > 0 && symbolNamesToUpdate.Contains(lastReadItem.symbolName))
+                        {
+                            symbolNamesToUpdate.Remove(symbolName);
+
+                            if (symbolNamesToUpdate.Count > 0)
+                            {
+                                var s = string.Join(", ", symbolNamesToUpdate);
+                                LogConnection.WriteLine($"Symbols remaining to connect: {s}");
+                            }
+                            else
+                            {
+                                LogConnection.WriteLine("All symbols connected.");
+                                MainObj.OutputCompletedInitialisationTime();
+                            }
+                        }
+
+                        var elapsedSecs = lastReadItem.timestamp.Subtract(lastReadItemTime).TotalSeconds;
+                        lastReadItemTime = lastReadItem.timestamp;
+                        MainObj.SetCurrentSeconds(elapsedSecs);
                     }
-                    else
-                    {
-                        log += "Could not find next item at " + DateTime.UtcNow.ToString();
-                    }
-
                 }
-                catch (Exception ex)
-                {
-                    log += ex.ToString();
-                }
+                //else
+                //{
+                //    log += "Could not find next item at " + DateTime.UtcNow.ToString();
+                //}
 
-                //it is returning every one or 2 seconds, the frequency of the data feed
-
-                if (log != string.Empty) LogConnection.WriteLine(log);
-                return ret;
             }
+            catch (Exception ex)
+            {
+                log += ex.ToString();
+            }
+
+            if (log != string.Empty) LogConnection.WriteLine(log);
+            return ret;
         }
+        
 
 
         private DateTime GetAsMinute(dynamic timestamp)

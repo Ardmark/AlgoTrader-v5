@@ -1,4 +1,4 @@
-﻿using AlgoTrader.Shared.Enums;
+using AlgoTrader.Shared.Enums;
 using AlgoTrader.Shared.Logging;
 using System.Diagnostics;
 using System.IO;
