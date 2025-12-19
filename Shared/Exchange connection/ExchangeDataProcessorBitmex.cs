@@ -238,13 +238,15 @@ namespace AlgoTrader.Shared.ExchangeConnection
                 if (count > 0)
                 {
                     start = count - 1;
-                    //limit the number of calls to just a few, rather than the 50 per second which can be sent
-                    if ((DateTime.UtcNow - processTimeCounter).TotalMilliseconds > 250)
+                    if (data[start] != null)
                     {
-                        OK = true;
-                        processTimeCounter = DateTime.UtcNow;
+                        //limit the number of calls to just a few, rather than the 50 per second which can be sent
+                        if ((DateTime.UtcNow - processTimeCounter).TotalMilliseconds > 250)
+                        {
+                            OK = true;
+                            processTimeCounter = DateTime.UtcNow;
+                        }
                     }
-
                 }
                 if (OK)
                 {
@@ -252,7 +254,6 @@ namespace AlgoTrader.Shared.ExchangeConnection
                     MainObj.isRefreshing = false;
                     if (start < count)
                     {
-
                         lastReadItem.timestamp = data[start].timestamp;
                         lastReadItem.price = data[start].bidPrice;
                         lastReadItem.symbolName = data[start].symbol;
@@ -263,7 +264,6 @@ namespace AlgoTrader.Shared.ExchangeConnection
 
 
                         //read forward from this position until rolling over to next minute, then save out
-
                         //for (dataCount = start; dataCount < count; dataCount++)
                         dataCount = count - 1;
                         {
