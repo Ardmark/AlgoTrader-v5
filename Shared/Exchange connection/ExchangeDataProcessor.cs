@@ -196,6 +196,15 @@ namespace AlgoTrader.Shared.ExchangeConnection
                 lastCaptureTimestamp = DateTime.UtcNow;
                 LogConnection.WriteLine("Successfully opened connection");
 
+                if (MainObj.isRefreshing)
+                {
+                    //can get multiple process calls continuing after refresh started, so only set refreshing to false on certain messages
+                    //otherwise next call to MainObj.ItemUpdated() will set refreshing to true again and start another process
+
+                    MainObj.isRefreshing = false;
+                    LogConnection.WriteLineTimestamp("Connection refreshed.");
+
+                }
                 return IsConnected;
             }
             catch { }

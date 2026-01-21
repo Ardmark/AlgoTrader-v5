@@ -2,7 +2,7 @@
 var BitMEXClient = require('../index');
 
 //testnet:true does not seem to work....
-var client = new BitMEXClient({ testnet: false, maxTableLen: 4 }); ///1000 elements is about half a minutes's worth of data, and anything up to 400 elements may be used
+var client = new BitMEXClient({ testnet: false, maxTableLen: 1 }); ///1000 elements is about half a minutes's worth of data, and anything up to 400 elements may be used
 
 var s = "connectionopened";
 client.on('open', () => console.log(JSON.stringify({ message: "Connection opened" })));

@@ -44,6 +44,10 @@ namespace AlgoTrader.Shared.ExchangeConnection
 
             try
             {
+                if (MainObj.isRefreshing)
+                {
+                    return; //don't process any data while refreshing
+                }
                 if (e.Data.Contains("WebSocket")) //this is sent as the first item after connection
                 {
                     LogConnection.WriteLineTimestamp(e.Data);
@@ -58,7 +62,8 @@ namespace AlgoTrader.Shared.ExchangeConnection
                 }
                 if (dyn.message != null)
                 {
-                    LogConnection.WriteLineTimestamp(dyn.message.ToString());
+                    var s = dyn.message.ToString();
+                    LogConnection.WriteLineTimestamp(s);
                 }
                 if (dyn.symbol != null && dyn.table != null)
                 {
@@ -195,7 +200,9 @@ namespace AlgoTrader.Shared.ExchangeConnection
  * 2) Just use the very last item instead of reading through the list. Helped somewhat but did not solve the problem, the main issue is with 
  *     requesting 1000 elements through the node connector. Can be assumed that there is overlap between sequential datasets, and in any case the
  *     data is returned with great frequency, up to 46 process calls per second (regardless of data size). So can just use the last item.
- * 3) Since the list is not used, connector.js now just requesting 4 items (although only 1 needed really)- system does not like setting connector to just poll 1 data point, so using 4 instead
+ *     NOTE - 1000 data items pulls about 125KB through the connector each time, so reducing this to 1 item reduces this to about 500 bytes, a huge difference.
+ *     125KB * 46 = 5.75MB per second, or 0.5TB daily, which is quite a lot of data to be pushing through the connector unnecessarily.
+ * 3) Since the list is not used, connector.js now just requesting 1 item
  * 4) Also limiting the actual number of data process calls to just 4 per second, rather than the 50 or so which can be sent from the connector
  * 5) NOTE - changing the AddSingleItem() call so it does not redraw freezes the UI, so be careful making changes here.
  * */
@@ -237,7 +244,7 @@ namespace AlgoTrader.Shared.ExchangeConnection
                 //}
                 if (count > 0)
                 {
-                    start = count - 1;
+                    start = end;
                     if (data[start] != null)
                     {
                         //limit the number of calls to just a few, rather than the 50 per second which can be sent
@@ -250,8 +257,6 @@ namespace AlgoTrader.Shared.ExchangeConnection
                 }
                 if (OK)
                 {
-
-                    MainObj.isRefreshing = false;
                     if (start < count)
                     {
                         lastReadItem.timestamp = data[start].timestamp;
@@ -314,7 +319,7 @@ namespace AlgoTrader.Shared.ExchangeConnection
                         }
 
 
-                        __numItemsSaved = itemsToSave.Count;
+                        //__numItemsSaved = itemsToSave.Count;
                         if (MainObj.WRITE_TO_DB == true)
                         {
                             if (itemsToSave.Count > 0)

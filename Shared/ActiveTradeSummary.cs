@@ -269,7 +269,7 @@ namespace AlgoTrader.Shared
                             prevClose = _closedOrders[^2]; //same as _closedOrders[closedOrders-2]
                         }
                         sb.Append("Closed trades:\n");
-                        sb.Append("Symbol\tAmount\tEntry: Date\tTime\tPrice\tBalance\tExit: Date\tTime\tPrice\tBalance\tEquity\tResult\tRes.Balance\ttLev.\tStop\tSide\tTF\tP/L\n");
+                        sb.Append("\tAmount\tEntry: Date\tTime\tPrice\tBalance\tExit: Date\tTime\tPrice\t$\tBTC\t%\t$%\tLev\t% * Lev\tSide\tTF\t$ P/L\tUSDGBP\t£ P/L\n");
                         //e.g. Closed: Binance THETABTC +2.3%  (Market Break)
                         foreach (var close in closedOrders)
                         {
@@ -333,10 +333,10 @@ namespace AlgoTrader.Shared
                                             "\t" +
                                             "\t" +
                                             $"{_profit.ToString("F4")}\t" +
-                                            $"{_gbp:F2}\t" +
-                                            $"{entry.ExchangeRate}"
+                                            $"{entry.ExchangeRate}\t" +
+                                            $"{_gbp:F2}"
                                         );
-                                        sb.Append("\n");
+                                        sb.Append('\n');
                                     }
                                     prevClose = close;
                                 }
@@ -344,11 +344,12 @@ namespace AlgoTrader.Shared
                                 var leverage = close.Leverage == 0 ? 1 : close.Leverage; //just to be safe
                                 var result = close.Result; //already adjusted for fees
 
-                                var resultLeveraged = (close.Balance / entry.Balance - 1) * 100; 
+                                var balanceResult = (close.Balance / entry.Balance - 1) * 100; 
                                 var profit = close.Balance - entry.Balance;
                                 var pos = close.Position == TradePosition.LONG ? "long" : "short";
-                                var stopResult = order != null ? order.Result.ToString("F1") : "--";
-                                var gbp = profit * entry.ExchangeRate;
+                                //var stopResult = order != null ? order.Result.ToString("F1") : "--"; //Order.Result holds the stop percent, I think
+                                var leveragedResult =  result * leverage;
+                                var gbp = profit * close.ExchangeRate;
 
                                 sb.Append(
                                     $"{symbolName}\t" +
@@ -363,16 +364,16 @@ namespace AlgoTrader.Shared
                                     $"{close.Balance:F2}\t" +
                                     $"{close.Equity:F6}\t" +
                                     $"{result:F}%\t" +
-                                    $"{resultLeveraged:F}%\t" +
+                                    $"{balanceResult:F}%\t" +
                                     $"{leverage:F1}\t" +
-                                    $"{stopResult}\t" +
+                                    $"{leveragedResult:F2}%\t" +
                                     $"{pos}\t" +
                                     $"{close.TimeFrame}\t" +
                                     $"{profit:F}\t" +
-                                    $"{gbp:F2}\t" +
-                                    $"{close.ExchangeRate}"
+                                    $"{close.ExchangeRate}\t" +
+                                    $"{gbp:F2}"
                                 );
-                                sb.Append("\n");
+                                sb.Append('\n');
 
                             }
                         }
