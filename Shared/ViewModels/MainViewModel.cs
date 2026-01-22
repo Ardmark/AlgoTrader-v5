@@ -889,22 +889,27 @@ namespace AlgoTrader.Live.ViewModels
                 () =>
                 {
 
-                    using (DataContext db = new DataContext())
+                    using (DataContext db = new())
                     {
                         var id = GetTradeId();
                         var trade = db.Trades.FirstOrDefault(x => x.Id == id);
                         var close = db.Trades.FirstOrDefault(x => x.TradeReference == trade.TradeReference && x.Action == TradeAction.CLOSE);
                         var entry = db.Trades.FirstOrDefault(x => x.TradeReference == trade.TradeReference && x.Action == TradeAction.ENTRY);
 
-                        if (trade != null && close != null && entry != null)
+                        if (trade != null && close != null && entry != null && tradeEngine.currentDataItem != null)
                         {
-        
-                            var ret = double.TryParse(SetOrderAtPriceDialog.Prompt(entry.Price.ToString(), $"Set price", mouseMoveX, mouseMoveY), out double price);
+                            
+                            var ret = double.TryParse(SetOrderAtPriceDialog.Prompt(tradeEngine.currentDataItem.Close.ToString(), $"Set price", mouseMoveX, mouseMoveY), out double price);
 
                             if (ret)
                             {
                                 if (price > 0)
                                 {
+                                    if (Math.Abs(price - tradeEngine.currentDataItem.Close) / tradeEngine.currentDataItem.Close > 0.1)
+                                    {
+                                        AlertDialog.Show("Price change > 10%, please enter a smaller value or trade may be moved out of screen bounds");
+                                        return;
+                                    }
                                     trade.Price = price;
                                     if (close != null)
                                     {
@@ -915,12 +920,17 @@ namespace AlgoTrader.Live.ViewModels
                                     //tradeEngine.GetUIListData(db);
                                     tradeEngine.UpdateUIList(trade);
                                     tradeEngine.UpdateUIList(close);
+                                    SetProperty("ShowClosedTrades_Checked", Chart.showClosedTrades);
                                     MainObj.DrawCurrentDispatcher(true);
                                 }
 
                             }
                         }
                     }
+
+                    Task.Run(async() => await ActiveTradeSummary.ClearClosedTrades("24"));
+
+                    Chart.showClosedTrades = true;
                     RemovePopupWindow();
                 },
                 #endregion
