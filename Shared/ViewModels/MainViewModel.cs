@@ -2006,18 +2006,14 @@ namespace AlgoTrader.Live.ViewModels
             //don't use SPACE - it holds focus on the last button clicked.
             switch (key)
             {
-                case Key.Space:
-                case Key.D9:
-                    MainObj.ToggleDarkMode();
-                    AlgoTrader.Shared.Logging.LogConnection.WriteLine(key.ToString());
-                    break;
                 case Key.LeftCtrl:
                     MainObj.visibleChart.canvas.Cursor = System.Windows.Input.Cursors.Pen;
                     break;
-                //case Key.D:
-                //    AlgoTrader.Shared.Logging.LogConnection.WriteLine(key.ToString());
-                //    ToggleDrawingMode();
-                //    break;
+                case Key.D:
+                    ActiveTradeSummary.ClearClosedTrades("24");
+                    Chart.showClosedTrades = true;
+                    SetProperty("ShowClosedTrades_Checked", Chart.showClosedTrades);
+                    break;
                 //case Key.X:
                 case Key.Delete:
                     AlgoTrader.Shared.Logging.LogConnection.WriteLine(key.ToString());
