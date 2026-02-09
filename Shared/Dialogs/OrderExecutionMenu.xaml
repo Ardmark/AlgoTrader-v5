@@ -32,6 +32,7 @@
 
         <Separator></Separator>
         <MenuItem Header="Close Order"                  Command="{Binding MenuItem3_Command}"></MenuItem>
+        <MenuItem Header="Open Order"                  Command="{Binding MenuItem8_Command}"></MenuItem>
         <Separator />
         <MenuItem Header="Set price"              Command="{Binding MenuItem7_Command}" Click="MenuItem_Click_1"></MenuItem>
         <MenuItem Header="Set date and time"              Command="{Binding MenuItem6_Command}"></MenuItem>

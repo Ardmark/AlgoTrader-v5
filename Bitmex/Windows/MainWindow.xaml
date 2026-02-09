@@ -51,7 +51,7 @@
 
     <Grid RenderOptions.EdgeMode="Aliased" x:Name="BaseGrid" VerticalAlignment="Stretch" HorizontalAlignment="Stretch" Margin="0" >
         <Grid.RowDefinitions>
-            <RowDefinition Height="24" />
+            <RowDefinition Height="44" />
             <RowDefinition Height="*" />
             <RowDefinition Height="20" />
             <RowDefinition Height="10" />
@@ -65,8 +65,10 @@
         <StackPanel Grid.Row="0" Grid.Column="0" Orientation="Horizontal" Grid.ColumnSpan="2">
 
             <!-- to bind to a different object, just put it as a property in the main view model and reference the binding method from that-->
-            <Button Command="{Binding MoveStops_Click}" CommandParameter="0" Content="Stop &gt;-&lt; $" ToolTip="Move stops towards current price" Margin="10,0,5,0" Padding="5, 0, 5, 0" />
-            <Button Command="{Binding MoveStops_Click}" CommandParameter="1" Content="Stop &lt;-&gt; $" ToolTip ="Move stops away from current price" Margin="0,0,5,0" Padding="5, 0, 10, 0" />
+            <Button Command="{Binding MoveStops_Click}" CommandParameter="0" Content="Trade -&gt;$" ToolTip="Move orders or stops towards current price" Margin="10,0,5,0" Padding="5, 0, 5, 0" />
+            <Button Command="{Binding MoveStops_Click}" CommandParameter="1" Content="Trade &lt;-$;" ToolTip ="Move orders or stops away from current price" Margin="0,0,5,0" Padding="5, 0, 10, 0" />
+            <Button Command="{Binding RestartAllStoppedOrders}" CommandParameter="1" Content="Restart orders" ToolTip ="Restart all stopped orders" Margin="0,0,5,0" Padding="5, 0, 10, 0" />
+            <Button Command="{Binding StopUnenteredOrdersCommand}" Content="Stop unenterd orders" ToolTip ="Stop all unentered orders" Margin="0,0,5,0" Padding="5, 0, 10, 0" />
 
             <!--Menu-->
             <Menu Grid.Row="0" x:Name="menu" Height="24" HorizontalAlignment="Left" VerticalAlignment="Bottom" >
@@ -158,7 +160,7 @@
                     <Separator />-->
 
                     <MenuItem Header="Stop unentered orders" Command="{Binding StopUnenteredOrdersCommand}"></MenuItem>
-
+                    <MenuItem Header="Remove stopped orders" Command="{Binding RemoveAllStoppedOrdersCommand}"></MenuItem>
 
                     <!--<MenuItem Header="{Binding RunBacktestForSymbolHeader}" Command="{Binding RunBacktestsForSymbolCommand}" CommandParameter="1"></MenuItem>
                         <MenuItem Header="{Binding RunAllBacktestHeader}" Command="{Binding RunAllBacktestsCommand}" CommandParameter="1"></MenuItem>

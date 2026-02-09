@@ -21,83 +21,125 @@ namespace AlgoTrader.Shared
             CancelTrade_UI_synchronised();
             MainObj.TradeStatusChanged(this);
         }
-        internal void MoveStops_UI_Synchronised(bool up)
+        internal void MoveTrades_UI_Synchronised(bool up)
         {
-
-
             InitForDataContext(() =>
             {
-                if (Entry == null) return;
-
-                var pc = TradeEngine.MOVE_STOPS_AMT / 100 + 1;
-                pc = Entry.Position == TradePosition.LONG ? pc : 1 / pc;
-
-                void MoveStop(_Trade trade, bool _up)
+                void MoveTrade(_Trade trade, bool _up, double _pc)
                 {
                     if (trade != null)
                     {
+                        double __pc = trade.Position == TradePosition.LONG ? _pc : 1 / _pc;
+
                         var line = AllLinesForSymbol.FirstOrDefault(x => x.TradeId == trade.Id);
                         if (line != null)
                         {
-                            line.StartPrice = _up ? line.StartPrice * pc : line.StartPrice / pc;
-                            line.EndPrice = _up ? line.EndPrice * pc : line.EndPrice / pc;
+                            line.StartPrice = _up ? line.StartPrice * __pc : line.StartPrice / __pc;
+                            line.EndPrice = _up ? line.EndPrice * __pc : line.EndPrice / __pc;
                             SetUpdateRequest(line);
                         }
                         //stop will eventually track line but want immediate update:
-                        trade.Price = _up ? trade.Price * pc : trade.Price / pc;
+                        trade.Price = _up ? trade.Price * __pc : trade.Price / __pc;
+                    }
+                }
+
+                var pc = MOVE_STOPS_AMT / 100 + 1;
+
+                if (Entry != null)
+                {
+                    var hasMovedStop = false;
+                    if (Stop != null && Stop.Stop == TradeStop.STOP_ON_LINE_BREAK)
+                    {
+                        MoveTrade(Stop, up, pc);
 
                         //will only set stop on exchange if it is a Stop or if it is ENTERING_ON_EXCHANGE, this is so the stop will always update on each loop
                         // but the floor is bypassed except when it is first set. The status is reset afterwards anyway.
                         //NOTE - Ceiling and TakeProfit is undefined for this behaviour.
-                        if (trade.Action == TradeAction.STOP || trade.Action == TradeAction.FLOOR)
-                        {
-                            SetStopOnExchange_Synchronised(trade);
-                        }
 
+                        SetStopOnExchange_Synchronised(Stop);
+                        hasMovedStop = true;
+                    }
+                    if (Floor != null)
+                    {
+                        MoveTrade(Floor, up, pc);
+                        SetStopOnExchange_Synchronised(Floor);
+                        hasMovedStop = true;
+                    }
+
+                    //this is only called when moving stops up or down from the buttons, and there should always be a stop or trail set.
+                    //if there is not (i.e. no trail value set and stops removed) this will add a floor at the correct level for the target stop loss.
+                    if (!hasMovedStop)
+                    {
+                        //can't have a floor set or it would have been moved, so set one
+                        Floor = Entry.Clone();
+
+                        var stopOffsetPC_Leveraged = TradeEngineBitmex.CalculateStopFromLeverage(Entry.Leverage, Entry.Position);
+
+                        var floorPrice = Order.Position == TradePosition.LONG
+                                    ? Entry.Price / (1 + stopOffsetPC_Leveraged / 100)
+                                    : Entry.Price * (1 + stopOffsetPC_Leveraged / 100);
+
+                        Floor.Price = (double)floorPrice;
+                        Floor.Action = TradeAction.FLOOR;
+                        Floor.Quantity = -Entry.Quantity;
+                        Floor.ItemId = null; //need a new ID for this as it is a new order.
+                        Floor.ExchangeStatus = TradeExchangeStatus.ENTERING_ON_EXCHANGE;
+
+                        SetStopOnExchange_Synchronised(Floor);
+                        SetUpdateRequest(Floor);
+
+                    }
+                    // MoveStop(Ceiling, !up);
+                    // MoveStop(TakeProfit, !up);
+                }
+
+                //move any unentered trades, including their stops and floors
+                var activeTrades = AllTrades.Where(x => 
+                    x.GlobalStatus == TradeGlobalStatus.ACTIVE && 
+                    (x.Action == TradeAction.ORDER || x.Action == TradeAction.STOP || x.Action == TradeAction.FLOOR));
+
+                foreach (var trade in activeTrades)
+                {
+                    //if the order is open, then it has not entered
+                    var order = AllTrades.FirstOrDefault(x => x.TradeReference == trade.TradeReference && x.Action == TradeAction.ORDER);
+                    if (order != null && order.ItemStatus == TradeItemStatus.OPEN) 
+                    { 
+                        //order which is ItemStatus==OPEN is not live
+                        MoveTrade(trade, !up, pc);
+                    }
+                    
+                }
+
+                //move any stopped trades
+                activeTrades = AllTrades.Where(x =>
+                    x.GlobalStatus == TradeGlobalStatus.STOPPED &&
+                    (x.Action == TradeAction.ORDER || x.Action == TradeAction.STOP || x.Action == TradeAction.FLOOR));
+
+                foreach (var trade in activeTrades)
+                {
+                    var close = AllTrades.FirstOrDefault(x => x.TradeReference == trade.TradeReference && x.Action == TradeAction.CLOSE);
+                    if (close == null)
+                    {
+                        //if there is no close, then the trade was stopped before it entered, so can move the stop and floor levels
+                          MoveTrade(trade, !up, pc);
                     }
 
                 }
-                var hasMovedStop = false;
-                if (Stop != null && Stop.Stop == TradeStop.STOP_ON_LINE_BREAK)
-                {
-                    MoveStop(Stop, up);
-                    hasMovedStop = true;
-                }
-                if (Floor != null)
-                {
-                    MoveStop(Floor, up);
-                    hasMovedStop = true;
-                }
-
-                //this is only called when moving stops up or down from the buttons, and there should always be a stop or trail set.
-                //if there is not (i.e. no trail value set and stops removed) this will add a floor at the correct level for the target stop loss.
-                if (!hasMovedStop)
-                {
-                    //can't have a floor set or it would have been moved, so set one
-                    Floor = Entry.Clone();
-
-                    var stopOffsetPC_Leveraged = TradeEngineBitmex.CalculateStopFromLeverage(Entry.Leverage, Entry.Position);
-
-                    var floorPrice = Order.Position == TradePosition.LONG
-                                ? Entry.Price / (1 + stopOffsetPC_Leveraged / 100)
-                                : Entry.Price * (1 + stopOffsetPC_Leveraged / 100);
-
-                    Floor.Price = (double)floorPrice;
-                    Floor.Action = TradeAction.FLOOR;
-                    Floor.Quantity = -Entry.Quantity;
-                    Floor.ItemId = null; //need a new ID for this as it is a new order.
-                    Floor.ExchangeStatus = TradeExchangeStatus.ENTERING_ON_EXCHANGE;
-
-                    SetStopOnExchange_Synchronised(Floor);
-                    SetUpdateRequest(Floor);
-
-                }
-                // MoveStop(Ceiling, !up);
-                // MoveStop(TakeProfit, !up);
-
             });
             MainObj.DrawImmediate();
+        }
 
+        internal void RemoveStoppedTrades_UI_Synchronised(_Trade trade)
+        {
+            InitForDataContext(() =>
+            { 
+                var tradeToDelete = AllTrades.FirstOrDefault(x => x.Id == trade.Id);
+                if (tradeToDelete != null)
+                {
+                    RemoveTradeFromLine_UI_synchronised(trade);
+                    SetUpdateRequest(tradeToDelete, TradeUpdateRequest.FORCE_DELETE);
+                }
+            });
         }
         internal void CleanupTrades_UI_Synchronised()
         {
@@ -1726,7 +1768,7 @@ namespace AlgoTrader.Shared
             var lines = GetLinesForTradeReference(tradeReference);
             foreach (var line in lines)
             {
-                line.TruncateLineToTime();
+                //line.TruncateLineToTime();
                 line.Type = LineType.CLOSED_UNENTERED;
                 SetUpdateRequest(line);
             }

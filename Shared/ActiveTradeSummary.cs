@@ -382,6 +382,7 @@ namespace AlgoTrader.Shared
 
                     #endregion
                     sb.Append("Always check balance after trade closes, this is the figure that profit is calculated from for tax purposes\n");
+                    sb.Append("If using mobile, always enable RDP (Settings -> System) and disable when finished\n");
                     sb.Append(SPACER);
 
                     MainObj.TradeSummary = sb.ToString();

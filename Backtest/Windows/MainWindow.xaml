@@ -51,7 +51,7 @@
 
     <Grid RenderOptions.EdgeMode="Aliased" x:Name="BaseGrid" VerticalAlignment="Stretch" HorizontalAlignment="Stretch" Margin="0" >
         <Grid.RowDefinitions>
-            <RowDefinition Height="24" />
+            <RowDefinition Height="44" />
             <RowDefinition Height="*" />
             <RowDefinition Height="20" />
             <RowDefinition Height="10" />
@@ -65,8 +65,10 @@
         <StackPanel Grid.Row="0" Grid.Column="0" Orientation="Horizontal" Grid.ColumnSpan="2">
 
             <!-- to bind to a different object, just put it as a property in the main view model and reference the binding method from that-->
-            <Button Command="{Binding MoveStops_Click}" CommandParameter="0" Content="Stop &gt;-&lt; $" ToolTip="Move stops towards current price" Margin="10,0,5,0" Padding="5, 0, 5, 0" />
-            <Button Command="{Binding MoveStops_Click}" CommandParameter="1" Content="Stop &lt;-&gt; $" ToolTip ="Move stops away from current price" Margin="0,0,5,0" Padding="5, 0, 10, 0" />
+            <Button Command="{Binding MoveStops_Click}" CommandParameter="0" Content="Trade -&gt;$" ToolTip="Move orders or stops towards current price" Margin="10,0,5,0" Padding="5, 0, 5, 0" />
+            <Button Command="{Binding MoveStops_Click}" CommandParameter="1" Content="Trade &lt;-$;" ToolTip ="Move orders or stops away from current price" Margin="0,0,5,0" Padding="5, 0, 10, 0" />
+            <Button Command="{Binding RestartAllStoppedOrders}" CommandParameter="1" Content="Restart orders" ToolTip ="Restart all stopped orders" Margin="0,0,5,0" Padding="5, 0, 10, 0" />
+            <Button Command="{Binding StopUnenteredOrdersCommand}" Content="Stop unenterd orders" ToolTip ="Stop all unentered orders" Margin="0,0,5,0" Padding="5, 0, 10, 0" />
 
             <!--Menu-->
             <Menu Grid.Row="0" x:Name="menu" Height="24" HorizontalAlignment="Left" VerticalAlignment="Bottom" >
@@ -76,7 +78,8 @@
                     <MenuItem Header="Backup DB" Command="{Binding BackupDBCommand}" IsEnabled="{Binding BackupDBEnabled}"></MenuItem>
                     <!--<Separator />
                     <MenuItem Header="{Binding ConnectionMenuTitle, Mode=OneWay}" Command="{Binding ConnectionCommand}"></MenuItem>
-                    <MenuItem Header="Reset" Command="{Binding RestartCommand}"></MenuItem>--><!-- removed as the yinyang button does a full ExchangeConnector reset with a new object created-->
+                    <MenuItem Header="Reset" Command="{Binding RestartCommand}"></MenuItem>-->
+                    <!-- removed as the yinyang button does a full ExchangeConnector reset with a new object created-->
                 </MenuItem>
                 |
                 <MenuItem Header="View" x:Name="ViewMenu">
@@ -157,7 +160,7 @@
                     <Separator />-->
 
                     <MenuItem Header="Stop unentered orders" Command="{Binding StopUnenteredOrdersCommand}"></MenuItem>
-
+                    <MenuItem Header="Remove stopped orders" Command="{Binding RemoveAllStoppedOrdersCommand}"></MenuItem>
 
                     <!--<MenuItem Header="{Binding RunBacktestForSymbolHeader}" Command="{Binding RunBacktestsForSymbolCommand}" CommandParameter="1"></MenuItem>
                         <MenuItem Header="{Binding RunAllBacktestHeader}" Command="{Binding RunAllBacktestsCommand}" CommandParameter="1"></MenuItem>
@@ -234,7 +237,7 @@
             </Button>
             <!--<TextBox  Grid.Row="0" TextWrapping="Wrap" Margin="6,0,0,0" IsEnabled="False" Text="{Binding ProgressPercent, Mode=OneWay}" Width="100"></TextBox>
             <TextBox  Grid.Row="0" TextWrapping="Wrap" Margin="6,0,0,0" IsEnabled="False" Text="{Binding ProgressPercent1, Mode=OneWay}" Width="60"></TextBox>-->
-            <TextBox Grid.Row="0" TextWrapping="Wrap" Margin="6,0,0,0" Text="{Binding CurrentPrice, Mode=OneWay}" IsEnabled="False" Width="75"/>
+            <TextBox Grid.Row="0" TextWrapping="Wrap" Margin="6,0,0,0" Text="{Binding CurrentPrice, Mode=OneWay}" IsEnabled="False" Width="150"/>
             <TextBox Grid.Row="0" TextWrapping="Wrap" Margin="6,0,0,0" Text="{Binding CountDownText, Mode=OneWay}" IsEnabled="False" Width="95"/>
 
         </StackPanel>
@@ -271,7 +274,7 @@
 
                 <Canvas Grid.Row="0" x:Name="Chart" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Margin="0,0,0,0" ClipToBounds="True" Grid.ColumnSpan="2"></Canvas>
 
-                <Canvas Grid.Row="1" x:Name="Indicator1" HorizontalAlignment="Stretch"  VerticalAlignment="Stretch" Margin="0,10,0,5"  ClipToBounds="True" Grid.ColumnSpan="2"/>
+                <Canvas Grid.Row="1" x:Name="Indicator1" HorizontalAlignment="Stretch"  VerticalAlignment="Stretch" Margin="0,5,0,5"  ClipToBounds="True" Grid.ColumnSpan="2"/>
                 <GridSplitter Grid.Row="1" HorizontalAlignment="Stretch" VerticalAlignment="Top" Background="Gray" ShowsPreview="true" ResizeDirection="Rows" Height="2" Grid.ColumnSpan="2"/>
                 <Canvas Grid.Row="2" x:Name="TimeBar" Height="20" HorizontalAlignment="Stretch" VerticalAlignment="Bottom" Grid.ColumnSpan="2"/>
                 <Grid Grid.Row="3" HorizontalAlignment="Stretch" x:Name="TextBoxesGrid" VerticalAlignment="Top" Grid.ColumnSpan="2">
@@ -281,7 +284,7 @@
 
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="300" />
-                        <ColumnDefinition Width="450"/>
+                        <ColumnDefinition Width="350"/>
                         <ColumnDefinition/>
                     </Grid.ColumnDefinitions>
 

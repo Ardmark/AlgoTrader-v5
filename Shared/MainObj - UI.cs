@@ -82,9 +82,11 @@ namespace AlgoTrader.Shared
             //remove closed stops, take profits, and trade lines
             visibleTradeEngine.CleanupLines_UI_Synchronised();
         }
-        internal static void MoveStops(bool up)
+        internal static void MoveTrades(bool up)
         {
-            visibleTradeEngine?.MoveStops_UI_Synchronised(up);
+            //move the stops up or down by one interval, depending on the direction of the move
+            //this is only for active trades, and does not move waiting trades, since they do not have active stops
+            visibleTradeEngine?.MoveTrades_UI_Synchronised(up);
         }
         internal static void KillOrders()
         {

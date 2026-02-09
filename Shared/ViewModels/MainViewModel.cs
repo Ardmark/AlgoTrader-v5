@@ -372,7 +372,7 @@ namespace AlgoTrader.Live.ViewModels
         #region Menu commands  
         #region Orders
         ICommand moveStopsCommand, killOrdersCommand;
-        public ICommand MoveStops_Click => moveStopsCommand ?? (moveStopsCommand = new CommandHandler((param) => MoveStops(param), true));
+        public ICommand MoveStops_Click => moveStopsCommand ?? (moveStopsCommand = new CommandHandler((param) => MoveTrades(param), true));
         public ICommand KillOrders_Click => killOrdersCommand ?? (killOrdersCommand = new CommandHandler1(() => KillOrders(), true));
 
         #endregion
@@ -401,6 +401,66 @@ namespace AlgoTrader.Live.ViewModels
         //when changing the menu timeframes, also remember to change the key bindings in MainWindow.xaml as well
         public ICommand ConcurrentOrdersCommand => concurrentOrdersCommand ?? (concurrentOrdersCommand = new CommandHandler((param) => SetConcurrentOrders(param), true));
         #endregion
+
+        ICommand restartAllStoppedOrders;
+        public ICommand RestartAllStoppedOrders => restartAllStoppedOrders ?? (restartAllStoppedOrders = new CommandHandler1(() => RestartStoppedOrders(), true));
+
+        public void RestartStoppedOrders()
+        {
+            AlertDialog.ShowCallback("This will start all Stopped Orders", "Start all stopped orders?", () =>
+            {
+                using DataContext db = new();
+                var allTrades = db.Trades.Where(x =>
+                    x.GlobalStatus == TradeGlobalStatus.STOPPED &&
+                    (x.Action == TradeAction.ORDER));
+
+
+                foreach (var trade in allTrades)
+                {
+                    var close = db.Trades.FirstOrDefault(x => x.TradeReference == trade.TradeReference && x.Action == TradeAction.CLOSE);
+                    if (close == null)
+                    {
+                        var tradeEngine = MainObj.GetTradeEngineForSymbol(trade.SymbolName);
+                        tradeEngine.RestartTrade_UI_synchronised(trade.Id);
+                    }
+                }
+            });
+        }
+
+        ICommand removeAllStoppedOrders;
+        public ICommand RemoveAllStoppedOrdersCommand => removeAllStoppedOrders ?? (removeAllStoppedOrders = new CommandHandler1(() => RemoveStoppedOrders(), true));
+
+        public void RemoveStoppedOrders()
+        {
+            AlertDialog.ShowCallback("This will remove all Stopped Orders", "Remove all stopped orders?", () =>
+            {
+                var tradesToRemove = new List<_Trade>();
+                using (DataContext db = new())
+                {
+                    var allTrades = db.Trades.Where(x =>
+                        x.GlobalStatus == TradeGlobalStatus.STOPPED &&
+                        (x.Action == TradeAction.ORDER));
+
+
+                    foreach (var trade in allTrades)
+                    {
+                        var close = db.Trades.FirstOrDefault(x => x.TradeReference == trade.TradeReference && x.Action == TradeAction.CLOSE);
+                        if (close == null) //we have an order which has no close associated with it
+                        {
+                            tradesToRemove.Add(trade);
+                        }
+                    }
+                }
+
+                foreach (var trade in tradesToRemove)
+                {
+                    var tradeEngine = MainObj.GetTradeEngineForSymbol(trade.SymbolName);
+                    tradeEngine.RemoveStoppedTrades_UI_Synchronised(trade);
+                }
+                MainObj.DrawCurrentDispatcher(true);
+            });
+        }
+
 
         ICommand setStopTrailPercent;
         public ICommand SetStopTrailPercent => setStopTrailPercent ?? (setStopTrailPercent = new CommandHandler1(() => SetStopTrailPC(), true));
@@ -794,7 +854,7 @@ namespace AlgoTrader.Live.ViewModels
                 },
                 #endregion
 
-                #region Close trade
+                #region Close order
                 () =>
                 {
                     if (allowClose)
@@ -931,6 +991,14 @@ namespace AlgoTrader.Live.ViewModels
                     Task.Run(async() => await ActiveTradeSummary.ClearClosedTrades("24"));
 
                     Chart.showClosedTrades = true;
+                    RemovePopupWindow();
+                },
+                #endregion
+
+                #region Open order
+                () =>
+                {
+                    tradeEngine.RestartTrade_UI_synchronised(GetTradeId());
                     RemovePopupWindow();
                 },
                 #endregion
@@ -1428,16 +1496,16 @@ namespace AlgoTrader.Live.ViewModels
                 RemovePopupWindow();
             });
         }
-        public void MoveStops(object param)
+        public void MoveTrades(object param)
         {
             int.TryParse(param as string, out int direction);
             switch (direction)
             {
                 case 0: //up
-                    MainObj.MoveStops(true);
+                    MainObj.MoveTrades(true);
                     break;
                 case 1: //down
-                    MainObj.MoveStops(false);
+                    MainObj.MoveTrades(false);
                     break;
             }
         }
@@ -1779,7 +1847,7 @@ namespace AlgoTrader.Live.ViewModels
 
         private void StopUnenteredOrders()
         {
-            AlertDialog.ShowCallback("This will stop all unentered orders on the system - are you sure you want to do this?", "Stop unentered orders", () =>
+            AlertDialog.ShowCallback("This will stop all unentered orders on the system - and remember to enable RDP (Settings -> System) for remote access", "Stop unentered orders", () =>
             {
                 MainObj.StopWaitingTrades_UI();
             });
