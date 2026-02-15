@@ -1555,6 +1555,7 @@ namespace AlgoTrader.Shared
                     //    ? entryPrice * (1 - STOP_MIN_VALUE / 100)
                     //    : entryPrice * (1 + STOP_MIN_VALUE / 100);
 
+
                     //var _floor = Entry.Clone();
                     //Floor = _floor;
                     //_floor.Price = floorPrice;
@@ -1839,9 +1840,8 @@ namespace AlgoTrader.Shared
                     LogTrades.WriteLine($"{s} too close to order price. {s} price was adjusted");
 
                     var prevPrice = stopPrice;
-                    _floorStop.Price = _floorStop.Position == TradePosition.LONG
-                        ? Entry.Price * (1 - minVal / 100)
-                        : Entry.Price / (1 - minVal / 100);
+
+                    _floorStop.Price = MainObj.GetFloorPrice(Entry.Price, minVal, _floorStop.Position);
 
                     _floorStop.Timestamp = GetTimeStamp();
                     SetUpdateRequest(_floorStop);

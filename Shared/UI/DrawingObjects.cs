@@ -63,14 +63,14 @@ namespace Shared.Drawings
         public static Shape TriangleUp(double size, double left, double top, SolidColorBrush fill, SolidColorBrush stroke)
         {
             double halfSize = size / 2;
-            Polygon triangle = new Polygon
+            Polygon triangle = new()
             {
-                Points = new PointCollection
-                {
+                Points =
+                [
                     new Point(halfSize, 0),
                     new Point(size, size),
                     new Point(0, size)
-                },
+                ],
                 Fill = fill,
                 Stroke = stroke
             };
@@ -83,14 +83,14 @@ namespace Shared.Drawings
         public static Shape TriangleDown(double size, double left, double top, SolidColorBrush fill, SolidColorBrush stroke)
         {
             double halfSize = size / 2;
-            Polygon triangle = new Polygon
+            Polygon triangle = new()
             {
-                Points = new PointCollection
-                {
+                Points =
+                [
                     new Point(0, 0),
                     new Point(size, 0),
                     new Point(halfSize, size)
-                },
+                ],
                 Fill = fill,
                 Stroke = stroke
             };
@@ -136,8 +136,8 @@ namespace Shared.Drawings
             double xOffset = 2;
             Polygon triangle1 = new Polygon
             {
-                Points = new PointCollection
-                {
+                Points =
+                [
                     new Point(xOffset + 0, 0),
                     new Point(xOffset + halfSize * 2, -halfSize / 2 - 1),
                     new Point(xOffset + halfSize * 2, 0),
@@ -145,7 +145,7 @@ namespace Shared.Drawings
                     new Point(xOffset + halfSize * 4, 0),
                     new Point(xOffset + halfSize * 2, 0),
                     new Point(xOffset + halfSize * 2, halfSize / 2)
-                },
+                ],
                 //Fill = fill,
                 Stroke = stroke
             };
@@ -167,8 +167,8 @@ namespace Shared.Drawings
             Polygon arrow = position == TradePosition.SHORT
                 ? new Polygon
                 {
-                    Points = new PointCollection
-                {
+                    Points =
+                [
                     new Point(0, 0),
                     new Point(arrowSize / 2-1, 0),
                     new Point(arrowSize / 2-1, -arrowSize),
@@ -176,14 +176,14 @@ namespace Shared.Drawings
                     new Point(arrowSize / 2+1, 0),
                     new Point(arrowSize, 0),
                     new Point(arrowSize / 2, arrowSize)
-                },
+                ],
                     Fill = fill,
                     Stroke = stroke
                 }
             : new Polygon
             {
-                Points = new PointCollection
-                {
+                Points =
+                [
                     new Point(0, 0),
                     new Point(arrowSize / 2-1, 0),
                     new Point(arrowSize / 2-1, arrowSize),
@@ -191,7 +191,7 @@ namespace Shared.Drawings
                     new Point(arrowSize / 2+1, 0),
                     new Point(arrowSize, 0),
                     new Point(arrowSize / 2, -arrowSize)
-                },
+                ],
                 Fill = fill,
                 Stroke = stroke
             };
@@ -215,7 +215,7 @@ namespace Shared.Drawings
 
             if (extraText != null)
             {
-                TextBlock textBlock = new TextBlock
+                TextBlock textBlock = new()
                 {
                     Text = extraText,
                     Foreground = MainObj.isDarkMode ? Brushes.White : Brushes.Black,
@@ -259,12 +259,7 @@ namespace Shared.Drawings
 
             if (extraText != null)
             {
-                TextBlock textBlock = new TextBlock
-                {
-                    Text = extraText,
-                    Foreground = MainObj.isDarkMode ? Brushes.White : Brushes.Black,
-                    Background = Brushes.Transparent
-                };
+                TextBlock textBlock = GetTextBlock(extraText);
 
                 canvas.Children.Add(textBlock);
                 Canvas.SetLeft(textBlock, 6);
@@ -273,25 +268,35 @@ namespace Shared.Drawings
             return new TradeMarkerCanvas(canvas, left - halfSize * 1.5, top, 1); //just to line up vertically, have a one px offset
         }
 
+        private static TextBlock GetTextBlock(string extraText)
+        {
+            return new TextBlock
+            {
+                Text = extraText,
+                Foreground = MainObj.isDarkMode ? Brushes.White : Brushes.Black,
+                Background = Brushes.Transparent
+            };
+        }
+
         static void DrawWarningMarker(Canvas canvas, SolidColorBrush fill, SolidColorBrush stroke, double halfSize, double leftOffset, double topOffset)
         {
 
-            Polygon block = new Polygon
+            Polygon block = new()
             {
-                Points = new PointCollection
-                {
+                Points =
+                [
                     new Point(-halfSize * .5 + leftOffset, -halfSize * 2 - topOffset),
                     new Point(halfSize * .5 + leftOffset, -halfSize * 2 - topOffset),
                     new Point(halfSize * 1.255 + leftOffset, -size * 1.5 - halfSize  - topOffset),
                     new Point(-halfSize * 1.255 + leftOffset, -size * 1.5 - halfSize  - topOffset)
-                },
+                ],
                 Fill = fill,
                 Stroke = stroke,
                 StrokeThickness = 2,
             };
             canvas.Children.Add(block);
 
-            Ellipse circle = new Ellipse
+            Ellipse circle = new()
             {
                 Width = size / 2,
                 Height = size / 2,
@@ -308,20 +313,20 @@ namespace Shared.Drawings
         public static TradeMarkerCanvas TradeEntryMarkerClosedOnExchange(double left, double top, SolidColorBrush fill, SolidColorBrush stroke, string extraText)
         {
 
-            Canvas canvas = new Canvas { Opacity = MARKER_OPACITY };
+            Canvas canvas = new() { Opacity = MARKER_OPACITY };
 
             double halfSize = size / 4;
 
             DrawWarningMarker(canvas, fill, stroke, halfSize, 0, size);
 
-            Polygon triangle1 = new Polygon
+            Polygon triangle1 = new()
             {
-                Points = new PointCollection
-                {
+                Points =
+                [
                     new Point(0, -halfSize * 1.5),
                     new Point(halfSize * 1.5, 0),
                     new Point(0, halfSize * 1.5)
-                },
+                ],
                 Fill = fill,
                 Stroke = stroke
             };
@@ -329,7 +334,7 @@ namespace Shared.Drawings
 
             if (extraText != null)
             {
-                TextBlock textBlock = new TextBlock
+                TextBlock textBlock = new()
                 {
                     Text = extraText,
                     Foreground = MainObj.isDarkMode ? Brushes.White : Brushes.Black,
@@ -343,50 +348,67 @@ namespace Shared.Drawings
             return new TradeMarkerCanvas(canvas, left - halfSize * 1.5, top, 1); //just to line up vertically, have a one px offset
         }
 
-        public static TradeMarkerCanvas TradeStopMarker(double left, double top, SolidColorBrush fill, SolidColorBrush stroke, string text, bool flipOrder, bool showWarning)
+        public static TradeMarkerCanvas TradeStopMarker(TradePosition position, double left, double top, SolidColorBrush fill, SolidColorBrush stroke, string text, bool flipOrder, bool showWarning)
         {
             double halfSize = size / 2;
-            Canvas canvas = new Canvas { Opacity = MARKER_OPACITY };
+            Canvas canvas = new() { Opacity = MARKER_OPACITY };
 
             if (showWarning)
             {
                 DrawWarningMarker(canvas, fill, stroke, size / 4, halfSize / 2, halfSize / 4);
             }
-
-            Polygon triangle = new Polygon
+            Polygon triangleDown = new()
             {
-                Points = new PointCollection
-                {
+                Points =
+                [
                     new Point(halfSize / 2, 0),
-                    new Point(halfSize, halfSize),
-                    new Point(0, halfSize)
-                },
+                    new Point(0, -halfSize),
+                    new Point(halfSize, -halfSize)
+                ],
                 Fill = fill,
                 Stroke = stroke
             };
 
-            canvas.Children.Add(triangle);
-            Canvas.SetTop(triangle, halfSize);
+            Polygon triangleUp = new()
+            {
+                Points =
+                [
+                    new Point(halfSize / 2, 0),
+                    new Point(halfSize, halfSize),
+                    new Point(0, halfSize)
+                ],
+                Fill = fill,
+                Stroke = stroke
+            };
+
+            if (position == TradePosition.LONG)
+            {
+                canvas.Children.Add(triangleUp);
+                Canvas.SetTop(triangleUp, halfSize);
+            }
+            else
+            {
+                canvas.Children.Add(triangleDown);
+                Canvas.SetTop(triangleDown, halfSize);
+            }
+
 
             if (flipOrder)
             {
-                Polygon triangle1 = new Polygon
+                if (position == TradePosition.LONG)
                 {
-                    Points = new PointCollection
-                    {
-                        new Point(0, 0),
-                        new Point(halfSize, 0),
-                        new Point(halfSize / 2, halfSize)
-                    },
-                    Fill = fill,
-                    Stroke = stroke
-                };
+                    canvas.Children.Add(triangleDown);
+                    Canvas.SetTop(triangleDown, halfSize);                    
+                }
+                else
+                {
+                    canvas.Children.Add(triangleUp);
+                    Canvas.SetTop(triangleUp, halfSize);
+                }
 
-                canvas.Children.Add(triangle1);
-                Canvas.SetTop(triangle1, 0);
             }
 
-            TextBlock textBlock = new TextBlock
+            TextBlock textBlock = new()
             {
                 Text = text,
                 Foreground = MainObj.isDarkMode ? Brushes.White : Brushes.Black,
@@ -405,12 +427,12 @@ namespace Shared.Drawings
             double halfSize = size / 2;
             Polygon triangle1 = new Polygon
             {
-                Points = new PointCollection
-                {
+                Points =
+                [
                     new Point(0, 0),
                     new Point(halfSize, 0),
                     new Point(halfSize / 2, halfSize)
-                },
+                ],
                 Fill = fill,
                 Stroke = stroke
             };

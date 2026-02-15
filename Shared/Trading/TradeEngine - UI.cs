@@ -1708,8 +1708,7 @@ namespace AlgoTrader.Shared
                 //set a floor
                 var floorPC = 1 + STOP_MIN_VALUE / 100;
                 var currPrice = line.GetPriceAtTime(currentDataItem.Timestamp, true).price;
-                var floorPrice = position == TradePosition.LONG
-                                ? currPrice / floorPC : currPrice * floorPC;
+                var floorPrice = MainObj.GetFloorPrice(currPrice, STOP_MIN_VALUE, position);
 
                 //add a new stop derived from the trade
                 var trade = order.Clone(); //this should only happen if a stop has been deleted completely

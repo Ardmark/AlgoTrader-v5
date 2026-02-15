@@ -1594,6 +1594,13 @@ namespace AlgoTrader.Shared
                                 ? from != 0 ? 1 - to / from : 0
                                 : to != 0 ? 1 - from / to : 0;
         }
+        internal static double GetFloorPrice(double orderPrice, double gapPercent, TradePosition position)
+        {
+            return position == TradePosition.LONG
+                                ? orderPrice * (1 - gapPercent / 100)
+                                : orderPrice * (1 + gapPercent / 100);
+        }
+
 
         internal static string GetSymbolId(_SymbolDataItem item, string symbolName)
         {

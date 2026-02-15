@@ -39,7 +39,7 @@ namespace AlgoTrader.Windows
             TradeEngineBitmex.DEFAULT_LEVERAGE = 3;
             TradeEngine.MINIMUM_TRADE_TIME = 0;
 
-            TradeEngine.STOP_MIN_VALUE = 1.25; //will move stop or floor to this value when trade enters, and will auto-set floor at this level if there is no floor
+            TradeEngine.STOP_MIN_VALUE = 5; //will move stop or floor to this value when trade enters, and will auto-set floor at this level if there is no floor
             TradeEngine.MAX_ENTRY_DIFF_PERCENT = 0.5;
 
 

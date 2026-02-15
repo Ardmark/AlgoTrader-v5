@@ -613,6 +613,11 @@ namespace AlgoTrader.Shared
                             var leverage = CalculateLeverageFromStop(stopPC, Entry.Position);
                             LogTrades.WriteLine($"Stop is at {stopPC} at entry time");
 
+                            if (MainObj.BACKTEST)
+                            {
+                                leverage = DEFAULT_LEVERAGE; //so it will always enter
+                            }
+
                             (var orderQuantity, var actualLeverage) = CalculateOrderQuantity(amount, lastQuoteValue, leverage, lotSize, Entry.Position);
 
                             if (
@@ -753,9 +758,7 @@ namespace AlgoTrader.Shared
 
                                     var stopOffsetPC_Leveraged = STOP_MIN_VALUE;// CalculateStopFromLeverage(Entry.Leverage, Entry.Position);
 
-                                    var floorPrice = Order.Position == TradePosition.LONG
-                                                ? Entry.Price / (1 + stopOffsetPC_Leveraged / 100)
-                                                : Entry.Price * (1 + stopOffsetPC_Leveraged / 100);
+                                    var floorPrice = MainObj.GetFloorPrice(Entry.Price, stopOffsetPC_Leveraged, Order.Position);
 
                                     Floor.Price = (double)floorPrice;
                                     LogTrades.WriteLine($"Setting Floor at default level of {STOP_MIN_VALUE}");
