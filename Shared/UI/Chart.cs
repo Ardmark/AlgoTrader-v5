@@ -2115,7 +2115,7 @@ namespace AlgoTrader.Shared
 
             var _yOffset = addYOffset ? yOffset : 0;
 
-            var range = (price - Low) / ((High - Low)); //map price to pixels
+            var range = (price - Low) / (High - Low); //map price to pixels
 
             var top = MainObj.invertChart
                 ? canvas.ActualHeight * (range / rangeScale) + _yOffset

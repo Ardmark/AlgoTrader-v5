@@ -29,15 +29,47 @@ namespace AlgoTrader.Shared
                 {
                     if (trade != null)
                     {
-                        double __pc = trade.Position == TradePosition.LONG ? _pc : 1 / _pc;
+                        double __pc = _pc;
 
                         var line = AllLinesForSymbol.FirstOrDefault(x => x.TradeId == trade.Id);
+                        /*
+                        We want to move any unentered order line by the percentage relative to whatever angle the line is at, not just vertically
+                        But this is very difficult to do if you want to move the x and y coordinates, since they use different coordinate systems - 
+                         e.g. y could be in the dollar price range but x could be in ticks
+                        So these need to be converted to the same coordinate system, i.e. in screen coordinates - but these must be as if (0,0)) is at zero dollars and zero time, which they are obviously not
+                        Too difficult to bother with. So will just move vertically.
+                        However, if a trade is entered, then stops and floors (which will always move vertically) will move at different rates, 
+                         depending on stop line angles, which is very confusing. So will only move vertically by percentage for entered trades.
+                        With an asc or desc order line, there will typically be no floor anyway, as that is useless, only stop lines matching the order line angle.
+                        So putting all of this together: unenetered orders - move according to line angle, but entered orders move vertically, and floors move vertically regardless of order line angle.
+                        */
+                        if (line != null && trade.Action == TradeAction.ORDER && trade.ItemStatus == TradeItemStatus.OPEN)
+                        {
+                            (double X1, double Y1) = chart.GetDrawPosition1(line.StartTimeStamp, line.StartPrice);
+                            (double X2, double Y2) = chart.GetDrawPosition1(line.EndTimeStamp, line.EndPrice);
+
+                            var opp = X2 - X1;
+
+                            var adj = Y2 - Y1;
+                            var hyp = Math.Sqrt(opp * opp + adj * adj);
+                            var sinTheta = opp / hyp;
+                            var cosTheta = adj / hyp;
+                            if (sinTheta < 0.1) //don't want the price move too much or could go way off screen
+                            {
+                                sinTheta = 0.1;
+                            }
+                             __pc = (__pc - 1) / sinTheta + 1;
+                        }
+
+                        __pc = trade.Position == TradePosition.LONG ? __pc : 1 / __pc;
+                        
                         if (line != null)
                         {
                             line.StartPrice = _up ? line.StartPrice * __pc : line.StartPrice / __pc;
                             line.EndPrice = _up ? line.EndPrice * __pc : line.EndPrice / __pc;
                             SetUpdateRequest(line);
                         }
+
                         //stop will eventually track line but want immediate update:
                         trade.Price = _up ? trade.Price * __pc : trade.Price / __pc;
                     }
@@ -75,9 +107,7 @@ namespace AlgoTrader.Shared
 
                         var stopOffsetPC_Leveraged = TradeEngineBitmex.CalculateStopFromLeverage(Entry.Leverage, Entry.Position);
 
-                        var floorPrice = Order.Position == TradePosition.LONG
-                                    ? Entry.Price / (1 + stopOffsetPC_Leveraged / 100)
-                                    : Entry.Price * (1 + stopOffsetPC_Leveraged / 100);
+                        var floorPrice = MainObj.GetFloorPrice(Entry.Price, stopOffsetPC_Leveraged, Entry.Position);
 
                         Floor.Price = (double)floorPrice;
                         Floor.Action = TradeAction.FLOOR;
@@ -92,6 +122,7 @@ namespace AlgoTrader.Shared
                     // MoveStop(Ceiling, !up);
                     // MoveStop(TakeProfit, !up);
                 }
+
 
                 //move any unentered trades, including their stops and floors
                 var activeTrades = AllTrades.Where(x => 
@@ -669,16 +700,26 @@ namespace AlgoTrader.Shared
             InitForDataContext(() =>
             {
                 //need all the lines here
-                var chartLine = AllLinesForSymbol.FirstOrDefault(x => x.Id == chartLineId);
-
-                _Trade trade = chartLine.Trade;
-                if (trade != null && trade.GlobalStatus == TradeGlobalStatus.ACTIVE)
+                try
                 {
-                    AlertDialog.Show("Cannot delete a line when active trade is attached");
-                    return;
-                }
+                    var chartLine = AllLinesForSymbol.FirstOrDefault(x => x.Id == chartLineId);
 
-                SetUpdateRequest(chartLine, TradeUpdateRequest.DELETE);
+                    if (chartLine != null)
+                    {
+                        _Trade trade = chartLine.Trade;
+                        if (trade != null && trade.GlobalStatus == TradeGlobalStatus.ACTIVE)
+                        {
+                            AlertDialog.Show("Cannot delete a line when active trade is attached");
+                            return;
+                        }
+                        SetUpdateRequest(chartLine, TradeUpdateRequest.DELETE);
+                   }
+
+                }
+                catch
+                {
+
+                }
             });
 
             MainObj.TradeStatusChanged(this);
