@@ -25,7 +25,7 @@ namespace AlgoTrader.Shared.Interfaces
         //void InitMenu();
         void SetInitialTime(int timeFrame);
         void SetConcurrentOrdersMenuState(int concurrentOrders);
-        void SetLeverageMenuState(int leverage);
+        void SetLeverage(int leverage);
         void ShowClosedTrades();
     }
 }

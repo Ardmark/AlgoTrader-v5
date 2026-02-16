@@ -127,7 +127,6 @@
                     <MenuItem Header="Leverage">
                         <!--also change max number in MainViewModel.SetConcurrentOrdersMenuState() and check there are enough properties-->
 
-                        <MenuItem Header="1"  Command="{Binding LeverageCommand}" CommandParameter="1"  IsChecked="{Binding Leverage1_Checked}"></MenuItem>
                         <MenuItem Header="2"  Command="{Binding LeverageCommand}" CommandParameter="2"  IsChecked="{Binding Leverage2_Checked}"></MenuItem>
                         <MenuItem Header="3"  Command="{Binding LeverageCommand}" CommandParameter="3"  IsChecked="{Binding Leverage3_Checked}"></MenuItem>
                         <MenuItem Header="4"  Command="{Binding LeverageCommand}" CommandParameter="4"  IsChecked="{Binding Leverage4_Checked}"></MenuItem>

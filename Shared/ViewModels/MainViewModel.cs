@@ -1977,6 +1977,11 @@ namespace AlgoTrader.Live.ViewModels
             TradeEngine.Leverage = leverage;
             SetLeverageMenuState(leverage);
         }
+        public void SetLeverage(int leverage)
+        {
+            TradeEngine.Leverage = leverage;
+            SetLeverageMenuState(leverage);
+        }
 
         public void SetConcurrentOrders(object param)
         {

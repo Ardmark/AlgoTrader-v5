@@ -954,7 +954,7 @@ namespace AlgoTrader.Shared
                 mainViewModel.SetTimeframeMenuState(TimeFrame);
                 mainViewModel.SetInitialTime(timeFrame);
                 mainViewModel.SetConcurrentOrdersMenuState(TradeEngine.MAX_CONCURRENT_TRADES);
-                mainViewModel.SetLeverageMenuState((int)TradeEngine.Leverage);
+                mainViewModel.SetLeverage((int)TradeEngineBitmex.DEFAULT_LEVERAGE);
                 if (!BACKTEST)
                 {
                     ToggleDarkMode();
@@ -1073,7 +1073,7 @@ namespace AlgoTrader.Shared
         {
             //Application.Current.Dispatcher.Invoke(() =>
             //{
-            mainViewModel.SetLeverageMenuState(leverage);
+            mainViewModel.SetLeverage(leverage);
             //});
         }
         public static void ShowClosedTrades()

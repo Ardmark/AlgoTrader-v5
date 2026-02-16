@@ -1652,7 +1652,7 @@ namespace AlgoTrader.Shared
             Order = null;
             if (EXCHANGE == ExchangeId.BITMEX)
             {
-                Leverage = 2; //always set this as a default since it is an integer and 1 will be no use for a long anyway.
+                Leverage = TradeEngineBitmex.DEFAULT_LEVERAGE; //always set this as a default since it is an integer and 1 will be no use for a long anyway.
                 MainObj.SetLeverageMenuState((int)Leverage); //NOTE, calling Application.Current.Dispatcher.Invoke() within this thread causes a lock condition
             }
             //need to wait a few seconds before getting the final balance
