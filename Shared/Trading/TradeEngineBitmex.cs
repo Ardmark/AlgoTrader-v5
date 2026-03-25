@@ -1203,6 +1203,7 @@ namespace AlgoTrader.Shared
                     {
                         var diff = Math.Abs(MainObj.GetPriceDiff(stopPrice, lastQuoteValue, Stop.Position) * 100);
 
+                        LogTrades.WriteLine($"Price diff. between entry and current price is {diff}%");
                         //determine if this is within an acceptable range
 
                         bool isWithinRange = true;

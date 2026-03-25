@@ -81,6 +81,9 @@ namespace AlgoTrader.Shared
 
                     if (TradeEngine.MAX_ENTRY_DIFF_PERCENT > 0)
                     {
+                        var diff = Math.Abs(MainObj.GetPriceDiff(currLinePrice, item.Close, order.Position) * 100);
+                        LogTrades.WriteLine($"Price diff. between entry and current price is {diff}%");
+
                         var maxOrderPrice = order.Position == TradePosition.LONG
                                                         ? currLinePrice * (1 + TradeEngine.MAX_ENTRY_DIFF_PERCENT / 100)
                                                         : currLinePrice / (1 + TradeEngine.MAX_ENTRY_DIFF_PERCENT / 100);

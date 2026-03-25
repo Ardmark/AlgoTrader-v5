@@ -1746,17 +1746,20 @@ namespace AlgoTrader.Shared
                     currentTradeSetReference = order.TradeReference;
                 }
 
+                /************************************************/
                 //set a floor
-                var floorPC = 1 + STOP_MIN_VALUE / 100;
-                var currPrice = line.GetPriceAtTime(currentDataItem.Timestamp, true).price;
-                var floorPrice = MainObj.GetFloorPrice(currPrice, STOP_MIN_VALUE, position);
+                // - no, this is unnecessary as one will be set anyway by default on trade entry
+                //var floorPC = 1 + STOP_MIN_VALUE / 100;
+                //var currPrice = line.GetPriceAtTime(currentDataItem.Timestamp, true).price;
+                //var floorPrice = MainObj.GetFloorPrice(currPrice, STOP_MIN_VALUE, position);
 
-                //add a new stop derived from the trade
-                var trade = order.Clone(); //this should only happen if a stop has been deleted completely
-                trade.ItemId = null; //because Bitmex will have a new ID for the stop
-                trade.Action = TradeAction.FLOOR;
-                trade.Price = floorPrice;
-                SetUpdateRequest(trade);
+                ////add a new stop derived from the trade
+                //var trade = order.Clone(); //this should only happen if a stop has been deleted completely
+                //trade.ItemId = null; //because Bitmex will have a new ID for the stop
+                //trade.Action = TradeAction.FLOOR;
+                //trade.Price = floorPrice;
+                //SetUpdateRequest(trade);
+                /************************************************/
 
                 var oppositeSide = position == TradePosition.LONG ? TradePosition.SHORT : TradePosition.LONG;
                 var oppOrder = AllTrades.FirstOrDefault(x =>
