@@ -994,7 +994,13 @@ namespace AlgoTrader.Shared
             }
 
             //run a timer to monitor memory usage and reset connection if it gets too high.
-            LogConnection.WriteLine("Starting memory monitor timer...");
+            var maxAllowed = 1000;
+            using Process proc = Process.GetCurrentProcess();
+            proc.PriorityClass = ProcessPriorityClass.AboveNormal;
+            //var v = proc.PrivateMemorySize64 / 1000000;
+            var current = proc.WorkingSet64 / 1000000;
+
+            LogConnection.WriteLine($"Starting memory monitor timer, \n...max allowed memory usage is {maxAllowed} MB, \n...current working memory is {current} MB");
             var timer = new System.Timers.Timer(10000) //10 seconds
             {
                 AutoReset = true
@@ -1006,9 +1012,11 @@ namespace AlgoTrader.Shared
                 using Process proc = Process.GetCurrentProcess();
                 proc.PriorityClass = ProcessPriorityClass.AboveNormal;
                 var v = proc.PrivateMemorySize64 / 1000000;
-                if (v > 1000)
+                var v1 = proc.WorkingSet64 / 1000000;
+
+                if (v > maxAllowed || v1 > maxAllowed)
                 {
-                    LogConnection.WriteLine($"Memory usage: {v} MB, resetting connection...");
+                    LogConnection.WriteLine($"Privae memory usage: {v} MB, working memory usage {v1} MB, resetting connection...");
                     exchangeConnector.CloseConnection();
 
                     //wait a few seconds before restarting connection, to allow memory to be freed
