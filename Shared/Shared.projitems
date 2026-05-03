@@ -160,6 +160,7 @@
     <Content Include="$(MSBuildThisFileDirectory)media\alarm-clock-ringing-02 .mp3" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="$(MSBuildThisFileDirectory)helpers\Directory.Build.props" />
     <None Include="$(MSBuildThisFileDirectory)KEY MAPPINGS" />
     <None Include="$(MSBuildThisFileDirectory)Windows defender blocks live release.txt" />
   </ItemGroup>

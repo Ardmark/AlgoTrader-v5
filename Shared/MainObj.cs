@@ -992,6 +992,43 @@ namespace AlgoTrader.Shared
                     LogConnection.WriteLine("Exception thrown while initialising database backup: " + e.ToString());
                 }
             }
+
+            //run a timer to monitor memory usage and reset connection if it gets too high.
+            LogConnection.WriteLine("Starting memory monitor timer...");
+            var timer = new System.Timers.Timer(10000) //10 seconds
+            {
+                AutoReset = true
+            };
+            //dispatcher timer does not start here for some reason
+            timer.Start();
+            timer.Elapsed += (o, e) =>
+            {
+                using Process proc = Process.GetCurrentProcess();
+                proc.PriorityClass = ProcessPriorityClass.AboveNormal;
+                var v = proc.PrivateMemorySize64 / 1000000;
+                if (v > 1000)
+                {
+                    LogConnection.WriteLine($"Memory usage: {v} MB, resetting connection...");
+                    exchangeConnector.CloseConnection();
+
+                    //wait a few seconds before restarting connection, to allow memory to be freed
+                    var timer1 = new System.Timers.Timer(5000)
+                    {
+                        AutoReset = false
+                    };
+
+                    timer1.Elapsed += (o, e) =>
+                    {
+                        exchangeConnector.RestartConnection();
+                        LogConnection.WriteLine("Connection restarted");
+                    };
+                    timer1.Start();
+                }
+            };
+
+
+
+
         }
         public static async Task BackupDB()
         {
@@ -1001,6 +1038,8 @@ namespace AlgoTrader.Shared
             }
             try
             {
+                LogBackups.WriteLine(string.Format("Starting database backup at {0}", DateTime.UtcNow.ToString()));
+
                 var connString = System.Configuration.ConfigurationManager.ConnectionStrings["DataContext"];
                 var csb = new SqlConnectionStringBuilder(connString.ToString());
                 var dbName = csb["initial catalog"].ToString();
