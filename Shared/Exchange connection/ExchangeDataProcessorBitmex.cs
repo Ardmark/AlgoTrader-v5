@@ -119,10 +119,10 @@ namespace AlgoTrader.Shared.ExchangeConnection
                                     //MeasureReturnedDataTimeDifference(data);
 
                                 }
-                                else
-                                {
-                                    LogConnection.WriteLineTimestamp("item returned was NULL");
-                                }
+                                //else
+                                //{
+                                //    LogConnection.WriteLineTimestamp("item returned was NULL");
+                                //}
                             }
                             catch { }
                         });
@@ -259,10 +259,19 @@ namespace AlgoTrader.Shared.ExchangeConnection
                 {
                     if (start < count)
                     {
+
+                        var d = data[start];
+                        //starting 6/5/26, peridoically one or more of these properties returns null, it seems a second data set is returned
+                        // with only a couple of properties set.
+                        if (d.timestamp == null || d.bidPrice == null || d.symbol == null || d.symbol.Value == null)
+                        {
+                            return null;
+                        }
                         lastReadItem.timestamp = data[start].timestamp;
                         lastReadItem.price = data[start].bidPrice;
                         lastReadItem.symbolName = data[start].symbol;
-                        var symbolName = data[start].symbol.Value;
+                        dynamic symbolName = data[start].symbol.Value;
+
 
                         __iterationCount++;
                         DateTime nextMinute = GetAsMinute(lastSavedItemTime).AddMinutes(1);

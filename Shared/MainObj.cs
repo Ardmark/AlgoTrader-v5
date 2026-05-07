@@ -993,7 +993,8 @@ namespace AlgoTrader.Shared
                 }
             }
 
-            //run a timer to monitor memory usage and reset connection if it gets too high.
+            #region run a timer to monitor memory usage and reset connection if it gets too high.
+
             var maxAllowed = 1000;
             using Process proc = Process.GetCurrentProcess();
             proc.PriorityClass = ProcessPriorityClass.AboveNormal;
@@ -1033,9 +1034,7 @@ namespace AlgoTrader.Shared
                     timer1.Start();
                 }
             };
-
-
-
+            #endregion
 
         }
         public static async Task BackupDB()
