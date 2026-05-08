@@ -1000,7 +1000,7 @@ namespace AlgoTrader.Shared
             proc.PriorityClass = ProcessPriorityClass.AboveNormal;
             //var v = proc.PrivateMemorySize64 / 1000000;
             var current = proc.WorkingSet64 / 1000000;
-
+            FirstStartTime = DateTime.UtcNow;
             LogConnection.WriteLine($"Starting memory monitor timer, \n...max allowed memory usage is {maxAllowed} MB, \n...current working memory is {current} MB");
             var timer = new System.Timers.Timer(10000) //10 seconds
             {
@@ -1130,8 +1130,9 @@ namespace AlgoTrader.Shared
         public static void OutputCompletedInitialisationTime()
         {
             var elapsedTime = DateTime.UtcNow.Subtract(startTime);
-            LogConnection.WriteLine($"Initialisation complete in {elapsedTime.Minutes.ToString()} mins {elapsedTime.Seconds.ToString()} secs.");
-
+            LogConnection.WriteLine($"Initialisation complete in {elapsedTime.Minutes} mins {elapsedTime.Seconds} secs.");
+            elapsedTime = DateTime.UtcNow.Subtract(FirstStartTime);
+            LogConnection.WriteLine($"Total time since first start: {elapsedTime.Days} days, {elapsedTime.Hours} hours, {elapsedTime.Minutes} mins, {elapsedTime.Seconds} secs.");
         }
 
 
@@ -1361,6 +1362,9 @@ namespace AlgoTrader.Shared
                 return isDarkMode ? Brushes.White : Brushes.Black;
             }
         }
+
+        public static DateTime FirstStartTime { get; private set; }
+
         //draw on the UI data context, this method can only be called from UI events as it will execute on that thread,
         // and no 2 UI events will run concurrently anyway
         internal static void DrawImmediate()
