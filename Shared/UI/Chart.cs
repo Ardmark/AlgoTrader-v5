@@ -737,6 +737,7 @@ namespace AlgoTrader.Shared
                         string GetStopText(double stopPC, bool hasEntered, _Trade order, bool oppOrder = false, bool showLoss = true, string _text="")
                         {
                             var text = string.Empty;
+                            stopPC *= order.Position == TradePosition.LONG ? 1 : -1;  
                             if (stopPC > 0)
                             {
                                 text += "+";
