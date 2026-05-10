@@ -46,6 +46,7 @@ namespace AlgoTrader.Shared
         public static bool WRITE_TO_DB;
         public static int INITIAL_TIMEFRAME;
         public static int DATA_RETENTION_DAYS;
+        public static bool BACKUP_DB = true;
 
         //just to define the build type at runtime
         public static bool BACKTEST = false;
@@ -969,7 +970,7 @@ namespace AlgoTrader.Shared
 
             initComplete = true; //marks so DB can now be backed up
 
-            if (MainObj.BACKTEST == false && BACKUP_FOLDER != null && NUM_INCREMENTAL_BACKUPS > 0)
+            if (BACKUP_DB == true && BACKTEST == false && BACKUP_FOLDER != null && NUM_INCREMENTAL_BACKUPS > 0)
             {
                 try
                 {
@@ -1017,7 +1018,7 @@ namespace AlgoTrader.Shared
 
                 if (v > maxAllowed || v1 > maxAllowed)
                 {
-                    LogConnection.WriteLine($"Privae memory usage: {v} MB, working memory usage {v1} MB, resetting connection...");
+                    LogConnection.WriteLine($"Private memory usage: {v} MB, working memory usage {v1} MB, resetting connection at {DateTime.UtcNow}");
                     exchangeConnector.CloseConnection();
 
                     //wait a few seconds before restarting connection, to allow memory to be freed

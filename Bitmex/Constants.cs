@@ -16,6 +16,7 @@ namespace AlgoTrader.Windows
             MainObj.BACKTEST = false; //set TRUE for testnet trading
             MainObj.READ_LIVE_DATA = true; //if true, will update items live. If writing to DB, this is ignored
             MainObj.WRITE_TO_DB = true;
+            MainObj.BACKUP_DB = false; //bot auto-backing up db as that may cause issues with sudden memory usage spikes
 
             //Trading
             TradeEngine.EXCHANGE = Shared.Enums.ExchangeId.BITMEX;
