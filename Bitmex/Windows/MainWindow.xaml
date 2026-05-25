@@ -39,11 +39,12 @@
 
 
     <Window.InputBindings>
-        <KeyBinding Key="D1" Command="{Binding TimeframeCommand}" CommandParameter="5"/>
-        <KeyBinding Key="D2" Command="{Binding TimeframeCommand}" CommandParameter="15"/>
-        <KeyBinding Key="D3" Command="{Binding TimeframeCommand}" CommandParameter="60"/>
-        <KeyBinding Key="D4" Command="{Binding TimeframeCommand}" CommandParameter="240"/>
-        <KeyBinding Key="D5" Command="{Binding TimeframeCommand}" CommandParameter="1440"/>
+        <KeyBinding Key="D1" Command="{Binding TimeframeCommand}" CommandParameter="3"/>
+        <KeyBinding Key="D2" Command="{Binding TimeframeCommand}" CommandParameter="5"/>
+        <KeyBinding Key="D3" Command="{Binding TimeframeCommand}" CommandParameter="15"/>
+        <KeyBinding Key="D4" Command="{Binding TimeframeCommand}" CommandParameter="60"/>
+        <KeyBinding Key="D5" Command="{Binding TimeframeCommand}" CommandParameter="240"/>
+        <KeyBinding Key="D6" Command="{Binding TimeframeCommand}" CommandParameter="1440"/>
         <KeyBinding Key="N" Modifiers="Control" Command="{Binding NextTradeButton_Click}"/>
         <KeyBinding Key="P" Modifiers="Control" Command="{Binding PrevTradeButton_Click}"/>
     </Window.InputBindings>
@@ -102,12 +103,14 @@
                     <MenuItem Header="Time">
                         <!--
                         To change these, also change MainViewModel.SetTimeframeMenuState(), and TradeEngine.EMAParametersForTimeframes (dictionary)
+                        Also, change the key bindings in the Window.InputBindings section above
                         -->
-                        <MenuItem Header="5 min" InputGestureText="1" Command="{Binding TimeframeCommand}" CommandParameter="5" IsChecked="{Binding TimeFrame1_Checked}"></MenuItem>
-                        <MenuItem Header="15 min" InputGestureText="2" Command="{Binding TimeframeCommand}" CommandParameter="15" IsChecked="{Binding TimeFrame2_Checked}"></MenuItem>
-                        <MenuItem Header="1 hour" InputGestureText="3" Command="{Binding TimeframeCommand}" CommandParameter="60" IsChecked="{Binding TimeFrame3_Checked}"></MenuItem>
-                        <MenuItem Header="4 hour" InputGestureText="4" Command="{Binding TimeframeCommand}" CommandParameter="240" IsChecked="{Binding TimeFrame4_Checked}"></MenuItem>
-                        <MenuItem Header="Day" InputGestureText="5" Command="{Binding TimeframeCommand}" CommandParameter="1440" IsChecked="{Binding TimeFrame5_Checked}"></MenuItem>
+                        <MenuItem Header="3 min" InputGestureText="1" Command="{Binding TimeframeCommand}" CommandParameter="3" IsChecked="{Binding TimeFrame1_Checked}"></MenuItem>
+                        <MenuItem Header="5 min" InputGestureText="2" Command="{Binding TimeframeCommand}" CommandParameter="5" IsChecked="{Binding TimeFrame2_Checked}"></MenuItem>
+                        <MenuItem Header="15 min" InputGestureText="3" Command="{Binding TimeframeCommand}" CommandParameter="15" IsChecked="{Binding TimeFrame3_Checked}"></MenuItem>
+                        <MenuItem Header="1 hour" InputGestureText="4" Command="{Binding TimeframeCommand}" CommandParameter="60" IsChecked="{Binding TimeFrame4_Checked}"></MenuItem>
+                        <MenuItem Header="4 hour" InputGestureText="5" Command="{Binding TimeframeCommand}" CommandParameter="240" IsChecked="{Binding TimeFrame5_Checked}"></MenuItem>
+                        <MenuItem Header="Day" InputGestureText="6" Command="{Binding TimeframeCommand}" CommandParameter="1440" IsChecked="{Binding TimeFrame6_Checked}"></MenuItem>
                     </MenuItem>
 
                     <MenuItem Header="Invert" InputGestureText="I" Command="{Binding InvertChartCommand}"></MenuItem>

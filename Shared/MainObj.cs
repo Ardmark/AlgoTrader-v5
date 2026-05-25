@@ -73,7 +73,7 @@ namespace AlgoTrader.Shared
         public static bool invertChart;
         public static Chart visibleChart;
         public static bool liveTradeEnabledAuto = false;
-        public static List<int> timeFrames = new List<int>();
+        public static List<int> timeFrames = [];
         public static Canvas sidePanel;
         public static bool initComplete = false;
         #endregion
@@ -490,7 +490,7 @@ namespace AlgoTrader.Shared
             //this should be at midnight for all timeframes, to match TradingView
 
 
-            Dictionary<string, List<_SymbolDataItem>> allItems = new Dictionary<string, List<_SymbolDataItem>>();
+            Dictionary<string, List<_SymbolDataItem>> allItems = [];
 
             //need to add a Reference to System.Configuration for this:
             var value = System.Configuration.ConfigurationManager.ConnectionStrings["DataContext"];
@@ -544,14 +544,14 @@ namespace AlgoTrader.Shared
             #endregion
 
             //create tables if needed
-            using (SqlConnection conn1 = new SqlConnection(value.ToString()))
+            using (SqlConnection conn1 = new(value.ToString()))
             {
                 conn1.Open();
 
                 foreach (var s in SymbolNames.GetSymbolNames())
                 {
                     var q = $"SELECT count(*) FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = '{s}'";
-                    using (SqlCommand command = new SqlCommand(q, conn1))
+                    using (SqlCommand command = new(q, conn1))
                     {
                         try
                         {
@@ -945,7 +945,7 @@ namespace AlgoTrader.Shared
 
                 //finish any UI init here
 
-                Application.Current.Dispatcher.Invoke(() =>
+            Application.Current.Dispatcher.Invoke(() =>
             {
                 //can only run a DispatcherTimer from this thread, so InitConnector here.
                 //launch the exchange connector last, to allow db etc. to fully initialise

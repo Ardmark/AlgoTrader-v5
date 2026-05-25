@@ -234,6 +234,8 @@ namespace AlgoTrader.Live.ViewModels
         public bool TimeFrame2_Checked { get; set; }
         public bool TimeFrame3_Checked { get; set; }
         public bool TimeFrame4_Checked { get; set; }
+        public bool TimeFrame5_Checked { get; set; }
+        public bool TimeFrame6_Checked { get; set; }
         public bool ConcurrentOrders1_Checked { get; set; }
         public bool ConcurrentOrders2_Checked { get; set; }
         public bool ConcurrentOrders3_Checked { get; set; }
@@ -2001,22 +2003,28 @@ namespace AlgoTrader.Live.ViewModels
 
         public void SetTimeframeMenuState(int timeFrame)
         {
+
+            SetProperty("TimeFrame1_Checked", false); SetProperty("TimeFrame2_Checked", false); SetProperty("TimeFrame3_Checked", false); SetProperty("TimeFrame4_Checked", false); SetProperty("TimeFrame4_Checked", false); SetProperty("TimeFrame5_Checked", false); SetProperty("TimeFrame6_Checked", false);
+
             switch (timeFrame)
             {
+                case 3:
+                    SetProperty("TimeFrame1_Checked", true); 
+                    break;
                 case 5:
-                    SetProperty("TimeFrame1_Checked", true); SetProperty("TimeFrame2_Checked", false); SetProperty("TimeFrame3_Checked", false); SetProperty("TimeFrame4_Checked", false); SetProperty("TimeFrame4_Checked", false);
-                    break;
-                case 15:
-                    SetProperty("TimeFrame1_Checked", false); SetProperty("TimeFrame2_Checked", true); SetProperty("TimeFrame3_Checked", false); SetProperty("TimeFrame4_Checked", false); SetProperty("TimeFrame4_Checked", false);
-                    break;
-                case 60:
-                    SetProperty("TimeFrame1_Checked", false); SetProperty("TimeFrame2_Checked", false); SetProperty("TimeFrame3_Checked", true); SetProperty("TimeFrame4_Checked", false); SetProperty("TimeFrame4_Checked", false);
-                    break;
-                case 240:
-                    SetProperty("TimeFrame1_Checked", false); SetProperty("TimeFrame2_Checked", false); SetProperty("TimeFrame3_Checked", false); SetProperty("TimeFrame4_Checked", true); SetProperty("TimeFrame4_Checked", false);
-                    break;
-                case 1440:
-                    SetProperty("TimeFrame1_Checked", false); SetProperty("TimeFrame2_Checked", false); SetProperty("TimeFrame3_Checked", false); SetProperty("TimeFrame4_Checked", false); SetProperty("TimeFrame4_Checked", true);
+                    SetProperty("TimeFrame2_Checked", true);
+                    break;                                  
+                case 15:                                    
+                    SetProperty("TimeFrame3_Checked", true);
+                    break;                                  
+                case 60:                                    
+                    SetProperty("TimeFrame4_Checked", true);
+                    break;                                  
+                case 240:                                   
+                    SetProperty("TimeFrame5_Checked", true);
+                    break;                                  
+                case 1440:                                  
+                    SetProperty("TimeFrame6_Checked", true);
                     break;
             }
             SetProperty("UI_Interval", timeFrame.ToString()); //this is an alternative to calling the method and putting OnPropertyChanged there
