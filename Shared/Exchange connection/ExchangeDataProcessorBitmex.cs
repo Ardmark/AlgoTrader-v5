@@ -33,7 +33,7 @@ namespace AlgoTrader.Shared.ExchangeConnection
         //send command to the connector via StandardInput
         public override void SendCommandToExchange(string command, dynamic data) { } //unimplemented. Note, Binance has a websocket ticker like the bitmex data stream. 
 
-
+        static bool isProcessing = false;
         protected override void CaptureOutput(object sender, DataReceivedEventArgs e)
         {
             if (e == null || e.Data == null) //seems to happen after breaking for some time
@@ -44,9 +44,17 @@ namespace AlgoTrader.Shared.ExchangeConnection
 
             try
             {
+                if (isProcessing)
+                {
+                    //don't allow multiple threads to process data at the same time, which can happen if the process is too slow and data is sent faster than it can be processed
+                    //This maybe why the system was running out of memory, when concurrent processes are used up then they will run synchronously on a single thread, further slowing things down
+                    // and using ever more memory.
+                    LogConnection.WriteLine("Already processing data, skipping this data set");
+                    return;
+                }
                 if (MainObj.isRefreshing)
                 {
-                    return; //don't process any data while refreshing
+                    return;
                 }
                 if (e.Data.Contains("WebSocket")) //this is sent as the first item after connection
                 {
@@ -83,6 +91,7 @@ namespace AlgoTrader.Shared.ExchangeConnection
 
                     lock (thisLock)
                     {
+                        isProcessing = true;
                         //have had intermittent exceptions from all UI access without this
                         System.Windows.Application.Current.Dispatcher.Invoke(() =>
                         {
@@ -124,7 +133,10 @@ namespace AlgoTrader.Shared.ExchangeConnection
                                 //    LogConnection.WriteLineTimestamp("item returned was NULL");
                                 //}
                             }
-                            catch { }
+                            finally
+                            {
+                                isProcessing = false;
+                            }
                         });
                     }
                 }

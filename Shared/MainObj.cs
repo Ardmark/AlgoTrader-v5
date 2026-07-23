@@ -995,7 +995,10 @@ namespace AlgoTrader.Shared
             }
 
             #region run a timer to monitor memory usage and reset connection if it gets too high.
-
+            //this did not solve the runaway memory usage issue, it never triggered.
+            //so the assumption is the system was bottlenecked somewhere else which stopped this thread from executing,
+            // i.e. too many processes.
+            /*
             var maxAllowed = 1000;
             using Process proc = Process.GetCurrentProcess();
             proc.PriorityClass = ProcessPriorityClass.AboveNormal;
@@ -1035,6 +1038,7 @@ namespace AlgoTrader.Shared
                     timer1.Start();
                 }
             };
+            */
             #endregion
 
         }
@@ -1132,8 +1136,8 @@ namespace AlgoTrader.Shared
         {
             var elapsedTime = DateTime.UtcNow.Subtract(startTime);
             LogConnection.WriteLine($"Initialisation complete in {elapsedTime.Minutes} mins {elapsedTime.Seconds} secs.");
-            elapsedTime = DateTime.UtcNow.Subtract(FirstStartTime);
-            LogConnection.WriteLine($"Total time since first start: {elapsedTime.Days} days, {elapsedTime.Hours} hours, {elapsedTime.Minutes} mins, {elapsedTime.Seconds} secs.");
+            //elapsedTime = DateTime.UtcNow.Subtract(FirstStartTime);
+            //LogConnection.WriteLine($"Total time since first start: {elapsedTime.Days} days, {elapsedTime.Hours} hours, {elapsedTime.Minutes} mins, {elapsedTime.Seconds} secs.");
         }
 
 
