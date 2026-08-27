@@ -1,4 +1,5 @@
 ﻿using AlgoTrader.Shared.Enums;
+using AlgoTrader.Shared.Logging;
 
 
 namespace AlgoTrader.Shared
@@ -60,7 +61,6 @@ namespace AlgoTrader.Shared
                 if (!interrupted)
                 {
                     trade.ExchangeMethodScript = null;
-                    trade.ExchangeMethodIndex = 0;
                     trade.ItemStatus = TradeItemStatus.CLOSED;
                     trade.GlobalStatus = TradeGlobalStatus.STOPPED;
                 }
@@ -69,38 +69,35 @@ namespace AlgoTrader.Shared
             if (Entry != null)
             {
                 Entry.ExchangeMethodScript = null;
-                Entry.ExchangeMethodIndex = 0;
                 Entry.ItemStatus = TradeItemStatus.CLOSED;
                 Entry.GlobalStatus = TradeGlobalStatus.STOPPED;
             }
             if (Order != null)
             {
                 Order.ExchangeMethodScript = null;
-                Order.ExchangeMethodIndex = 0;
                 Order.ItemStatus = TradeItemStatus.CLOSED;
                 Order.GlobalStatus = TradeGlobalStatus.STOPPED;
             }
             if (Stop != null)
             {
                 Stop.ExchangeMethodScript = null;
-                Stop.ExchangeMethodIndex = 0;
                 Stop.ItemStatus = TradeItemStatus.CLOSED;
                 Stop.GlobalStatus = TradeGlobalStatus.STOPPED;
             }
-            if (Floor != null)
-            {
-                Floor.ExchangeMethodScript = null;
-                Floor.ExchangeMethodIndex = 0;
-                Floor.ItemStatus = TradeItemStatus.CLOSED;
-                Floor.GlobalStatus = TradeGlobalStatus.STOPPED;
-            }
-            if (Ceiling != null)
-            {
-                Ceiling.ExchangeMethodScript = null;
-                Ceiling.ExchangeMethodIndex = 0;
-                Ceiling.ItemStatus = TradeItemStatus.CLOSED;
-                Ceiling.GlobalStatus = TradeGlobalStatus.STOPPED;
-            }
+            //if (Floor != null)
+            //{
+            //    Floor.ExchangeMethodScript = null;
+            //    Floor.ExchangeMethodIndex = 0;
+            //    Floor.ItemStatus = TradeItemStatus.CLOSED;
+            //    Floor.GlobalStatus = TradeGlobalStatus.STOPPED;
+            //}
+            //if (Ceiling != null)
+            //{
+            //    Ceiling.ExchangeMethodScript = null;
+            //    Ceiling.ExchangeMethodIndex = 0;
+            //    Ceiling.ItemStatus = TradeItemStatus.CLOSED;
+            //    Ceiling.GlobalStatus = TradeGlobalStatus.STOPPED;
+            //}
             //DequeueOrder_synchronised();
         }
 
@@ -111,19 +108,16 @@ namespace AlgoTrader.Shared
             if (Order != null)
             {
                 Order.ExchangeMethodScript = null;
-                Order.ExchangeMethodIndex = 0;
                 SetUpdateRequest(Order);
             }
             if (Entry != null)
             {
                 Entry.ExchangeMethodScript = null;
-                Entry.ExchangeMethodIndex = 0;
                 SetUpdateRequest(Entry);
             }
             foreach (var trade in ActiveTrades)
             {
                 trade.ExchangeMethodScript = null;
-                trade.ExchangeMethodIndex = 0;
                 SetUpdateRequest(trade);
             }
 
@@ -131,17 +125,15 @@ namespace AlgoTrader.Shared
         }
 
         protected bool isManualSynch = false;
-        public virtual void SetStopOnExchange_Synchronised(_Trade stop)
+        protected double previousStopPrice = 0;
+        public virtual void SetStopOnExchange_Synchronised()
         {
             ResetLiveUpdateTimer();
-            stop.Timestamp = DateTime.UtcNow;
-            stop.ExchangeStatus = TradeExchangeStatus.ENTERING_ON_EXCHANGE;
-            SetUpdateRequest(stop); //to prevent timeout from triggering
+            Stop.Timestamp = DateTime.UtcNow;
+            SetUpdateRequest(Stop); //to prevent timeout from triggering
         }
-        protected virtual void RemoveStopFromExchange_Synchronised(_Trade stop)
-        {
+        protected virtual bool RemoveStopFromExchange_Synchronised() { }
 
-        }
         //get account balances - this is for display only, it is not part of trade placement
         internal virtual void ShowAccountBalances() { }
 
@@ -193,35 +185,6 @@ namespace AlgoTrader.Shared
 
         protected virtual void UpdateLiveState() { }
 
-        #region Utility methods
-
-        protected static (double value, string msg) GetValueForSymbol(string baseAsset, string quoteAsset)
-        {
-            return GetValueForSymbol(baseAsset + quoteAsset);
-        }
-
-        protected static (double value, string msg) GetValueForSymbol(string symbolName)
-        {
-            var tradeEngine = MainObj.GetTradeEngineForSymbol(symbolName);
-            if (tradeEngine == null)
-            {
-                return (0, $"{symbolName} not trading on system");
-            }
-            else
-            {
-                if (tradeEngine.currentDataItem == null)
-                {
-                    return (0, $"Waiting for connection on {symbolName}");
-                }
-            }
-            return (tradeEngine.currentDataItem.Close, null);
-        }
-        #endregion
-
-        #region Binance-specific methods
-        protected virtual void Binance_InitEvents() { } //just sets an event handler
-        protected virtual void Binance_StartSimulation() { }
-        #endregion
 
     }
 }

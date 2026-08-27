@@ -31,7 +31,7 @@ namespace AlgoTrader.Shared.ExchangeConnection
         }
 
         //send command to the connector via StandardInput
-        public override void SendCommandToExchange(string command, dynamic data) { } //unimplemented. Note, Binance has a websocket ticker like the bitmex data stream. 
+        //public override void SendCommandToExchange(string command, dynamic data) { } //unimplemented. Note, Binance has a websocket ticker like the bitmex data stream. 
 
         static bool isProcessing = false;
         protected override void CaptureOutput(object sender, DataReceivedEventArgs e)

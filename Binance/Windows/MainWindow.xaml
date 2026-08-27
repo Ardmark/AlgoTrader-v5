@@ -39,11 +39,11 @@
 
 
     <Window.InputBindings>
-        <KeyBinding Key="D1" Command="{Binding TimeframeCommand}" CommandParameter="5"/>
-        <KeyBinding Key="D2" Command="{Binding TimeframeCommand}" CommandParameter="15"/>
-        <KeyBinding Key="D3" Command="{Binding TimeframeCommand}" CommandParameter="60"/>
-        <KeyBinding Key="D4" Command="{Binding TimeframeCommand}" CommandParameter="240"/>
-        <KeyBinding Key="D5" Command="{Binding TimeframeCommand}" CommandParameter="1440"/>
+        <KeyBinding Key="D1" Command="{Binding TimeframeCommand}" CommandParameter="1"/>
+        <KeyBinding Key="D2" Command="{Binding TimeframeCommand}" CommandParameter="5"/>
+        <KeyBinding Key="D3" Command="{Binding TimeframeCommand}" CommandParameter="15"/>
+        <KeyBinding Key="D4" Command="{Binding TimeframeCommand}" CommandParameter="60"/>
+        <KeyBinding Key="D5" Command="{Binding TimeframeCommand}" CommandParameter="240"/>
         <KeyBinding Key="N" Modifiers="Control" Command="{Binding NextTradeButton_Click}"/>
         <KeyBinding Key="P" Modifiers="Control" Command="{Binding PrevTradeButton_Click}"/>
     </Window.InputBindings>

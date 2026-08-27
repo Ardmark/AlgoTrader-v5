@@ -2,8 +2,6 @@ using AlgoTrader.Shared.Enums;
 using AlgoTrader.Shared.ExchangeConnection;
 using AlgoTrader.Shared.Interfaces;
 using AlgoTrader.Shared.Logging;
-//using OpenExchangeRates;
-using Shared.Trading;
 using System.Data;
 using System.Data.Entity.Core.Common.CommandTrees.ExpressionBuilder;
 using System.Data.SqlClient;
@@ -382,9 +380,9 @@ namespace AlgoTrader.Shared
 
                     switch (TradeEngine.EXCHANGE)
                     {
-                        case ExchangeId.BITMEX:
-                            AddPanel(tradeEngine = new TradeEngineBitmex(s, 0), panels); //must be added before market and auto order panels, so as to get active trade before other panels are added
-                            break;
+                        //case ExchangeId.BITMEX:
+                        //    AddPanel(tradeEngine = new TradeEngineBitmex(s, 0), panels); //must be added before market and auto order panels, so as to get active trade before other panels are added
+                        //    break;
                         case ExchangeId.BINANCE:
                             AddPanel(tradeEngine = new TradeEngineBinance(s, 0), panels); //must be added before market and auto order panels, so as to get active trade before other panels are added
                             break;
@@ -955,7 +953,7 @@ namespace AlgoTrader.Shared
                 mainViewModel.SetTimeframeMenuState(TimeFrame);
                 mainViewModel.SetInitialTime(timeFrame);
                 mainViewModel.SetConcurrentOrdersMenuState(TradeEngine.MAX_CONCURRENT_TRADES);
-                mainViewModel.SetLeverage((int)TradeEngineBitmex.DEFAULT_LEVERAGE);
+                mainViewModel.SetLeverage((int)TradeEngine.DEFAULT_LEVERAGE);
                 if (!BACKTEST)
                 {
                     ToggleDarkMode();
@@ -1112,6 +1110,7 @@ namespace AlgoTrader.Shared
 
         public static void RefreshConnector()
         {
+            return;
             exchangeConnector.StopTimers();
             exchangeConnector = new ExchangeConnector();
         }
@@ -1231,7 +1230,7 @@ namespace AlgoTrader.Shared
         }
         static DateTime? lastTime = null;
         public static bool isRefreshing = true;
-        public static void ItemUpdated(_SymbolDataItem _item, string symbolName)
+        public static void ItemUpdated(_SymbolDataItem _item, string symbolName, bool itemAdded)
         {
             rateCount++;
 
@@ -1244,7 +1243,7 @@ namespace AlgoTrader.Shared
                 var panelList = displayPanelsForSymbol[symbolName]; //exchange data, so there is a panel list created
                 foreach (DisplayPanel panel in panelList)
                 {
-                    panel.ItemUpdated(item);
+                    panel.ItemUpdated(item, itemAdded);
                     if (symbolName == CurrentSymbol)
                     {
                         if (panel is TradeEngine)
@@ -1563,6 +1562,10 @@ namespace AlgoTrader.Shared
         {
             try
             {
+                if (!displayPanelsForSymbol.ContainsKey(symbolName))
+                {
+                    return null;
+                }
                 return displayPanelsForSymbol[symbolName].GetPanelByType(typeof(TradeEngine)) as TradeEngine;
             }
             catch
@@ -1627,11 +1630,7 @@ namespace AlgoTrader.Shared
         internal static DateTime GetNextInterval_UI(DateTime timeStamp, _SymbolDataItem currentDataItem = null)
         {
             var endTime = currentDataItem == null ? timeStamp : currentDataItem.Timestamp; //if live, always go to next period after current time
-            return endTime.AddMinutes(TimeFrame * 5); //just go +7 days or things can get messed up
-                                                      //var midnight = new DateTime(endTime.Year, endTime.Month, endTime.Day);
-                                                      //var nextInterval1 = midnight.AddHours(END_HOUR).AddMinutes(1); //just to avoid any rounding errors
-                                                      //var nextInterval2 = midnight.AddHours(START_HOUR + 24).AddMinutes(1);
-                                                      // return nextInterval1 > timeStamp ? nextInterval1 : nextInterval2;
+            return endTime.AddMinutes(TimeFrame * 30);
         }
 
         internal static double GetPriceDiffPercent(_SymbolDataItem item, double price, TradePosition position)

@@ -9,82 +9,34 @@ namespace AlgoTrader.Shared.Enums
 
     #region Trade execution
     //ExchangeRequest - this wraps the various types of request which can be sent via API methods
+    //UNUSED
     public enum ExchangeRequest
     {
-        /* 0 */
-        COMPLETED,
-        /* 1 */
+        [Display(Name = "ExchangeInfo")]
         EXCHANGE_INFO,
-        /* 2 */
+        [Display(Name = "Account")]
         ACCOUNT,
-        /* 3 */
+        [Display(Name = "QuotePrice")]
         QUOTE_PRICE,
-        /* 4 */
+        [Display(Name = "QueryOrder")]
         QUERY_ORDER,
-        /* 5 */
+        [Display(Name = "AllOrders")]
         ALL_ORDERS,
-        /* 6 */
-        OPEN_ORDERS,
-        /* 7 */
+        [Display(Name = "OpenOrders")]
+        OPEN_ORDERS, 
+        [Display(Name = "MyTrades")]
         MY_TRADES,
-        /* 8 */
+        [Display(Name = "CancelOrder")]
         CANCEL_ORDER,
-        /* 9 */
+        [Display(Name = "NewOrder")]
         NEW_ORDER,
-        /* 10 */
-        NEW_OCO
+        [Display(Name = "NewOCO")]
+        NEW_OCO,
     }
 
 
-    //enums which map to actual strings required for parameter name-value pairs in REST api calls
-    public enum ApiParamNames
-    {
-        //NOTE - when adding more, put in ExchangeDataProcessorBinance.AddRequest() as well, and keep order the same there as here for clarity
-        SYMBOL, //symbol name
-        TRADE_ID_ORIGINAL, //the TradeId for an existing trade
-        TRADE_ID_NEW,       //when submitting a new trade, use this for the TradeId
-        EXCHANGE_ORDER_ID,  //the exchange-generated order ID, can use this instead of TRADE_ID_ORIGINAL
-        SIDE, //BUY or SELL
-        ORDER_TYPE, //LIMIT, MARKET, STOP_LOSS, STOP_LOSS_LIMIT, TAKE_PROFIT, TAKE_PROFIT_LIMIT, LIMIT_MAKER
-        QUOTE_ORDER_QTY,
-        QUANTITY,
-        ICEBERG_QUANTITY,
-        PRICE,
-        STOP_PRICE,
-        RESPONSE_TYPE,
-        TIME_IN_FORCE,
-        TIMEOUT_MS, //this defaults to 5000ms. It is recommended to use this value or less, cannot go beyond 60000
-        ORIG_CLIENT_ORDER_ID,
 
-        /*
-         * BUY - QuoteOrderQuantity will buy as much of the base asset as can be purchased for the underlying asset,
-         *  so BNBBTC will buy as much BNB as can be purchased for a specified amount of BTC.
-         * SELL - QuoteOrderQuantity will sell as much of the underlying asset as needed to receive the base asset amount specified
-         *  so BNBBTC will sell as much BNB as needed to receive the specified amount of BTC, so the amount specified is in BTC NOT BNB
-         *  it seems that, since the minimum trade of BNB is 0.01, the exchange will only trade in MULTIPLES of this amount. If the sell would
-         *  require 0.015 BNB to receive the specified amount of BTC, it will only sell 0.01 BNB
-         * */
-        BUY,
-        SELL,
-
-        LIMIT,
-        MARKET,
-        STOP_LOSS,
-        STOP_LOSS_LIMIT,
-        LIMIT_MAKER,
-        TAKE_PROFIT_LIMIT, //not used now?
-        ABOVE_TYPE, //STOP_LOSS_LIMIT, STOP_LOSS, LIMIT_MAKER - limit maker should trigger the actual stop loss limit, presumable at the above stop price
-        ABOVE_PRICE,
-        ABOVE_STOP_PRICE,
-        ABOVE_TIMEINFORCE,
-        BELOW_TYPE,
-        BELOW_PRICE,
-        BELOW_STOP_PRICE,
-        BELOW_TIMEINFORCE,
-        ACK,
-        RESULT,
-        FULL,
-    }
+   
 
     public enum CandlePosition
     {

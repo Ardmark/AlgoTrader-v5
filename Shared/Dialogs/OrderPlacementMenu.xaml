@@ -20,13 +20,14 @@
         <MenuItem Header="Order: Price Break (Long)"    Command="{Binding MenuItem0_Command}" />
         <MenuItem Header="Order: Price Break (Short)"   Command="{Binding MenuItem1_Command}" />
         <Separator />
-        <MenuItem Header="MA Stop"                      Command="{Binding MenuItem7_Command}" />
-        <MenuItem Header="MA Flip"                      Command="{Binding MenuItem8_Command}" />
-        <MenuItem Header="Floor"                        Command="{Binding MenuItem4_Command}" />
-        <MenuItem Header="Trailing stop"                Command="{Binding MenuItem9_Command}" />
+        <MenuItem Header="Take Profit"                      Command="{Binding MenuItem2_Command}" />
+        <MenuItem Header="Stop"                        Command="{Binding MenuItem3_Command}" />
+
         <Separator />
-        <MenuItem Header="Order: Market (Long)"         Command="{Binding MenuItem5_Command}" />
-        <MenuItem Header="Order: Market (Short)"        Command="{Binding MenuItem6_Command}" />
+        <MenuItem Header="Order: Market (Long)"         Command="{Binding MenuItem4_Command}" />
+        <MenuItem Header="Order: Market (Short)"        Command="{Binding MenuItem5_Command}" />
+        <Separator />
+        <MenuItem Header="Run Test"                     Command="{Binding MenuItem6_Command}" />
 
     </Menu>
 </Window>

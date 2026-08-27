@@ -102,7 +102,7 @@ namespace Shared.Drawings
 
         public static Shape Square(double size, double left, double top, SolidColorBrush fill, SolidColorBrush stroke)
         {
-            Rectangle rect = new Rectangle
+            Rectangle rect = new()
             {
                 Width = size,
                 Height = size,
@@ -117,7 +117,7 @@ namespace Shared.Drawings
 
         public static Shape Circle(double size, double left, double top, SolidColorBrush fill, SolidColorBrush stroke)
         {
-            Ellipse circle = new Ellipse
+            Ellipse circle = new()
             {
                 Width = size,
                 Height = size,
@@ -134,7 +134,7 @@ namespace Shared.Drawings
         {
             double halfSize = size / 4;
             double xOffset = 2;
-            Polygon triangle1 = new Polygon
+            Polygon triangle1 = new()
             {
                 Points =
                 [
@@ -151,7 +151,7 @@ namespace Shared.Drawings
             };
 
 
-            Canvas canvas = new Canvas();
+            Canvas canvas = new();
             canvas.Children.Add(triangle1);
 
             return new TradeMarkerCanvas(canvas, left, top, 1); //just to line up vertically, have a one px offset
@@ -162,7 +162,7 @@ namespace Shared.Drawings
             double halfSize = size / 2;
             double arrowSize = size / 3;
 
-            Canvas canvas = new Canvas { Opacity = MARKER_OPACITY };
+            Canvas canvas = new() { Opacity = MARKER_OPACITY };
 
             Polygon arrow = position == TradePosition.SHORT
                 ? new Polygon
@@ -235,7 +235,7 @@ namespace Shared.Drawings
         public static TradeMarkerCanvas TradeEntryMarker(double left, double top, SolidColorBrush fill, SolidColorBrush stroke, string extraText, bool showWarning = false)
         {
 
-            Canvas canvas = new Canvas { Opacity = MARKER_OPACITY };
+            Canvas canvas = new() { Opacity = MARKER_OPACITY };
 
             double halfSize = size / 4;
             Polygon triangle1 = new()

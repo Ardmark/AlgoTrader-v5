@@ -1,6 +1,5 @@
 ﻿using AlgoTrader.Shared.Enums;
 using AlgoTrader.Shared.Logging;
-using Shared.Trading;
 using System.Text;
 using System.Windows.Threading;
 
@@ -31,6 +30,7 @@ namespace AlgoTrader.Shared
 
         public static async Task<(List<_Trade>, List<_Trade>)> Update(TradeEngine tradeEngine, bool dailySummary = false)
         {
+
             try
             {
                 var ret = await Task.Run(() =>
@@ -55,7 +55,7 @@ namespace AlgoTrader.Shared
                      //want to always show intermediate order so set the prev. close order here. If the date range just shows one close,
                     // this will ensure the intermediate order is calculated as well.
                     var prevClose = _closedOrders.Count > numClosed+1 ? _closedOrders[^(numClosed + 1)] : null;
-                    double prevEquity = prevClose != null ? prevClose.Equity : 0;   
+                    //double prevEquity = prevClose != null ? prevClose.Equity : 0;   
 
                     var outputString = string.Empty;
                     string dailySummaryString = string.Empty;
@@ -122,8 +122,10 @@ namespace AlgoTrader.Shared
                     {
                         //TradeEngine _tradeEngine = v.Value.Where(x => x.GetType() == (TradeEngine.EXCHANGE == ExchangeId.BITMEX ? typeof(TradeEngineBitmex) : typeof(TradeEngineBinance))).FirstOrDefault() as TradeEngine;
                         //if (_tradeEngine != null && _tradeEngine.currentDataItem != null)
-                        if (v.Value.Where(x => x.GetType() == (TradeEngine.EXCHANGE == ExchangeId.BITMEX ? typeof(TradeEngineBitmex) : typeof(TradeEngineBinance))).FirstOrDefault() is TradeEngine _tradeEngine && _tradeEngine.currentDataItem != null)
+
+                        if (v.Value != null) //.Where(x => x.GetType() == (TradeEngine.EXCHANGE == ExchangeId.BITMEX ? typeof(TradeEngineBitmex) : typeof(TradeEngineBinance))).FirstOrDefault() is TradeEngine _tradeEngine && _tradeEngine.currentDataItem != null)
                         {
+                            var _tradeEngine = MainObj.GetTradeEngineForSymbol(v.Key);
                             currentSymbolList.Add(v.Key, _tradeEngine.currentDataItem);
                         }
                     }
@@ -158,49 +160,52 @@ namespace AlgoTrader.Shared
                     {
                         if (currentSymbolList.TryGetValue(trade.SymbolName, out _SymbolDataItem currentSymbol))
                         {
-
-                            var s = trade.ExchangeStatus == TradeExchangeStatus.ENTERED_ON_EXCHANGE ? " " : "Test ";
-                            s += trade.ExchangeMethodScript == null ? "" : "INTERRUPTED";
-
-                            //sb.Append(string.Concat(Pad12(trade.SymbolName)));
-
-                            //var priceDiff = -MainObj.GetPriceDiff(trade.Price, currentSymbol.Close, trade.Position) * 100;
-                            //sb.Append(Pad20(string.Format("Price {0}{1}%", priceDiff < 0 ? "" : "+", priceDiff.ToString("F"))));
-                            //sb.Append(string.Concat("    ", Enum.GetName(typeof(TradeType), trade.Type)));
-
-                            var entry = db.Trades.Where(x => x.TradeReference == trade.TradeReference && x.Action == TradeAction.ENTRY).FirstOrDefault();
-                            //var entryString = entry != null
-                            //    ? $",  entered {entry.Timestamp:g} at {entry.Price}"
-                            //    : string.Empty;
-
-                            //sb.Append(Pad20(entryString));
-                            //sb.Append(s);
-                            //sb.Append("\n");
-                            var priceDiff = -MainObj.GetPriceDiff(trade.Price, currentSymbol.Close, trade.Position) * 100;
-                            var pc = string.Format("Price {0}{1}%", priceDiff < 0 ? "" : "+", priceDiff.ToString("F"));
-                            var symbolName = SymbolNames.GetBaseAssetForSymbol(trade.SymbolName) ?? trade.SymbolName;
-                            if (string.IsNullOrEmpty(symbolName))
+                            if (currentSymbol != null)
                             {
-                                symbolName = trade.SymbolName;
-                            }
-                            if (entry != null)
-                            {
-                                var pos = entry.Position == TradePosition.LONG ? "long" : "short";
 
-                                sb.Append($"{symbolName}\t" +
-                                   $"{entry.Timestamp:d}\t" +
-                                   $"{entry.Timestamp:t}\t" +
-                                   $"{PriceFormatter.Format(entry.Price)}\t\t" +
-                                   $"{pos}\t"
-                                   // + $"{profitLoss.ToString("F")}\t" +
-                                   //$"{GetTradeType(close)}\t" +
-                                   //$"{close.TimeFrame}\t" +
-                                   //$"{script}" +
-                                   //$"{s}"
-                                   );
-                            }
+                                var s = trade.ExchangeStatus == TradeExchangeStatus.ENTERED_ON_EXCHANGE ? " " : "Test ";
+                                s += trade.ExchangeMethodScript == null ? "" : "INTERRUPTED";
 
-                            sb.Append("\n");
+                                //sb.Append(string.Concat(Pad12(trade.SymbolName)));
+
+                                //var priceDiff = -MainObj.GetPriceDiff(trade.Price, currentSymbol.Close, trade.Position) * 100;
+                                //sb.Append(Pad20(string.Format("Price {0}{1}%", priceDiff < 0 ? "" : "+", priceDiff.ToString("F"))));
+                                //sb.Append(string.Concat("    ", Enum.GetName(typeof(TradeType), trade.Type)));
+
+                                var entry = db.Trades.Where(x => x.TradeReference == trade.TradeReference && x.Action == TradeAction.ENTRY).FirstOrDefault();
+                                //var entryString = entry != null
+                                //    ? $",  entered {entry.Timestamp:g} at {entry.Price}"
+                                //    : string.Empty;
+
+                                //sb.Append(Pad20(entryString));
+                                //sb.Append(s);
+                                //sb.Append("\n");
+                                var priceDiff = -MainObj.GetPriceDiff(trade.Price, currentSymbol.Close, trade.Position) * 100;
+                                var pc = string.Format("Price {0}{1}%", priceDiff < 0 ? "" : "+", priceDiff.ToString("F"));
+                                var symbolName = SymbolNames.GetBaseAssetForSymbol(trade.SymbolName) ?? trade.SymbolName;
+                                if (string.IsNullOrEmpty(symbolName))
+                                {
+                                    symbolName = trade.SymbolName;
+                                }
+                                if (entry != null)
+                                {
+                                    var pos = entry.Position == TradePosition.LONG ? "long" : "short";
+
+                                    sb.Append($"{symbolName}\t" +
+                                       $"{entry.Timestamp:d}\t" +
+                                       $"{entry.Timestamp:t}\t" +
+                                       $"{PriceFormatter.Format(entry.Price)}\t\t" +
+                                       $"{pos}\t"
+                                       // + $"{profitLoss.ToString("F")}\t" +
+                                       //$"{GetTradeType(close)}\t" +
+                                       //$"{close.TimeFrame}\t" +
+                                       //$"{script}" +
+                                       //$"{s}"
+                                       );
+                                }
+
+                                sb.Append("\n");
+                            }
                         }
                     }
 
@@ -295,16 +300,16 @@ namespace AlgoTrader.Shared
                                     closeEquity = close.Quantity * close.Price;
                                     break;
 
-                                case ExchangeId.BITMEX:
-                                    entryEquity = entry.Quantity;
-                                    closeEquity = close.Quantity;
-                                    //entry and close quantities are always the same for a 100% close, so calculate profit / loss from %
-                                    break;
+                                //case ExchangeId.BITMEX:
+                                //    entryEquity = entry.Quantity;
+                                //    closeEquity = close.Quantity;
+                                //    //entry and close quantities are always the same for a 100% close, so calculate profit / loss from %
+                                //    break;
                             }
 
                             //display intermediate trade result
-                            if (TradeEngine.EXCHANGE == ExchangeId.BITMEX)
-                            {
+                            //if (TradeEngine.EXCHANGE == ExchangeId.BITMEX)
+                            //{
                                 if (prevClose != null)
                                 {
                                     var _profit = entry.Balance - prevClose.Balance;
@@ -323,10 +328,10 @@ namespace AlgoTrader.Shared
                                         $"{entry.Timestamp:t}\t" +
                                         $"{PriceFormatter.Format(entry.Price)}\t" +
                                         $"{entry.Balance:F2}\t" +
-                                        "\t" +
+                                        //"\t" +
                                         $"{_result:F2}%\t" +
                                         "\t" +
-                                        "\t" +
+                                        //"\t" +
                                         "\t" +
                                         "\t" +
                                         "\t" +
@@ -337,7 +342,7 @@ namespace AlgoTrader.Shared
                                     sb.Append('\n');
                                 }
                                 prevClose = close;
-                            }
+                            //}
 
                             var leverage = close.Leverage == 0 ? 1 : close.Leverage; //just to be safe
                             var result = close.Result; //already adjusted for fees
@@ -348,8 +353,8 @@ namespace AlgoTrader.Shared
                             //var stopResult = order != null ? order.Result.ToString("F1") : "--"; //Order.Result holds the stop percent, I think
                             var leveragedResult = result * leverage;
                             var gbp = profit * close.ExchangeRate;
-                            var equityResult = prevEquity > 0 ? 100* (close.Equity - prevEquity) / prevEquity : 0;
-                            prevEquity = close.Equity;
+                            //var equityResult = prevEquity > 0 ? 100* (close.Equity - prevEquity) / prevEquity : 0;
+                            //prevEquity = close.Equity;
                             sb.Append(
                                 $"{symbolName}\t" +
                                 $"{leverage:F1}\t" +
@@ -362,10 +367,10 @@ namespace AlgoTrader.Shared
                                 $"{close.Timestamp:t}\t" +
                                 $"{PriceFormatter.Format(close.Price)}\t" +
                                 $"{close.Balance:F2}\t" +
-                                $"{close.Equity:F6}\t" +
+                                //$"{close.Equity:F6}\t" +
                                 $"{result:F}%\t" +
                                 $"{leveragedResult:F2}%\t" +
-                                $"{equityResult:F2}%\t" +
+                                //$"{equityResult:F2}%\t" +
                                 $"{balanceResult:F}%\t" +
                                 $"{pos}\t" +
                                 $"{close.TimeFrame}\t" +

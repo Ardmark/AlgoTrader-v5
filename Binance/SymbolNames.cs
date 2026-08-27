@@ -21,7 +21,7 @@ namespace AlgoTrader.Shared
         {
           //big ones at the top for threading efficiency
           ("BTC",    "USDT",    null,   0,     LIST_1),    //no longer trading to this as a quote asset, no point since all BTC pairs trade as some fiat asset as well
-          ("BNB",    "USDT",    null,   0,     LIST_1),   //need this since always need to keep a BNB balance
+          //("BNB",    "USDT",    null,   0,     LIST_1),   //need this since always need to keep a BNB balance
 
           //("ADA",    "USDT",    null,   0,     LIST_2),
           //("ATOM",   "USDT",    null,   0,     LIST_2),

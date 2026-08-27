@@ -259,7 +259,7 @@ namespace AlgoTrader.Shared
 
                                 if (chartLine.Trade.Action == TradeAction.STOP && chartLine.Trade.ExchangeStatus == TradeExchangeStatus.ENTERED_ON_EXCHANGE)
                                 {
-                                    tradeEngine.SetStopOnExchange_Synchronised(chartLine.Trade);
+                                    tradeEngine.SetStopOnExchange_Synchronised();
                                 } 
                             }
                         }

@@ -268,6 +268,12 @@ namespace AlgoTrader.Shared
         internal (double price, bool withinLine) GetPriceAtTime(DateTime timestamp, bool projectForward)
         {
             var totSecs = EndTimeStamp.Subtract(StartTimeStamp).TotalSeconds;
+
+            if (totSecs == 0 || StartPrice == EndPrice)
+            {
+                return (StartPrice, true);
+            }
+
             var elapsedSecs = timestamp.Subtract(StartTimeStamp).TotalSeconds;
             var priceDiff = EndPrice - StartPrice;
             var ret = priceDiff * elapsedSecs / totSecs + StartPrice;

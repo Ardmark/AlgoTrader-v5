@@ -464,49 +464,49 @@ namespace AlgoTrader.Live.ViewModels
         }
 
 
-        ICommand setStopTrailPercent;
-        public ICommand SetStopTrailPercent => setStopTrailPercent ?? (setStopTrailPercent = new CommandHandler1(() => SetStopTrailPC(), true));
+        //ICommand setStopTrailPercent;
+        //public ICommand SetStopTrailPercent => setStopTrailPercent ?? (setStopTrailPercent = new CommandHandler1(() => SetStopTrailPC(), true));
 
-        public void SetStopTrailPC()
-        {
-            var ret = double.TryParse(SetOrderAtPriceDialog.Prompt("1", $"Set trailing stop percent", mouseMoveX, mouseMoveY), out double price);
+        //public void SetStopTrailPC()
+        //{
+        //    var ret = double.TryParse(SetOrderAtPriceDialog.Prompt("1", $"Set trailing stop percent", mouseMoveX, mouseMoveY), out double price);
 
-            if (ret)
-            {
+        //    if (ret)
+        //    {
 
-                if (price < 0.5)
-                {
-                    AlertDialog.Show("Cannot set trail this close");
-                    return;
-                }                
+        //        if (price < 0.5)
+        //        {
+        //            AlertDialog.Show("Cannot set trail this close");
+        //            return;
+        //        }                
                 
-                //get any trailing stop
-                using DataContext db = new();
-                var stop = db.Trades.FirstOrDefault(x => x.Action == TradeAction.STOP && x.Stop == TradeStop.STOP_TRAIL && x.GlobalStatus == TradeGlobalStatus.ACTIVE);
+        //        //get any trailing stop
+        //        using DataContext db = new();
+        //        var stop = db.Trades.FirstOrDefault(x => x.Action == TradeAction.STOP && x.Stop == TradeStop.STOP_TRAIL && x.GlobalStatus == TradeGlobalStatus.ACTIVE);
 
-                if (stop == null)
-                {
-                    MainObj.visibleTradeEngine.SetStopAtPrice_UI_synchronised(DateTime.UtcNow, price, TradeStop.STOP_TRAIL);
-                }
-                else
-                {
-                    //reset action value
-                    stop.ActionValue = price / 100;
-                    Order.DoTrail(stop);
+        //        if (stop == null)
+        //        {
+        //            MainObj.visibleTradeEngine.SetStopAtPrice_UI_synchronised(DateTime.UtcNow, price, TradeStop.STOP_TRAIL);
+        //        }
+        //        else
+        //        {
+        //            //reset action value
+        //            stop.ActionValue = price / 100;
+        //            Order.DoTrail(stop);
 
-                    //must update on the exchange, otherwise it will only update when the trail moves which may not happen for ages if the market is falling (long)
-                    var tradeEngine = MainObj.visibleTradeEngine as TradeEngineBitmex;
-                    if (tradeEngine != null)
-                    {
-                        tradeEngine.SendStopToExchange(stop);
-                        tradeEngine.UpdateUIList(stop);
-                    }
-                }
+        //            //must update on the exchange, otherwise it will only update when the trail moves which may not happen for ages if the market is falling (long)
+        //            var tradeEngine = MainObj.visibleTradeEngine as TradeEngineBitmex;
+        //            if (tradeEngine != null)
+        //            {
+        //                tradeEngine.SendStopToExchange(stop);
+        //                tradeEngine.UpdateUIList(stop);
+        //            }
+        //        }
 
-                db.SaveChanges();
-                MainObj.DrawCurrentDispatcher(true);
-            }
-        }
+        //        db.SaveChanges();
+        //        MainObj.DrawCurrentDispatcher(true);
+        //    }
+        //}
 
 
         #region View
@@ -622,21 +622,25 @@ namespace AlgoTrader.Live.ViewModels
                 #region Place order locally
                 () =>
                 {
-                    AlertDialog.ShowCallback("This will set a backtest order.\n(L-shift click to set local non-backtest order)", "Set backtest order?", () =>
-                    {
-                        (DateTime timeStamp, double price) = MainObj.visibleChart.GetTimeAndPriceFromLastMouse(true);
-                        MainObj.visibleTradeEngine.AddBreakToLineLocal_UI_synchronised(GetChartLineId(), TradePosition.LONG, price, true);
-                        RemovePopupWindow();
-                    });
+                    AlertDialog.Show("Unimplemented");
+                    return;
+                    //AlertDialog.ShowCallback("This will set a backtest order.\n(L-shift click to set local non-backtest order)", "Set backtest order?", () =>
+                    //{
+                    //    (DateTime timeStamp, double price) = MainObj.visibleChart.GetTimeAndPriceFromLastMouse(true);
+                    //    MainObj.visibleTradeEngine.AddBreakToLineLocal_UI_synchronised(GetChartLineId(), TradePosition.LONG, price, true);
+                    //    RemovePopupWindow();
+                    //});
                 },
                 () =>
                 {
-                    AlertDialog.ShowCallback("This will set a backtest order.\n(L-shift click to set local non-backtest order)", "Set backtest order?", () =>
-                    {
-                        (DateTime timeStamp, double price) = MainObj.visibleChart.GetTimeAndPriceFromLastMouse(true);
-                        MainObj.visibleTradeEngine.AddBreakToLineLocal_UI_synchronised(GetChartLineId(), TradePosition.SHORT, price, true);
-                        RemovePopupWindow();
-                    });
+                    AlertDialog.Show("Unimplemented");
+                    return;
+                    //AlertDialog.ShowCallback("This will set a backtest order.\n(L-shift click to set local non-backtest order)", "Set backtest order?", () =>
+                    //{
+                    //    (DateTime timeStamp, double price) = MainObj.visibleChart.GetTimeAndPriceFromLastMouse(true);
+                    //    MainObj.visibleTradeEngine.AddBreakToLineLocal_UI_synchronised(GetChartLineId(), TradePosition.SHORT, price, true);
+                    //    RemovePopupWindow();
+                    //});
                 });
                 #endregion
 
@@ -653,21 +657,25 @@ namespace AlgoTrader.Live.ViewModels
                 #region Place order locally
                 () =>
                 {
-                    AlertDialog.ShowCallback("This line break order will be placed locally, but will exit on Exchange!\nTo remove without exiting on Exchange, shift-click trade\n(R-shift click for backtest order placement)", "Set local Long Market order?", () =>
-                    {
-                        (DateTime timeStamp, double price) = MainObj.visibleChart.GetTimeAndPriceFromLastMouse(true);
-                        MainObj.visibleTradeEngine.AddBreakToLineLocal_UI_synchronised(GetChartLineId(), TradePosition.LONG, price, false);
-                        RemovePopupWindow();
-                    });
+                    AlertDialog.Show("Unimplemented");
+                    return;
+                    //AlertDialog.ShowCallback("This line break order will be placed locally, but will exit on Exchange!\nTo remove without exiting on Exchange, shift-click trade\n(R-shift click for backtest order placement)", "Set local Long Market order?", () =>
+                    //{
+                    //    (DateTime timeStamp, double price) = MainObj.visibleChart.GetTimeAndPriceFromLastMouse(true);
+                    //    MainObj.visibleTradeEngine.AddBreakToLineLocal_UI_synchronised(GetChartLineId(), TradePosition.LONG, price, false);
+                    //    RemovePopupWindow();
+                    //});
                 },
                 () =>
                 {
-                    AlertDialog.ShowCallback("This line break order will be placed locally, but will exit on Exchange!\nTo remove without exiting on Exchange, shift-click trade\n(R-shift click for backtest order placement)", "Set local Short Market order?", () =>
-                    {
-                        (DateTime timeStamp, double price) = MainObj.visibleChart.GetTimeAndPriceFromLastMouse(true);
-                        MainObj.visibleTradeEngine.AddBreakToLineLocal_UI_synchronised(GetChartLineId(), TradePosition.SHORT, price, false);
-                        RemovePopupWindow();
-                    });
+                    AlertDialog.Show("Unimplemented");
+                    return;
+                    //AlertDialog.ShowCallback("This line break order will be placed locally, but will exit on Exchange!\nTo remove without exiting on Exchange, shift-click trade\n(R-shift click for backtest order placement)", "Set local Short Market order?", () =>
+                    //{
+                    //    (DateTime timeStamp, double price) = MainObj.visibleChart.GetTimeAndPriceFromLastMouse(true);
+                    //    MainObj.visibleTradeEngine.AddBreakToLineLocal_UI_synchronised(GetChartLineId(), TradePosition.SHORT, price, false);
+                    //    RemovePopupWindow();
+                    //});
                 });
                 #endregion
 
@@ -813,7 +821,6 @@ namespace AlgoTrader.Live.ViewModels
                 () =>
                 {
                     var id = GetTradeId();
-                    bool canDelete = true;
                     using (DataContext db = new DataContext())
                     {
                         var trade = db.Trades.FirstOrDefault(x => x.Id == id);
@@ -822,28 +829,18 @@ namespace AlgoTrader.Live.ViewModels
                         {
                             if ((trade.ItemStatus == TradeItemStatus.OPEN || trade.GlobalStatus == TradeGlobalStatus.ACTIVE) && trade.ExchangeStatus == TradeExchangeStatus.ENTERED_ON_EXCHANGE)
                             {
-                                canDelete = false;
-                                if (MessageBox.Show("This is a live trade, delete anyway?", "Remove live Trade", MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes)
-                                {
-                                    canDelete = true;
-                                }
+                                MessageBox.Show("This is a live trade, cannot be deleted", "Remove live Trade", MessageBoxButton.OK, MessageBoxImage.Stop);
                             }
                             else
                             {
-                                canDelete = false;
                                 if (MessageBox.Show("Delete this trade?", "Remove Trade", MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes)
                                 {
-                                    canDelete = true;
+                                    tradeEngine.RemoveTrade_UI_synchronised(id);
                                 }
                             }
                         }
                     }
 
-                    //this ensures a warning is given before deleting a floor or stop, but an entry will be blocked from deletion before it is closed anyway, with another message
-                    if (canDelete)
-                    {
-                        tradeEngine.RemoveTrade_UI_synchronised(id);
-                    }
                     RemovePopupWindow();
                 },
                 #endregion
@@ -1016,7 +1013,6 @@ namespace AlgoTrader.Live.ViewModels
                         var trade = dbBacktest.Trades.FirstOrDefault(x => x.Id == tradeId);
                         if (trade != null)
                         {
-                            //tradeEngine.ForceEntry(trade);
                             SetRunningBacktestMenu();
                             Backtest_execution.StartSingleBacktest(trade);
                         }
@@ -1045,26 +1041,6 @@ namespace AlgoTrader.Live.ViewModels
                 //},
                 #endregion
 
-                #region Adjust price (unused)
-                //not working anyway and not valid for order, entry, close etc.
-                //() =>
-                //{
-
-                //    using (DataContext db = new DataContext())
-                //    {
-                //        var id = GetTradeId();
-                //        var trade = db.Trades.FirstOrDefault(x => x.Id == id);
-                //        if (trade != null)
-                //        {
-                //            tradeEngine.ForceEntry(trade);
-                //            //ShowChangePriceDialog(trade);
-                //        }
-                //    }
-                //    RemovePopupWindow();
-                //},
-                #endregion
-
-
                 () => { } //etc.
                 );
             }
@@ -1090,21 +1066,25 @@ namespace AlgoTrader.Live.ViewModels
                 #region Place order locally
                 () =>
                 {
-                    AlertDialog.ShowCallback("This Market order will be placed locally, but will exit on Exchange!\nTo remove without exiting on Exchange, shift-click trade", "Set local Market order?", () =>
-                    {
-                        (DateTime timeStamp, double price) = MainObj.visibleChart.GetTimeAndPriceFromLastMouse(true);
-                        MainObj.visibleTradeEngine.SetMarketOrderLocal_UI_synchronised(price, TradePosition.LONG);
-                        RemovePopupWindow();
-                    });
+                    AlertDialog.Show("Unimplemented");
+                    return;
+                    //AlertDialog.ShowCallback("This Market order will be placed locally, but will exit on Exchange!\nTo remove without exiting on Exchange, shift-click trade", "Set local Market order?", () =>
+                    //{
+                    //    (DateTime timeStamp, double price) = MainObj.visibleChart.GetTimeAndPriceFromLastMouse(true);
+                    //    MainObj.visibleTradeEngine.SetMarketOrderLocal_UI_synchronised(price, TradePosition.LONG);
+                    //    RemovePopupWindow();
+                    //});
                 },
                 () =>
                 {
-                    AlertDialog.ShowCallback("This Market order will be placed locally, but will exit on Exchange!\nTo remove without exiting on Exchange, shift-click trade", "Set local Market order?", () =>
-                    {
-                        (DateTime timeStamp, double price) = MainObj.visibleChart.GetTimeAndPriceFromLastMouse(true);
-                        MainObj.visibleTradeEngine.SetMarketOrderLocal_UI_synchronised(price, TradePosition.SHORT);
-                        RemovePopupWindow();
-                    });
+                    AlertDialog.Show("Unimplemented");
+                    return;
+                    //AlertDialog.ShowCallback("This Market order will be placed locally, but will exit on Exchange!\nTo remove without exiting on Exchange, shift-click trade", "Set local Market order?", () =>
+                    //{
+                    //    (DateTime timeStamp, double price) = MainObj.visibleChart.GetTimeAndPriceFromLastMouse(true);
+                    //    MainObj.visibleTradeEngine.SetMarketOrderLocal_UI_synchronised(price, TradePosition.SHORT);
+                    //    RemovePopupWindow();
+                    //});
                 });
                 #endregion
 
@@ -1151,7 +1131,7 @@ namespace AlgoTrader.Live.ViewModels
                 },
                 #endregion
 
-                #region Set ceiling take profit
+                #region Set take profit
                 () =>
                 {
 
@@ -1162,34 +1142,14 @@ namespace AlgoTrader.Live.ViewModels
                     else
                     {
                         (DateTime timeStamp, double price) = MainObj.visibleChart.GetTimeAndPriceFromLastMouse(true);
-                        MainObj.visibleTradeEngine.SetCeilingAtPrice_UI_synchronised(timeStamp, price);
+                        MainObj.visibleTradeEngine.SetTakeProfitAtPrice_UI_synchronised(timeStamp, price);
                     }
 
                     RemovePopupWindow();
                 },
                 #endregion
 
-                #region Set take profit at percent (unused)
-
-                () =>
-                {
-                    if (MainObj.invertChart)
-                    {
-                        ShowInvertedChartWarning();
-                    }
-                    else
-                    {
-                        AlertDialog.ShowCallback("Set take profit at percent between entry and current price?", "", () =>
-                        {
-                            //(DateTime timeStamp, double price) = MainObj.visibleChart.GetTimeAndPriceFromLastMouse(true);
-                            //MainObj.visibleTradeEngine.SetTakeProfitAtPercent_UI_synchronised(timeStamp, price);
-                        });
-                    }
-                    RemovePopupWindow();
-                },
-                #endregion
-
-                #region Set floor stop
+                #region Set stop
 
                 () =>
                 {
@@ -1200,7 +1160,7 @@ namespace AlgoTrader.Live.ViewModels
                     else
                     {
                         (DateTime timeStamp, double price) = MainObj.visibleChart.GetTimeAndPriceFromLastMouse(true);
-                        MainObj.visibleTradeEngine.SetFloorAtPrice_UI_synchronised(timeStamp, price);
+                        MainObj.visibleTradeEngine.SetStopAtPrice_UI_synchronised(timeStamp, price, TradeStop.STOP_ON_LINE_BREAK);
                         Chart.showFloorTrades = true;
                     }
                     RemovePopupWindow();
@@ -1210,18 +1170,16 @@ namespace AlgoTrader.Live.ViewModels
                 #region Set Market order (Long)
                 () =>
                 {
+                    //MainObj.visibleTradeEngine.StartEntryOrClose_Synchronised();
+                    //return;
+
                     if (MainObj.invertChart)
                     {
                         ShowInvertedChartWarning();
                     }
                     else
                     {
-
-                        if (TradeEngine.EXCHANGE == ExchangeId.BITMEX && TradeEngine.Leverage < TradeEngineBitmex.MIN_LEVERAGE_LONG)
-                        {
-                            AlertDialog.Show($"Could not place order, leverage is below minimum level of {TradeEngineBitmex.MIN_LEVERAGE_LONG}");
-                        }
-                        else if (MainObj.visibleTradeEngine.currentDataItem == null)
+                        if (MainObj.visibleTradeEngine.currentDataItem == null)
                         {
                             AlertDialog.Show("Could not place order, system not fully initialised.");
                         }
@@ -1283,6 +1241,12 @@ namespace AlgoTrader.Live.ViewModels
                 },
                 #endregion
 
+                () =>
+                {
+                    MainObj.visibleTradeEngine.Test();
+                    RemovePopupWindow();
+                }
+                /*
                 #region Set MA Stop
                 () =>
                 {
@@ -1306,8 +1270,27 @@ namespace AlgoTrader.Live.ViewModels
                     RemovePopupWindow();
                 },
                 #endregion
+               
+                #region Set take profit at percent (unused)
 
-                #region Unused 
+                () =>
+                {
+                    if (MainObj.invertChart)
+                    {
+                        ShowInvertedChartWarning();
+                    }
+                    else
+                    {
+                        AlertDialog.ShowCallback("Unimplemented - Set take profit at percent between entry and current price?", "", () =>
+                        {
+                            //(DateTime timeStamp, double price) = MainObj.visibleChart.GetTimeAndPriceFromLastMouse(true);
+                            //MainObj.visibleTradeEngine.SetTakeProfitAtPercent_UI_synchronised(timeStamp, price);
+                        });
+                    }
+                    RemovePopupWindow();
+                },
+                #endregion
+
                 #region Set Break Even
                 () =>
                 {
@@ -1318,9 +1301,7 @@ namespace AlgoTrader.Live.ViewModels
                     RemovePopupWindow();
                 }
                 #endregion
-
-
-            #endregion
+                 */
 
             );
             }
@@ -1700,7 +1681,7 @@ namespace AlgoTrader.Live.ViewModels
                     }
                     else
                     {
-                        MainObj.visibleTradeEngine.SetCeilingAtPrice_UI_synchronised(DateTime.Now, priceToUse);
+                        MainObj.visibleTradeEngine.SetTakeProfitAtPrice_UI_synchronised(DateTime.Now, priceToUse);
                     }
                 }
             }
@@ -1710,56 +1691,57 @@ namespace AlgoTrader.Live.ViewModels
             }
         }
 
-        private void ShowSetBreakEvenPriceDialog()
-        {
-            if (MainObj.visibleTradeEngine != null && MainObj.visibleTradeEngine.currentDataItem != null)
-            {
-                var ret = double.TryParse(SetOrderAtPriceDialog.Prompt(null, $"Set break even", mouseMoveX, mouseMoveY), out double price);
-                if (ret)
-                {
-                    var priceToUse = SetPriceNoZeros(price);
+        //private void ShowSetBreakEvenPriceDialog()
+        //{
+        //    if (MainObj.visibleTradeEngine != null && MainObj.visibleTradeEngine.currentDataItem != null)
+        //    {
+        //        var ret = double.TryParse(SetOrderAtPriceDialog.Prompt(null, $"Set break even", mouseMoveX, mouseMoveY), out double price);
+        //        if (ret)
+        //        {
+        //            var priceToUse = SetPriceNoZeros(price);
 
-                    if (priceToUse <= MainObj.visibleTradeEngine.currentDataItem.Close)
-                    {
-                        AlertDialog.Show("Price entered is below current price", "Not possible");
-                    }
-                    else
-                    {
-                        MainObj.visibleTradeEngine.SetBreakEvenAtPrice_UI_synchronised(DateTime.Now, priceToUse);
-                    }
-                }
-            }
-            else
-            {
-                AlertDialog.Show("Waiting for connection", "Not possible");
-            }
-        }
+        //            if (priceToUse <= MainObj.visibleTradeEngine.currentDataItem.Close)
+        //            {
+        //                AlertDialog.Show("Price entered is below current price", "Not possible");
+        //            }
+        //            else
+        //            {
+        //                MainObj.visibleTradeEngine.SetBreakEvenAtPrice_UI_synchronised(DateTime.Now, priceToUse);
+        //            }
+        //        }
+        //    }
+        //    else
+        //    {
+        //        AlertDialog.Show("Waiting for connection", "Not possible");
+        //    }
+        //}
 
-        private void ShowSetFloorPriceDialog()
-        {
-            if (MainObj.visibleTradeEngine != null && MainObj.visibleTradeEngine.currentDataItem != null)
-            {
+        //private void ShowSetFloorPriceDialog()
+        //{
+        //    if (MainObj.visibleTradeEngine != null && MainObj.visibleTradeEngine.currentDataItem != null)
+        //    {
 
-                var ret = double.TryParse(SetOrderAtPriceDialog.Prompt(null, $"Set floor", mouseMoveX, mouseMoveY), out double price);
-                if (ret)
-                {
-                    var priceToUse = SetPriceNoZeros(price);
+        //        var ret = double.TryParse(SetOrderAtPriceDialog.Prompt(null, $"Set floor", mouseMoveX, mouseMoveY), out double price);
+        //        if (ret)
+        //        {
+        //            var priceToUse = SetPriceNoZeros(price);
 
-                    if (priceToUse >= MainObj.visibleTradeEngine.currentDataItem.Close)
-                    {
-                        AlertDialog.Show("Price entered is above current price", "Not possible");
-                    }
-                    else
-                    {
-                        MainObj.visibleTradeEngine.SetFloorAtPrice_UI_synchronised(DateTime.Now, priceToUse);
-                    }
-                }
-            }
-            else
-            {
-                AlertDialog.Show("Waiting for connection", "Not possible");
-            }
-        }
+        //            if (priceToUse >= MainObj.visibleTradeEngine.currentDataItem.Close)
+        //            {
+        //                AlertDialog.Show("Price entered is above current price", "Not possible");
+        //            }
+        //            else
+        //            {
+        //                MainObj.visibleTradeEngine.SetFloorAtPrice_UI_synchronised(DateTime.Now, priceToUse);
+        //            }
+        //        }
+        //    }
+        //    else
+        //    {
+        //        AlertDialog.Show("Waiting for connection", "Not possible");
+        //    }
+        //}
+        
         private void ShowChangePriceDialog(_Trade trade)
         {
             if (MainObj.visibleTradeEngine != null && MainObj.visibleTradeEngine.currentDataItem != null)
@@ -2437,7 +2419,7 @@ namespace AlgoTrader.Live.ViewModels
             var executionType = MainObj.BACKTEST ? "Testnet trading " : "LIVE TRADING ";
             var orderLimit = TradeEngine.RESTRICTED_TRADE_VALUE > 0 ? $" | ${TradeEngine.RESTRICTED_TRADE_VALUE} trade limit " : "";
             var exchange = TradeEngine.EXCHANGE.GetEnumDisplayName();
-            string title = $"{exchange} " + (TradeEngine.USE_SIMULATED_EXCHANGE ? "using SIMULATED EXCHANGE" : $"{executionType} | {TradeEngine.Leverage}X market leverage | {TradeEngineBitmex.DEFAULT_LEVERAGE}X fixed price break leverage | {TradeEngineBitmex.MAX_STOP_LOSS}% fixed max. loss {orderLimit}");
+            string title = $"{exchange} " + (TradeEngine.USE_SIMULATED_EXCHANGE ? "using SIMULATED EXCHANGE" : $"{executionType} | {TradeEngine.Leverage}X market leverage | {TradeEngine.DEFAULT_LEVERAGE}X fixed price break leverage | {TradeEngine.MAX_STOP_LOSS}% fixed max. loss {orderLimit}");
 
 #if BACKTEST
             title += " | Backtest build";

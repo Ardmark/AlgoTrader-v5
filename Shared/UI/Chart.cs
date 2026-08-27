@@ -541,10 +541,10 @@ namespace AlgoTrader.Shared
                             {
                                 orders = orders.Where(x => x.GlobalStatus != TradeGlobalStatus.STOPPED);
                             }
-                            if (!showFloorTrades)
-                            {
-                                orders = orders.Where(x => x.Action != TradeAction.FLOOR && x.Action != TradeAction.CEILING);
-                            }
+                            //if (!showFloorTrades)
+                            //{
+                            //    orders = orders.Where(x => x.Action != TradeAction.FLOOR && x.Action != TradeAction.CEILING);
+                            //}
 
 
                             //include any orders where the order and current time / close are either visible or bracket the visible area
@@ -582,14 +582,14 @@ namespace AlgoTrader.Shared
 
                                 if (canShow)
                                 {
-                                    if (!showFloorTrades)
-                                    {
-                                        visibleOrActiveOrders.AddRange(tradeEngine.UI_Trades.Where(x => x.TradeReference == trade.TradeReference && x.Action != TradeAction.FLOOR && x.Action != TradeAction.CEILING));
-                                    }
-                                    else
-                                    {
+                                    //if (!showFloorTrades)
+                                    //{
+                                    //    visibleOrActiveOrders.AddRange(tradeEngine.UI_Trades.Where(x => x.TradeReference == trade.TradeReference && x.Action != TradeAction.FLOOR && x.Action != TradeAction.CEILING));
+                                    //}
+                                    //else
+                                    //{
                                         visibleOrActiveOrders.AddRange(tradeEngine.UI_Trades.Where(x => x.TradeReference == trade.TradeReference));
-                                    }
+                                    //}
                                 }
                             }
 
@@ -755,13 +755,13 @@ namespace AlgoTrader.Shared
                                 double lev = 0;
                                 if (oppOrder)
                                 {
-                                    lev = TradeEngineBitmex.CalculateLeverageFromStop(Math.Abs(stopPC), order.Position);
+                                    lev = TradeEngine.CalculateLeverageFromStop(Math.Abs(stopPC), order.Position);
                                 }
                                 else
                                 {
                                     lev = hasEntered
                                         ? order.Leverage
-                                        : TradeEngineBitmex.CalculateLeverageFromStop(Math.Abs(stopPC), order.Position);
+                                        : TradeEngine.CalculateLeverageFromStop(Math.Abs(stopPC), order.Position);
                                 }
 
                                 var t1 = lev.ToString("F1");
@@ -1213,11 +1213,19 @@ namespace AlgoTrader.Shared
 
                                         canvas1.MouseEnter += (object sender, System.Windows.Input.MouseEventArgs e) =>
                                         {
-                                            if (entry == null || entry.Result == 0 || trade.Action == TradeAction.STOP || trade.Action == TradeAction.FLOOR || trade.Action == TradeAction.CEILING || trade.Action == TradeAction.BREAK_EVEN)
+                                            if (entry == null || entry.Result == 0)
                                             {
-                                                CurrentTrade = trade;
-
-                                                e.Handled = true;
+                                                switch (trade.Action)
+                                                {
+                                                    case TradeAction.STOP:
+                                                    case TradeAction.FLOOR:
+                                                    case TradeAction.CEILING:
+                                                    case TradeAction.BREAK_EVEN:
+                                                    case TradeAction.TAKE_PROFIT:
+                                                        CurrentTrade = trade;
+                                                        e.Handled = true;
+                                                        break;
+                                                }
                                             }
                                             if (sender is Canvas _canvas)
                                             {
@@ -2132,7 +2140,7 @@ namespace AlgoTrader.Shared
                 return (0, 0);
             }
 
-            timeStamp = timeStamp.AddMinutes(items_chart.First().Timestamp.Hour * 60);
+            //timeStamp = timeStamp.AddMinutes(items_chart.First().Timestamp.Hour * 60);
 
             var frameOffset = (TimeFrame > 1) ? ShowHeikinAshi ? 2 : 1 : 0;
 

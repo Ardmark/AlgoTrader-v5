@@ -10,8 +10,7 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="$(MSBuildThisFileDirectory)DataContext.cs" />
-    <Compile Include="$(MSBuildThisFileDirectory)DataObjects\Drawings.cs" />
-    <Compile Include="$(MSBuildThisFileDirectory)DataObjects\PendingTradeRequest.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)UI\DrawingBase.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)DataObjects\SymbolDataItem.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)DataObjects\Trade.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)DataObjects\_ChartLine.cs" />
@@ -51,11 +50,11 @@
     </Compile>
     <Compile Include="$(MSBuildThisFileDirectory)Dialogs\TradeMenuImpl.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Enums\Enums.cs" />
-    <Compile Include="$(MSBuildThisFileDirectory)Exchange connection\BitMEXAPI.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Exchange connection\Beautifier.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Exchange connection\BinanceAPI.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Exchange connection\ExchangeConnector.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Exchange connection\ExchangeDataProcessor.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Exchange connection\ExchangeDataProcessorBinance.cs" />
-    <Compile Include="$(MSBuildThisFileDirectory)Exchange connection\ExchangeDataProcessorBitmex.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)helpers\MouseBehaviour.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)helpers\CommandHandlers.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)helpers\ExtensionMethods.cs" />
@@ -66,6 +65,7 @@
     <Compile Include="$(MSBuildThisFileDirectory)interfaces\IMainViewModel.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)MainObj - UI.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)MainObj.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Trading\TradeEngineBinance.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)ViewModels\MainViewModel.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Moving averages\RMA.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Moving averages\EMA.cs" />
@@ -95,15 +95,12 @@
     <Compile Include="$(MSBuildThisFileDirectory)Trading\TradeEngine - Exchange trade.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Trading\TradeEngine - UI.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Trading\TradeEngine.cs" />
-    <Compile Include="$(MSBuildThisFileDirectory)Trading\TradeEngineBinance.cs" />
-    <Compile Include="$(MSBuildThisFileDirectory)Trading\TradeEngineBitmex.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)ActiveTradeSummary.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)UI\Candle.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)UI\Chart.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)UI\ChartLine - UI.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)UI\ChartLine.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)UI\DisplayPanel.cs" />
-    <Compile Include="$(MSBuildThisFileDirectory)UI\DrawingBase.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)UI\DrawingObjects.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)ViewModels\PopupMenuViewModel.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)ViewModels\ResultsViewModel.cs" />

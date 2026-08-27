@@ -1,13 +1,14 @@
 ﻿using AlgoTrader.Shared.Enums;
 using AlgoTrader.Shared.Logging;
 using Newtonsoft.Json;
-using Shared.Trading;
 using System.Data.Entity.Core.Common.CommandTrees.ExpressionBuilder;
 using System.Data.SqlClient;
 using System.Diagnostics;
-using System.IO;
+using System.Text.Json.Nodes;
 using System.Timers;
 using System.Windows.Threading;
+using static AlgoTrader.Shared.BinanceAPI;
+using static System.Windows.Forms.VisualStyles.VisualStyleElement.TextBox;
 
 namespace AlgoTrader.Shared.ExchangeConnection
 {
@@ -25,236 +26,6 @@ namespace AlgoTrader.Shared.ExchangeConnection
          * */
         #region Binance data classes (JSON deserializes into these directly)
 
-        #region Exchange info data
-        //ExchangeInfo, global
-        public class ExchangeInfoData
-        {
-            public class RateLimitData
-            {
-                public string RateLimitType { get; set; }
-                public string Interval { get; set; }
-                public long IntervalNum { get; set; }
-                public long Limit { get; set; }
-            }
-            public class ExchangeFilterData
-            {
-                public string FilterType { get; set; }
-                public long MaxNumOrders { get; set; }
-                public long MaxNumAlgoOrders { get; set; }
-                public double MinQty { get; set; }
-                public double MaxQty { get; set; }
-                public double StepSize { get; set; }
-                public double MinNotional { get; set; }
-                public bool ApplyToMarket { get; set; }
-                public long AvgPriceMins { get; set; }
-            }
-            public class SymbolData
-            {
-                public string Symbol { get; set; }
-                public string Status { get; set; }
-                public string QuoteAsset { get; set; } //this would be BTC for example, in ETHBTC
-                public List<string> OrderTypes { get; set; }
-                public bool OcoAllowed { get; set; }
-                public bool IsSpotTradingAllowed { get; set; }
-                public bool IsMarginTradingAllowed { get; set; }
-                public List<string> permissions { get; set; }
-                public List<ExchangeFilterData> Filters { get; set; }
-                #region Unused properties
-                //public bool QuoteOrderQtyMarketAllowed { get; set; }
-                //public bool IcebergAllowed { get; set; }
-
-                public string BaseAsset { get; set; } //this would be ETH for example in ETHBTC
-                public long BaseAssetPrecision { get; set; }
-                public long QuotePrecision { get; set; } // will be removed in future api versions (v4+)
-                public long QuoteAssetPrecision { get; set; }
-                public long BaseCommissionPrecision { get; set; }
-                public long QuoteCommissionPrecision { get; set; }
-                #endregion
-            }
-
-            public string TimeZone { get; set; }
-            public long ServerTime { get; set; }
-            public List<RateLimitData> RateLimits { get; set; }
-            public List<ExchangeFilterData> ExchangeFilters { get; set; }
-            public List<SymbolData> Symbols { get; set; }
-        }
-        //the exchange data, filtered out before passing back
-        public class ExchangeInfoDataFiltered
-        {
-            public long RequestWeightPerMin { get; set; } //the total request weights for all orders must not excede this in a minute
-            public long MaxOrdersPer10Secs { get; set; }
-            public long MaxOrdersPerDay { get; set; }
-            public long MaxOpenAlgoOrders { get; set; } //these are STOP_LOSS, STOP_LOSS_LIMIT, TAKE_PROFIT, and TAKE_PROFIT_LIMIT orders, not market orders
-
-            //all the trading pairs. The booleans are: spot trading allowed, margin trading allowed, oco allowed. There is also iceberg allowed, and some quote precision data available
-            //the tuples items are named (string SymbolName, bool SpotAllowed, bool MarginAllowed, bool OcoAllowed)
-            public List<(string, bool, bool, bool)> TradingPairs { get; set; }
-        }
-        #endregion
-
-        #region Quote price data
-        public class QuoteData
-        {
-            public string Symbol { get; set; }
-            public double Price { get; set; }
-        }
-
-        #endregion
-
-        #region Account data
-        //AccountData, used to get balance prior to submitting order
-        //this is not symbol-sprcific
-        public class AccountData
-        {
-            public class BalanceData
-            {
-                public string Asset { get; set; }
-                public double Free { get; set; }
-                public double Locked { get; set; }
-            }
-            public bool CanTrade { get; set; }
-            public bool MakerCommission { get; set; }
-            public List<BalanceData> Balances { get; set; }
-
-            //unused here so not filled
-            public bool TakerCommission { get; set; }
-            public bool CanWidthdraw { get; set; }
-            public bool CanDeposit { get; set; }
-            public long UpdateTime { get; set; } //won't convert to DateTime from javascript format
-
-            public string AccountType { get; set; }
-            public List<string> Permissions { get; set; }
-
-            public DateTime UpdateTimeAsDateTime
-            {
-                get
-                {
-                    return TimeStampFromNodeMS(UpdateTime);
-                }
-            }
-        }
-        public class AccountDataFiltered
-        {
-            public List<AccountData.BalanceData> Balances { get; set; }
-        }
-        #endregion
-
-        #region Order data
-        //the ExchangeData-derived objects are all symbol-specific
-        public class ExchangeData
-        {
-            public string Symbol { get; set; }
-            public string ClientOrderId { get; set; }
-
-        }
-
-        public class OrderData : ExchangeData
-        {
-            public long OrderId { get; set; }
-            public long OrderListId { get; set; }
-
-            public decimal Price { get; set; }
-            public double OrigQty { get; set; }
-            public double ExecutedQty { get; set; }
-            public double CummulativeQuoteQty { get; set; }
-
-            //status:
-            //Order: NEW, PARTIALLY_FILLED, FILLED, CANCELED, PENDING_CANCEL, REJECTED, EXPIRED (PENDING_CANCEL is currenty Unused)
-            //there are some additional enum strings for OCO's
-            public string Status { get; set; }
-
-            public string TimeInForce { get; set; } //e.g. GTC
-            public string Type { get; set; } //LIMIT, MARKET, STOP_LOSS, STOP_LOSS_LIMIT, TAKE_PROFIT, TAKE_PROFIT_LIMIT, LIMIT_MAKER
-            public string Side { get; set; } //BUY or SELL
-            public decimal StopPrice { get; set; }
-            public double IcebergQty { get; set; }
-            public long Time { get; set; }
-            public long UpdateTime { get; set; }
-            public long TransactTime { get; set; }
-            public bool IsWorking { get; set; }
-            public double OrigQuoteOrderQty { get; set; }
-            public long OrigClientOrderId { get; set; } //this is for a cancel order, not sure if the OrderId prop. gets populated or this one
-            public string ListClientOrderId { get; set; } //for stops
-            public string AboveClientOrderId { get; set; } //for stops
-            public string BelowClientOrderId { get; set; } //for stops
-
-            public DateTime TimeAsDateTime
-            {
-                get
-                {
-                    return TimeStampFromNodeMS(Time);
-                }
-            }
-            public DateTime UpdateTimeAsDateTime
-            {
-                get
-                {
-                    return TimeStampFromNodeMS(UpdateTime);
-                }
-            }
-            public DateTime TransactTimeAsDateTime
-            {
-                get
-                {
-                    return TimeStampFromNodeMS(TransactTime);
-                }
-            }
-        }
-
-        public class NewOrderData : OrderData
-        {
-            //note, not all OrderData properties are filled for NewOrderData
-            // - properties returned are: OrderId, OrderListId, TransactTime, Price, OrigQty, ExecutedQty, CummulativeQuoteQty, Status, TimeInForce, Type, Side
-
-            public class FillsData
-            {
-                public decimal Price { get; set; }
-                public double Qty { get; set; }
-                public decimal Commission { get; set; }
-                public string CommissionAsset { get; set; }
-            }
-            public List<FillsData> Fills { get; set; }
-
-            //new order returns a single fill for a market order, but will do average price anyway
-            //however, the executed quantity is available in "executedQty" so no need to set that
-            internal void CalculateAverageFillPrice()
-            {
-                var totalQty = Fills.Select(x => x.Qty).Sum();
-                Price = (decimal)Fills.Select(x => (double)x.Price * x.Qty / totalQty).Sum();
-            }
-        }
-
-        public class NewOCOData : OrderData
-        {
-            //the OrderListID is in the parent object
-            //the data contains an orders list as well, just the symbol, orderId and clientOrderId of each of the OrderReports, so not bothering with those
-            public class OrderReportsData
-            {
-                public string Symbol { get; set; }
-                public long OrderId { get; set; }
-                public string ClientOrderId { get; set; }
-                public string Type { get; set; } //STOP_LOSS_LIMIT and LIMIT_MAKER
-            }
-
-            public List<OrderReportsData> OrderReports { get; set; }
-        }
-
-        public class AllOrderData : ExchangeData
-        {
-            //presumably this is OK, the order data is the same anyway
-            public List<OrderData> OrderDataItems { get; set; }
-        }
-
-        public class OpenOrdersData : ExchangeData
-        {
-            //unimplemented
-        }
-        #endregion
-
-        public class MyTradesData : ExchangeData
-        {
-            //unimplemented
-        }
 
         /*can just use dynamic object and access these properties by name, or a class with specific property definitions */
         internal class BinanceCaptureData
@@ -287,7 +58,7 @@ namespace AlgoTrader.Shared.ExchangeConnection
                 set
                 {
                     eventTime = value;
-                    EventTimestamp = TimeStampFromNodeMS(value);
+                    EventTimestamp = TimeStampFromBinance(value);
                 }
             }
         }
@@ -313,13 +84,13 @@ namespace AlgoTrader.Shared.ExchangeConnection
                 {
                     endTime = value;
                     //note, value here is always at current minute and 59 seconds, so the seconds cannot be used
-                    EndTimestamp = TimeStampFromNodeMS(value);
+                    EndTimestamp = TimeStampFromBinance(value);
                 }
             }
         }
 
         const long TICKS_TO_1970 = 621355968000000000;
-        public static DateTime TimeStampFromNodeMS(long ms)
+        public static DateTime TimeStampFromBinance(long ms)
         {
             //var dt = new DateTime(1970, 1, 1);
             //var ticks = dt.Ticks;
@@ -328,7 +99,7 @@ namespace AlgoTrader.Shared.ExchangeConnection
             return new DateTime(ms * 10000 + TICKS_TO_1970);
         }
 
-        public static long TimeStampToNodeMS(DateTime timeStamp)
+        public static long TimeStampToBinance(DateTime timeStamp)
         {
             return (timeStamp.Ticks - TICKS_TO_1970) / 10000;
 
@@ -353,7 +124,7 @@ namespace AlgoTrader.Shared.ExchangeConnection
         #region Init
         public ExchangeDataProcessorBinance() : base(ExchangeId.BINANCE)
         {
-            connectorPath = string.Format(@"""{0}""", Path.Combine(projectDirectory, "Binance connectors", "csharpconnector", "connector.js"));    //note the escaped " to allow spaces
+            connectorPath = string.Format(@"""{0}""", System.IO.Path.Combine(projectDirectory, "Binance connectors", "csharpconnector", "connector.js"));    //note the escaped " to allow spaces
 
             countdownTimer = new DispatcherTimer(new TimeSpan(0, 0, 1), DispatcherPriority.Normal, (Object sender, EventArgs e) =>
             {
@@ -388,7 +159,8 @@ namespace AlgoTrader.Shared.ExchangeConnection
                         }
                     }
 
-                    SendCommandToExchange("SetSymbols", AdditionalData);
+                    //todo - need to get all symbols, etc.
+                    //SendCommandToExchange("SetSymbols", AdditionalData);
 
 
                     //var s1 = JsonConvert.SerializeObject(new
@@ -415,9 +187,10 @@ namespace AlgoTrader.Shared.ExchangeConnection
 
         #endregion
 
-        #region Send data
 
-        internal override void AddRequest(ExchangeRequest exchangeCommand, EventHandler<ExchangeEventArgs> eventHandler, params (dynamic, dynamic)[] _data)
+        #region Send data via node connector (unused)
+        /*
+        internal override void AddRequest(ExchangeRequest exchangeRequest, EventHandler<ExchangeEventArgs> eventHandler, params (dynamic, dynamic)[] _data)
         {
             Dictionary<string, string> data = null;
             if (_data != null && _data.Count() > 0)
@@ -545,36 +318,36 @@ namespace AlgoTrader.Shared.ExchangeConnection
                     }
                     else
                     {
-                        Logging.LogTrades.WriteLine($"missing data for ExchangeCommand {exchangeCommand}: {p} was not found");
+                        Logging.LogTrades.WriteLine($"missing data for ExchangeCommand {exchangeRequest}: {p} was not found");
                     }
                 }
             }
 
-            switch (exchangeCommand)
+            switch (exchangeRequest)
             {
                 case ExchangeRequest.EXCHANGE_INFO:
                     //this is symbol-agnostic so the data must be sent back to the TradeEngine which requested it via an event handler
                     //there would in principal be only one, although 2 could try to enter more or less simultaneously in principal
-                    if (!callBacks.Where(x => x.Key == exchangeCommand).Any())
+                    if (!callBacks.Where(x => x.Key == exchangeRequest).Any())
                     {
-                        callBacks.Add(new KeyValuePair<ExchangeRequest, EventHandler<ExchangeEventArgs>>(exchangeCommand, eventHandler));
+                        callBacks.Add(new KeyValuePair<ExchangeRequest, EventHandler<ExchangeEventArgs>>(exchangeRequest, eventHandler));
                     }
                     SendCommand("ExchangeInfo");
                     break;
 
                 case ExchangeRequest.ACCOUNT:
                     //ditto
-                    if (!callBacks.Where(x => x.Key == exchangeCommand).Any())
+                    if (!callBacks.Where(x => x.Key == exchangeRequest).Any())
                     {
-                        callBacks.Add(new KeyValuePair<ExchangeRequest, EventHandler<ExchangeEventArgs>>(exchangeCommand, eventHandler));
+                        callBacks.Add(new KeyValuePair<ExchangeRequest, EventHandler<ExchangeEventArgs>>(exchangeRequest, eventHandler));
                     }
                     SendCommand("Account");
                     break;
 
                 case ExchangeRequest.QUOTE_PRICE:
-                    if (!callBacks.Where(x => x.Key == exchangeCommand).Any())
+                    if (!callBacks.Where(x => x.Key == exchangeRequest).Any())
                     {
-                        callBacks.Add(new KeyValuePair<ExchangeRequest, EventHandler<ExchangeEventArgs>>(exchangeCommand, eventHandler));
+                        callBacks.Add(new KeyValuePair<ExchangeRequest, EventHandler<ExchangeEventArgs>>(exchangeRequest, eventHandler));
                     }
                     SendCommand("QuotePrice", data);
                     break;
@@ -654,173 +427,12 @@ namespace AlgoTrader.Shared.ExchangeConnection
         }
 
         //send command to the connector via StandardInput
-        void SendCommandSimulated(string command, dynamic data = null)
-        {
-            string clientId = string.Empty;
-            bool isStopTakeProfit = false;
-            decimal price = 0;
-            string symbol = string.Empty;
-            if (data != null)
-            {
-                foreach (var v in data)
-                {
-                    var p = v.Key;
-                    switch (p)
-                    {
-                        case "newClientOrderId":
-                        case "origClientOrderId":
-                            clientId = v.Value;
-                            break;
-                        case "type":
-                            isStopTakeProfit = v.Value == "STOP_LOSS_LIMIT" || v.Value == "TAKE_PROFIT_LIMIT";
-                            break;
-                        case "price":
-                            double.TryParse(v.Value, out double dprice);
-                            price = (decimal)dprice; //decimal won't parse exponents
-                            break;
-                        case "symbol":
-                            symbol = v.Value;
-                            break;
-                    }
-                }
-            }
-            switch (command)
-            {
-                case "Account":
-                    var timer1 = new System.Timers.Timer(200) { AutoReset = false, Enabled = true };
 
-                    // Hook up the Elapsed event for the timer. 
-                    timer1.Elapsed += (object source, ElapsedEventArgs e) =>
-                    {
-
-                        var balances = new List<AccountData.BalanceData>();
-
-                        //just return a balance of 1 for each asset
-                        foreach (var v in SymbolNames.GetSymbolNames())
-                        {
-                            var assets = SymbolNames.GetAssetsForSymbol(v);
-
-                            balances.Add(new AccountData.BalanceData
-                            {
-                                Asset = assets.Item1,
-                                Free = 1
-                            });
-
-                        };
-                        if (!balances.Any(x => x.Asset == "BTC"))
-                        {
-                            //and add a BTC balance for new orders
-                            balances.Add(new AccountData.BalanceData
-                            {
-                                Asset = "BTC",
-                                Free = 1
-                            });
-                        }
-                        if (!balances.Any(x => x.Asset == "USDT"))
-                        {
-                            balances.Add(new AccountData.BalanceData
-                            {
-                                Asset = "USDT",
-                                Free = 1000
-                            });
-                        }
-                        InvokeAccountDataRequestCallbacks(
-                                 ExchangeRequest.ACCOUNT,
-                                 new ExchangeEventArgs
-                                 {
-                                     Result = new AccountDataFiltered
-                                     {
-                                         Balances = balances
-                                     }
-                                 }
-                             );
-                    };
-                    break;
-
-                case "QuotePrice":
-                    var timer2 = new System.Timers.Timer(200) { AutoReset = false, Enabled = true };
-
-                    // Hook up the Elapsed event for the timer. 
-                    timer2.Elapsed += (object source, ElapsedEventArgs e) =>
-                    {
-                        InvokeAccountDataRequestCallbacks(
-                                 ExchangeRequest.QUOTE_PRICE,
-                                 new ExchangeEventArgs
-                                 {
-                                     Result = new QuoteData
-                                     {
-                                         Price = 1, //this is not used anyway
-                                         Symbol = symbol
-                                     }
-                                 }
-                             );
-                    };
-                    break;
-                case "NewOrder":
-
-                    var timer3 = new System.Timers.Timer(150) { AutoReset = false, Enabled = true };
-                    timer3.Elapsed += (object source, ElapsedEventArgs e) =>
-                    {
-                        var newOrderData = new NewOrderData
-                        {
-                            Symbol = symbol,
-                            Price = price,
-                            CummulativeQuoteQty = 1,
-                            ExecutedQty = 1,
-                            ClientOrderId = clientId,
-                            Status = isStopTakeProfit ? "NEW" : "FILLED"
-                        };
-                        (MainObj.GetTradeEngineForSymbol(symbol) as TradeEngineBinance)?.OnDataReceivedForTrade_synchronised(newOrderData);
-
-                    };
-                    break;
-
-                case "CancelOrder":
-
-                    var timer4 = new System.Timers.Timer(100) { AutoReset = false, Enabled = true };
-                    timer4.Elapsed += (object source, ElapsedEventArgs e) =>
-                    {
-                        var OrderData = new OrderData
-                        {
-                            Symbol = symbol,
-                            Status = "CANCELED",
-                            ClientOrderId = clientId
-
-                        };
-                        (MainObj.GetTradeEngineForSymbol(symbol) as TradeEngineBinance)?.OnDataReceivedForTrade_synchronised(OrderData);
-                    };
-                    break;
-
-                case "ExchangeInfo":
-                    var timer5 = new System.Timers.Timer(100) { AutoReset = false, Enabled = true };
-
-                    // Hook up the Elapsed event for the timer. 
-                    timer5.Elapsed += (object source, ElapsedEventArgs e) =>
-                    {
-                        ((MainObj.GetTradeEngineForSymbol(symbol) as TradeEngineBinance) as TradeEngineBinance)?.OnDataReceivedForTrade_synchronised(new ExchangeInfoData());
-
-                        InvokeAccountDataRequestCallbacks(
-                                 ExchangeRequest.EXCHANGE_INFO,
-                                 new ExchangeEventArgs
-                                 {
-                                     Result = new ExchangeInfoData()
-                                 }
-                             );
-                    };
-                    break;
-                case "AllOrders":
-                    break;
-                case "QueryOrder":
-                    break;
-                case "MyTrades":
-                    break;
-
-            }
-        }
 
         //send command to the connector via StandardInput
         public override void SendCommandToExchange(string command, dynamic data = null)
         {
+
             string s;
             if (data != null)
             {
@@ -847,9 +459,11 @@ namespace AlgoTrader.Shared.ExchangeConnection
 
             }
         }
+
+        */
         #endregion
 
-        #region Receive data
+        #region Receive data fron node connector (Kline only)
         List<DateTime> errors = [];
         protected override void CaptureOutput(object sender, DataReceivedEventArgs e)
         {
@@ -881,14 +495,11 @@ namespace AlgoTrader.Shared.ExchangeConnection
 
             try
             {
-                //Send data using SendCommand, process in commands.js (REST methods for orders, etc.)
 
                 var captureData = JsonConvert.DeserializeObject<BinanceCaptureData>(e.Data);
                 //if (captureData.Message != null) Debug.WriteLine(captureData.Message);
 
                 #region Error
-
-
                 if (errors.Any())
                 {
                     var prevMinute = DateTime.UtcNow.AddMinutes(-1);
@@ -904,8 +515,126 @@ namespace AlgoTrader.Shared.ExchangeConnection
                 }
                 #endregion
 
-                //from REST
+                //From websocket (user data stream)
+                #region Candle data
+                if (captureData.Kline != null)
+                {
+                    //Process data here 
 
+                    lastProcessTimestamp = DateTime.UtcNow;
+
+                    lock (thisLock) //could use SemaphoreSlim class instead
+                    {
+                        //this is way more simple than Bitmex, where the data is streamed in blocks with repeated entries each time, so that needs a lot of sorting to get the latest data
+                        //here, we just need to save data when Final == true, otherwise just pass the close value back to the app
+                        try
+                        {
+                            var currentSymbolDataItem = GetCurrentSymbolDataItem(captureData.Symbol);
+
+                            //need a new object or the db will hold a reference and that data will be changed next update
+                            var item = new _SymbolDataItem()
+                            {
+                                Close = captureData.Kline.Close,
+                                Open = captureData.Kline.Open,
+                                High = captureData.Kline.High,
+                                Low = captureData.Kline.Low,
+                                Timestamp = captureData.Kline.EndTimestamp,
+                                //SymbolName = captureData.Symbol,
+                                //ExchangeId = exchangeId
+                            };
+
+                            var isFinal = captureData.Kline.Final;
+                            currentSymbolDataItem.Update(captureData.Symbol, item, isFinal);
+                            MainObj.ItemUpdated(currentSymbolDataItem, captureData.Symbol, isFinal);
+                            if (!isFinal) //maybe 10 per minute of these
+                            {
+                                if (!countDownStarted)
+                                {
+                                    //countdownSeconds = captureData.Kline.EndTimestamp.Second;
+                                    countDownStarted = true;
+                                    countdownTimer.Start();
+                                }
+                            }
+                            else
+                            {
+                                var itemsToSave = GetItemsToSave(item, captureData.Symbol);
+                                if (itemsToSave.Count > 0)
+                                {
+                                    if (MainObj.WRITE_TO_DB)
+                                    {
+                                        bool block = itemsToSave.Count > 1;
+                                        if (block)
+                                        {
+                                            LogConnection.WriteLine($"Adding block of {itemsToSave.Count} data items for {captureData.Symbol}...");
+                                        }
+
+                                        //db.Configuration.AutoDetectChangesEnabled = false; //speeds up entity framework but not used here
+
+                                        //INSANELY SLOW USING EF
+
+
+                                        //cannot mix EF with SQL, won't write out sometimes
+                                        //also, no need to set identity to ON that just throws an error with SQL query
+
+                                        //using (DataContext db = new DataContext())
+                                        //{
+                                        //db.Database.ExecuteSqlCommand("SET IDENTITY_INSERT[dbo].[SymbolDataItems] ON");
+
+                                        //foreach (var p in itemsToSave)
+                                        //{
+                                        //    lastProcessTimestamp = DateTime.UtcNow; //stops reconnection during long saves, probably not an issue with this but EF methods just took hours
+                                        //    p.ExecuteInsertCommand(db);
+                                        //}
+
+                                        //db.Database.ExecuteSqlCommand("SET IDENTITY_INSERT[dbo].[SymbolDataItems] OFF");
+                                        var value = System.Configuration.ConfigurationManager.ConnectionStrings["DataContext"];
+                                        using (SqlConnection conn = new SqlConnection(value.ToString()))
+                                        {
+                                            conn.Open();
+
+                                            foreach (var p in itemsToSave)
+                                            {
+                                                lastProcessTimestamp = DateTime.UtcNow; //stops reconnection during long saves, probably not an issue with this but EF methods just took hours
+                                                p.ExecuteInsertCommand(captureData.Symbol, conn);
+
+                                            }
+                                        }
+                                    }
+                                    //var s = string.Empty;
+                                    //if interruption is v. short, may not do a block interpolate, so need to remove symbol from update list anyway
+                                    if (symbolNamesToUpdate.Count > 0 && symbolNamesToUpdate.Contains(captureData.Symbol))
+                                    {
+                                        symbolNamesToUpdate.Remove(captureData.Symbol);
+
+                                        if (symbolNamesToUpdate.Count > 0)
+                                        {
+                                            string s = string.Join(", ", symbolNamesToUpdate);
+                                            LogConnection.WriteLine($"Symbols remaining to connect: {s}");
+                                        }
+                                        else
+                                        {
+                                            LogConnection.WriteLine("All symbols connected.");
+                                        }
+                                    }
+                                }
+                            }
+
+                            lastCaptureTimestamp = captureData.Kline.EndTimestamp;
+                        }
+                        catch (Exception ex)
+                        {
+                            //can get a 400 error if timestamps get out of synch, so easiest thing is just to reconnect
+                            LogConnection.WriteLine($"CaptureData.Kline exception at {DateTime.UtcNow:G}: {ex}");
+                            HandleError();
+                        }
+                    }
+                    return;
+                }
+                #endregion
+
+                #region Node connector REST data (unused)
+                //from REST
+                /*
                 #region Message
                 if (captureData.Message != null)
                 {
@@ -914,10 +643,11 @@ namespace AlgoTrader.Shared.ExchangeConnection
                     return;
                 }
                 #endregion
+                */
 
                 //for all trade data, data is projected onto a new object (defined in Trade Engine), to reduce complexity of data presented to that class,
                 // and to make all Trade Engine data exchange-agnostic
-
+                /*
                 if (captureData.Kline == null)
                 {
                     #region Exchange info
@@ -1076,125 +806,9 @@ namespace AlgoTrader.Shared.ExchangeConnection
                     #endregion
 
                 }
-
-                //From websocket (user data stream)
-                #region Candle data
-                if (captureData.Kline != null)
-                {
-                    //Process data here 
-
-                    lastProcessTimestamp = DateTime.UtcNow;
-
-                    lock (thisLock) //could use SemaphoreSlim class instead
-                    {
-                        //this is way more simple than Bitmex, where the data is streamed in blocks with repeated entries each time, so that needs a lot of sorting to get the latest data
-                        //here, we just need to save data when Final == true, otherwise just pass the close value back to the app
-                        try
-                        {
-                            var currentSymbolDataItem = GetCurrentSymbolDataItem(captureData.Symbol);
-
-                            //need a new object or the db will hold a reference and that data will be changed next update
-                            var item = new _SymbolDataItem()
-                            {
-                                Close = captureData.Kline.Close,
-                                Open = captureData.Kline.Open,
-                                High = captureData.Kline.High,
-                                Low = captureData.Kline.Low,
-                                Timestamp = captureData.Kline.EndTimestamp,
-                                //SymbolName = captureData.Symbol,
-                                //ExchangeId = exchangeId
-                            };
-
-                            if (!captureData.Kline.Final) //maybe 10 per minute of these
-                            {
-                                currentSymbolDataItem.Update(captureData.Symbol, item, false);
-                                MainObj.ItemUpdated(currentSymbolDataItem, captureData.Symbol);
-                                if (!countDownStarted)
-                                {
-                                    //countdownSeconds = captureData.Kline.EndTimestamp.Second;
-                                    countDownStarted = true;
-                                    countdownTimer.Start();
-                                }
-                            }
-                            else
-                            {
-                                //countdownSeconds = 60;
-
-                                currentSymbolDataItem.Update(captureData.Symbol, item, true);
-
-                                var itemsToSave = GetItemsToSave(item, captureData.Symbol);
-                                if (itemsToSave.Count > 0)
-                                {
-                                    if (MainObj.WRITE_TO_DB)
-                                    {
-                                        bool block = itemsToSave.Count > 1;
-                                        if (block)
-                                        {
-                                            LogConnection.WriteLine($"Adding block of {itemsToSave.Count} data items for {captureData.Symbol}...");
-                                        }
-
-                                        //db.Configuration.AutoDetectChangesEnabled = false; //speeds up entity framework but not used here
-
-                                        //INSANELY SLOW USING EF
-
-
-                                        //cannot mix EF with SQL, won't write out sometimes
-                                        //also, no need to set identity to ON that just throws an error with SQL query
-
-                                        //using (DataContext db = new DataContext())
-                                        //{
-                                        //db.Database.ExecuteSqlCommand("SET IDENTITY_INSERT[dbo].[SymbolDataItems] ON");
-
-                                        //foreach (var p in itemsToSave)
-                                        //{
-                                        //    lastProcessTimestamp = DateTime.UtcNow; //stops reconnection during long saves, probably not an issue with this but EF methods just took hours
-                                        //    p.ExecuteInsertCommand(db);
-                                        //}
-
-                                        //db.Database.ExecuteSqlCommand("SET IDENTITY_INSERT[dbo].[SymbolDataItems] OFF");
-                                        var value = System.Configuration.ConfigurationManager.ConnectionStrings["DataContext"];
-                                        using (SqlConnection conn = new SqlConnection(value.ToString()))
-                                        {
-                                            conn.Open();
-
-                                            foreach (var p in itemsToSave)
-                                            {
-                                                lastProcessTimestamp = DateTime.UtcNow; //stops reconnection during long saves, probably not an issue with this but EF methods just took hours
-                                                p.ExecuteInsertCommand(captureData.Symbol, conn);
-
-                                            }
-                                        }
-                                    }
-                                    //var s = string.Empty;
-                                    //if interruption is v. short, may not do a block interpolate, so need to remove symbol from update list anyway
-                                    if (symbolNamesToUpdate.Count > 0 && symbolNamesToUpdate.Contains(captureData.Symbol))
-                                    {
-                                        symbolNamesToUpdate.Remove(captureData.Symbol);
-
-                                        if (symbolNamesToUpdate.Count > 0)
-                                        {
-                                            string s = string.Join(", ", symbolNamesToUpdate);
-                                            LogConnection.WriteLine($"Symbols remaining to connect: {s}");
-                                        }
-                                        else
-                                        {
-                                            LogConnection.WriteLine("All symbols connected.");
-                                        }
-                                    }
-                                }
-                            }
-
-                            lastCaptureTimestamp = captureData.Kline.EndTimestamp;
-                        }
-                        catch (Exception ex)
-                        {
-                            //can get a 400 error if timestamps get out of synch, so easiest thing is just to reconnect
-                            LogConnection.WriteLine($"CaptureData.Kline exception at {DateTime.UtcNow:G}: {ex}");
-                            HandleError();
-                        }
-                    }
-                }
+                */
                 #endregion
+
             }
             catch (Exception ex)
             {

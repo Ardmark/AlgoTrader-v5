@@ -37,12 +37,13 @@ namespace AlgoTrader.Shared
 
         //exchange event handler data
         public string ItemId { get; set; } //unique id for this trade, as opposed to the TradeReference which is shared across all trades used in this order.Note: Binance will allow re-use of an Id providing no orders are open and using that Id, but it is better to assign a unique Id each time anyway
-        public long TradeIdExchange { get; set; } //unimplemented - this is returned by exchange, can use either ItemId or this to query Binance orders
-        public int ExchangeMethodIndex { get; set; }
+        public string OrderListId { get; set; } //OCO's are sent as an order list and need to be cancelled with that Id, the individual Id's are not saved in the exchange order so cannot cancel orders individually
+        //public long TradeIdExchange { get; set; } //unimplemented - this is returned by exchange, can use either ItemId or this to query Binance orders
+        //public int ExchangeMethodIndex { get; set; }
         public string ExchangeMethodScript { get; set; }
 
-        public bool IsQuoteToBasePurchase { get; set; }
-        public string StubCallbackTradeReference { get; set; }
+        //public bool IsQuoteToBasePurchase { get; set; }
+        //public string StubCallbackTradeReference { get; set; }
 
         public double LiquidationPrice { get; set; }
 
@@ -91,10 +92,6 @@ namespace AlgoTrader.Shared
                 ExchangeStatus = ExchangeStatus,
                 Quantity = Quantity,
                 ExchangeMethodScript = ExchangeMethodScript,
-                ExchangeMethodIndex = ExchangeMethodIndex,
-                StubCallbackTradeReference = StubCallbackTradeReference,
-                IsQuoteToBasePurchase = IsQuoteToBasePurchase,
-                TradeIdExchange = TradeIdExchange,
                 ItemId = ItemId,
                 LiquidationPrice = LiquidationPrice,
                 Leverage = Leverage,
@@ -126,10 +123,6 @@ namespace AlgoTrader.Shared
             trade.GlobalStatus = GlobalStatus;
             trade.Quantity = Quantity;
             trade.ExchangeMethodScript = ExchangeMethodScript;
-            trade.ExchangeMethodIndex = ExchangeMethodIndex;
-            trade.StubCallbackTradeReference = StubCallbackTradeReference;
-            trade.IsQuoteToBasePurchase = IsQuoteToBasePurchase;
-            trade.TradeIdExchange = TradeIdExchange;
             trade.ItemId = ItemId;
             trade.LiquidationPrice = LiquidationPrice;
             trade.Leverage = Leverage;

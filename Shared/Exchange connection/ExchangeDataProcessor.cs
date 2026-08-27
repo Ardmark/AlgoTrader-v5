@@ -4,11 +4,6 @@ using System.Diagnostics;
 using System.IO;
 using System.Windows.Threading;
 
-
-
-
-
-
 namespace AlgoTrader.Shared.ExchangeConnection
 {
     public abstract class ExchangeDataProcessor
@@ -388,7 +383,7 @@ namespace AlgoTrader.Shared.ExchangeConnection
         //    currentSymbols[symbol] = symbolDataItem;
         //}
 
-        public virtual void SendCommandToExchange(string command, dynamic data) { }
+        //public virtual void SendCommandToExchange(string command, dynamic data) { }
 
 
         //internal List<SymbolDataItem> GetMissedItems(SymbolDataItem item) 

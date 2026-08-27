@@ -18,6 +18,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Remove="BinanceRest.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
     <None Remove="Windows\App.xaml" />
     <None Remove="Windows\LineMenu.xaml" />
     <None Remove="Windows\LineMenuLeftClick.xaml" />

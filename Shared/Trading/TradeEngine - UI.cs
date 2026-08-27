@@ -1,8 +1,6 @@
 ﻿using AlgoTrader.Shared.Enums;
 using AlgoTrader.Shared.TradeIndicators;
 using AlgoTrader.Shared.Windows;
-using System.Diagnostics;
-using System.Transactions;
 
 namespace AlgoTrader.Shared
 {
@@ -79,80 +77,71 @@ namespace AlgoTrader.Shared
 
                 if (Entry != null)
                 {
-                    var hasMovedStop = false;
+                    //var hasMovedStop = false;
+
                     if (Stop != null && Stop.Stop == TradeStop.STOP_ON_LINE_BREAK)
                     {
                         MoveTrade(Stop, up, pc);
+                        MoveTrade(TakeProfit, !up, pc);
 
-                        //will only set stop on exchange if it is a Stop or if it is ENTERING_ON_EXCHANGE, this is so the stop will always update on each loop
-                        // but the floor is bypassed except when it is first set. The status is reset afterwards anyway.
-                        //NOTE - Ceiling and TakeProfit is undefined for this behaviour.
-
-                        SetStopOnExchange_Synchronised(Stop);
-                        hasMovedStop = true;
-                    }
-                    if (Floor != null)
-                    {
-                        MoveTrade(Floor, up, pc);
-                        SetStopOnExchange_Synchronised(Floor);
-                        hasMovedStop = true;
+                        SetStopOnExchange_Synchronised();
+                        //hasMovedStop = true;
                     }
 
-                    //this is only called when moving stops up or down from the buttons, and there should always be a stop or trail set.
-                    //if there is not (i.e. no trail value set and stops removed) this will add a floor at the correct level for the target stop loss.
-                    if (!hasMovedStop)
-                    {
-                        //can't have a floor set or it would have been moved, so set one
-                        Floor = Entry.Clone();
+                    //if (Floor != null)
+                    //{
+                    //    MoveTrade(Floor, up, pc);
+                    //    SetStopOnExchange_Synchronised(Floor);
+                    //    hasMovedStop = true;
+                    //}
 
-                        var stopOffsetPC_Leveraged = TradeEngineBitmex.CalculateStopFromLeverage(Entry.Leverage, Entry.Position);
+                    ////this is only called when moving stops up or down from the buttons, and there should always be a stop or trail set.
+                    ////if there is not (i.e. no trail value set and stops removed) this will add a floor at the correct level for the target stop loss.
+                    //if (!hasMovedStop)
+                    //{
+                    //    //can't have a floor set or it would have been moved, so set one
+                    //    Floor = Entry.Clone();
 
-                        var floorPrice = MainObj.GetFloorPrice(Entry.Price, stopOffsetPC_Leveraged, Entry.Position);
+                    //    var stopOffsetPC_Leveraged = TradeEngineBitmex.CalculateStopFromLeverage(Entry.Leverage, Entry.Position);
 
-                        Floor.Price = (double)floorPrice;
-                        Floor.Action = TradeAction.FLOOR;
-                        Floor.Quantity = -Entry.Quantity;
-                        Floor.ItemId = null; //need a new ID for this as it is a new order.
-                        Floor.ExchangeStatus = TradeExchangeStatus.ENTERING_ON_EXCHANGE;
+                    //    var floorPrice = MainObj.GetFloorPrice(Entry.Price, stopOffsetPC_Leveraged, Entry.Position);
 
-                        SetStopOnExchange_Synchronised(Floor);
-                        SetUpdateRequest(Floor);
+                    //    Floor.Price = (double)floorPrice;
+                    //    Floor.Action = TradeAction.FLOOR;
+                    //    Floor.Quantity = -Entry.Quantity;
+                    //    Floor.ItemId = null; //need a new ID for this as it is a new order.
+                    //    Floor.ExchangeStatus = TradeExchangeStatus.ENTERING_ON_EXCHANGE;
 
-                    }
-                    // MoveStop(Ceiling, !up);
-                    // MoveStop(TakeProfit, !up);
+                    //    SetStopOnExchange_Synchronised(Floor);
+                    //    SetUpdateRequest(Floor);
+
+                    //}
+                    // MoveTrade(Ceiling, !up, pc);
+
                 }
 
 
-                //move any unentered trades, including their stops and floors
-                var activeTrades = AllTrades.Where(x => 
-                    x.GlobalStatus == TradeGlobalStatus.ACTIVE && 
-                    (x.Action == TradeAction.ORDER || x.Action == TradeAction.STOP || x.Action == TradeAction.FLOOR));
-
+                //move any unentered trades, including their stops and takeprofits
+                var activeTrades = AllTrades.Where(x =>
+                    x.GlobalStatus == TradeGlobalStatus.ACTIVE &&
+                    x.ItemStatus == TradeItemStatus.OPEN && //if the order is open, then it has not entered
+                    x.Action == TradeAction.ORDER
+                    );
                 foreach (var trade in activeTrades)
                 {
-                    //if the order is open, then it has not entered
-                    var order = AllTrades.FirstOrDefault(x => x.TradeReference == trade.TradeReference && x.Action == TradeAction.ORDER);
-                    if (order != null && order.ItemStatus == TradeItemStatus.OPEN) 
-                    { 
-                        //order which is ItemStatus==OPEN is not live
-                        MoveTrade(trade, !up, pc);
-                    }
-                    
+                    MoveTrade(trade, !up, pc);
                 }
 
                 //move any stopped trades
-                activeTrades = AllTrades.Where(x =>
-                    x.GlobalStatus == TradeGlobalStatus.STOPPED &&
-                    (x.Action == TradeAction.ORDER || x.Action == TradeAction.STOP || x.Action == TradeAction.FLOOR));
+                activeTrades = AllTrades.Where(x => x.GlobalStatus == TradeGlobalStatus.STOPPED);
 
                 foreach (var trade in activeTrades)
                 {
                     var close = AllTrades.FirstOrDefault(x => x.TradeReference == trade.TradeReference && x.Action == TradeAction.CLOSE);
                     if (close == null)
                     {
-                        //if there is no close, then the trade was stopped before it entered, so can move the stop and floor levels
-                          MoveTrade(trade, !up, pc);
+                        //if there is no close, then the trade was stopped before it entered, so can move the stop and take profit levels
+                        MoveTrade(trade, !up, pc);
                     }
 
                 }
@@ -240,32 +229,31 @@ namespace AlgoTrader.Shared
             SetStop_UI(timeStamp, price, TradeAction.STOP, TradeType.NO_FLIP_ORDER, tradeStop);
         }
 
-        internal void SetFloorAtPrice_UI_synchronised(DateTime timeStamp, double price)
-        {
-            SetStop_UI(timeStamp, price, TradeAction.FLOOR, TradeType.NO_FLIP_ORDER);
-        }
+        //internal void SetFloorAtPrice_UI_synchronised(DateTime timeStamp, double price)
+        //{
+        //    SetStop_UI(timeStamp, price, TradeAction.FLOOR, TradeType.NO_FLIP_ORDER);
+        //}
 
-        internal void SetCeilingAtPrice_UI_synchronised(DateTime timeStamp, double price)
-        {
-            //Set Take Profit - this assumes no chart line, so sets that ID to -1.
-            //If this is not done, then it will be cloned from the order and that will result in the line changing status if the TP is deleted
-            SetStop_UI(timeStamp, price, TradeAction.CEILING, TradeType.NO_FLIP_ORDER);
-        }
+        //internal void SetCeilingAtPrice_UI_synchronised(DateTime timeStamp, double price)
+        //{
+        //    //Set Take Profit - this assumes no chart line, so sets that ID to -1.
+        //    //If this is not done, then it will be cloned from the order and that will result in the line changing status if the TP is deleted
+        //    SetStop_UI(timeStamp, price, TradeAction.CEILING, TradeType.NO_FLIP_ORDER);
+        //}
 
-        internal void SetBreakEvenAtPrice_UI_synchronised(DateTime timeStamp, double price)
+        //internal void SetBreakEvenAtPrice_UI_synchronised(DateTime timeStamp, double price)
+        //{
+        //    SetStop_UI(timeStamp, price, TradeAction.BREAK_EVEN, TradeType.NO_FLIP_ORDER);
+        //}
+        
+        internal void SetTakeProfitAtPrice_UI_synchronised(DateTime timeStamp, double price)
         {
-            SetStop_UI(timeStamp, price, TradeAction.BREAK_EVEN, TradeType.NO_FLIP_ORDER);
+            SetStop_UI(timeStamp, price, TradeAction.TAKE_PROFIT, TradeType.NO_FLIP_ORDER);
         }
-        /*
-        internal void SetTakeProfitAtPercent_UI_synchronised(DateTime timeStamp, double price)
-        {
-            SetStop_UI(timeStamp, price, TradeAction.FLOOR, TradeType.NO_FLIP_ORDER, TradeStop.TAKE_PROFIT_PERCENT);
-        }
-        */
-
+        
         internal void SetMarketOrderAtTime_UI_synchronised(DateTime timeStamp, double price, TradePosition position)
         {
-            if (TradeEngine.EXCHANGE == ExchangeId.BINANCE)
+            if (EXCHANGE == ExchangeId.BINANCE)
             {
                 if (position == TradePosition.SHORT)
                 {
@@ -282,9 +270,9 @@ namespace AlgoTrader.Shared
                 }
 
                 //must have at least 24 hours of data, or trade can be placed before first midnight boundary so will never be visible unless it closes the following day
-                if (results.Count < 24 * 60)
+                if (results.Count < 24 * MainObj.INITIAL_TIMEFRAME)
                 {
-                    AlertDialog.Show("Could not set market break order, needs 24 hours data", "Insufficient data");
+                    AlertDialog.Show("Could not set market break order, needs 24 bars data", "Insufficient data");
                     return;
                 }
 
@@ -347,7 +335,7 @@ namespace AlgoTrader.Shared
 
                 if (!isBacktest)
                 {
-                    EnterTradeOnSystem_synchronised((decimal)price, 0, TradeExchangeStatus.ENTERED_ON_EXCHANGE);
+                    EnterTradeOnSystem_synchronised(price, 0, TradeExchangeStatus.ENTERED_ON_EXCHANGE);
                     Order.ActionValue = Entry.ActionValue = 0; //mark as using zero equity, to keep this off the profit / loss calculations
                 }
 
@@ -399,7 +387,7 @@ namespace AlgoTrader.Shared
 
                 currentTradeSetReference = Order.TradeReference;
 
-                EnterTradeOnSystem_synchronised((decimal)price, 0, TradeExchangeStatus.ENTERED_OFF_EXCHANGE);
+                EnterTradeOnSystem_synchronised(price, 0, TradeExchangeStatus.ENTERED_OFF_EXCHANGE);
 
                 Order.ActionValue = Entry.ActionValue = 0; //mark as using zero equity, to keep this off the profit / loss calculations
             });
@@ -441,6 +429,7 @@ namespace AlgoTrader.Shared
 
                 timeStamp = DateTime.UtcNow.AddMinutes(-1);
 
+               
 
                 var nextEarliest = MainObj.GetNextInterval_UI(timeStamp, currentDataItem);
                 var line = new _ChartLine
@@ -459,6 +448,7 @@ namespace AlgoTrader.Shared
 
             MainObj.TradeStatusChanged(this);
         }
+
 
         internal void SetHMABreakOrder_UI_synchronised(DateTime timeStamp, double price)
         {
@@ -584,7 +574,12 @@ namespace AlgoTrader.Shared
                 var trade = AllTrades.FirstOrDefault(x => x.Id == tradeId);
                 if (trade == null)
                 {
-                    AlertDialog.Show("Could not find trade");
+                    AlertDialog.Show("Could not find trade.");
+                    return;
+                }
+                if ((trade.ItemStatus == TradeItemStatus.OPEN || trade.GlobalStatus == TradeGlobalStatus.ACTIVE) && trade.ExchangeStatus == TradeExchangeStatus.ENTERED_ON_EXCHANGE)
+                {
+                    AlertDialog.Show("Cannot delete a live trade!");
                     return;
                 }
 
@@ -677,7 +672,7 @@ namespace AlgoTrader.Shared
                             Stop.Price = initialPrice;
                             Stop.Stop = TradeStop.TAKE_PROFIT_MA_CROSS;
                             Stop.Type = type;
-                            SetStopOnExchange_Synchronised(Stop);
+                            SetStopOnExchange_Synchronised();
                             var chartLine = AllLinesForSymbol.GetLineForTrade(Stop);
                             if (chartLine != null)
                             {
@@ -799,15 +794,6 @@ namespace AlgoTrader.Shared
 
             var isWaitingStop = tradeAction == TradeAction.WAITING_STOP;
 
-            if (TradeEngine.EXCHANGE == ExchangeId.BINANCE)
-            {
-                if (tradeType == TradeType.FLIP_ORDER || isWaitingStop)
-                {
-                    AlertDialog.Show("Flip orders not available on Binance", "Not available");
-                    return;
-                }
-            }
-
             var order = UI_Trades.GetTradeForTradeReference(TradeAction.ORDER, currentTradeSetReference);
 
             if (order == null)
@@ -845,19 +831,19 @@ namespace AlgoTrader.Shared
                 }
             }
 
-            if (tradeAction == TradeAction.FLOOR)
-            {
-                var v = UI_Trades.FirstOrDefault(x =>
-                           x.Action == TradeAction.STOP &&
-                           x.Type == TradeType.FLIP_ORDER &&
-                           x.Position == order.Position &&
-                           x.TradeReference == order.TradeReference);
-                if (v != null)
-                {
-                    AlertDialog.Show("Cannot place a Floor whilst there is a Flip Order, or trade will flip when floor triggered");
-                    return;
-                }
-            }
+            //if (tradeAction == TradeAction.FLOOR)
+            //{
+            //    var v = UI_Trades.FirstOrDefault(x =>
+            //               x.Action == TradeAction.STOP &&
+            //               x.Type == TradeType.FLIP_ORDER &&
+            //               x.Position == order.Position &&
+            //               x.TradeReference == order.TradeReference);
+            //    if (v != null)
+            //    {
+            //        AlertDialog.Show("Cannot place a Floor whilst there is a Flip Order, or trade will flip when floor triggered");
+            //        return;
+            //    }
+            //}
 
             //for a flip stop, the orderLine will be the line with the flip stop set on it
             var orderLine = isWaitingStop
@@ -917,7 +903,7 @@ namespace AlgoTrader.Shared
                         switch (trade.Action)
                         {
                             case TradeAction.STOP:
-                            case TradeAction.FLOOR:
+                            //case TradeAction.FLOOR:
                                 trade.ExchangeStatus = TradeExchangeStatus.ENTERING_ON_EXCHANGE;
                                 break;
                             default:
@@ -937,7 +923,9 @@ namespace AlgoTrader.Shared
                         : currentDataItem.Close * (1 + price / 100)
                     : price; //MA stop will not change price
 
-                    //LineUpTrades_UI_Synchronised(trade, chartLine, false); //this will set the stop on the exchange.
+                    LineUpTrades_UI_Synchronised(trade, chartLine, false); 
+
+                    SetStopOnExchange_Synchronised();
 
                     var trades = GetTradesForTradeReference(trade.TradeReference);
                     var lines = GetLinesForTradeReference(trade.TradeReference);
@@ -980,10 +968,10 @@ namespace AlgoTrader.Shared
                             switch (trade.Action)
                             {
                                 case TradeAction.STOP:
-                                case TradeAction.FLOOR:
+                                //case TradeAction.FLOOR:
                                     trade.ExchangeStatus = TradeExchangeStatus.ENTERING_ON_EXCHANGE;
                                     SetUpdateRequest(trade);
-                                    SetStopOnExchange_Synchronised(trade); //trailing stop won't have a line
+                                    SetStopOnExchange_Synchronised(); //trailing stop won't have a line
                                     break;
 
                             }
@@ -999,30 +987,30 @@ namespace AlgoTrader.Shared
                                     Stop = trade;
                                     if (Stop.Type == TradeType.FLIP_ORDER)
                                     {
-                                        if (Floor != null)
-                                        {
-                                            //remove floor or it will flip on this.
-                                            //the floor will not be entered anyway but just to be safe...
-                                            if (Floor.ExchangeStatus == TradeExchangeStatus.ENTERED_ON_EXCHANGE)
-                                            {
-                                                RemoveStopFromExchange_Synchronised(Floor);
-                                            }
-                                            SetUpdateRequest(Floor, TradeUpdateRequest.DELETE);
-                                        }
+                                        //if (Floor != null)
+                                        //{
+                                        //    //remove floor or it will flip on this.
+                                        //    //the floor will not be entered anyway but just to be safe...
+                                        //    if (Floor.ExchangeStatus == TradeExchangeStatus.ENTERED_ON_EXCHANGE)
+                                        //    {
+                                        //        RemoveStopFromExchange_Synchronised(Floor);
+                                        //    }
+                                        //    SetUpdateRequest(Floor, TradeUpdateRequest.DELETE);
+                                        //}
                                     }
                                     break;
-                                case TradeAction.FLOOR:
-                                    Floor = trade;
-                                    break;
-                                case TradeAction.CEILING:
-                                    Ceiling = trade;
-                                    break;
+                                //case TradeAction.FLOOR:
+                                //    Floor = trade;
+                                //    break;
+                                //case TradeAction.CEILING:
+                                //    Ceiling = trade;
+                                //    break;
                                 case TradeAction.TAKE_PROFIT:
                                     TakeProfit = trade;
                                     break;
-                                case TradeAction.BREAK_EVEN:
-                                    BreakEven = trade;
-                                    break;
+                                //case TradeAction.BREAK_EVEN:
+                                //    BreakEven = trade;
+                                //    break;
                             }
                         }
 
@@ -1039,12 +1027,12 @@ namespace AlgoTrader.Shared
                             {
                                 case TradeAction.STOP:
                                 case TradeAction.WAITING_STOP:
-                                case TradeAction.FLOOR:
+                                //case TradeAction.FLOOR:
                                     chartLine.Type = LineType.SUPPORT;
                                     break;
-                                case TradeAction.CEILING:
+                                //case TradeAction.CEILING:
                                 case TradeAction.TAKE_PROFIT:
-                                case TradeAction.BREAK_EVEN:
+                                //case TradeAction.BREAK_EVEN:
                                     chartLine.Type = LineType.RESISTANCE;
                                     break;
                             }
@@ -1363,38 +1351,20 @@ namespace AlgoTrader.Shared
                     {
                         if (attachedTrade != null)
                         {
-                            switch (attachedTrade.Action)
+                            //move stop to correct price
+                            var stopLine = AllLinesForSymbol.FirstOrDefault(x => x.TradeId == attachedTrade.Id);
+                            if (stopLine != null)
                             {
-                                case TradeAction.STOP:
+                                (attachedTrade.Price, _) = stopLine.GetPriceAtTime(attachedTrade.Timestamp, true);
 
-                                    //move stop to correct price
-                                    var stopLine = AllLinesForSymbol.FirstOrDefault(x => x.TradeId == attachedTrade.Id);
-                                    if (stopLine != null)
-                                    {
-                                        (attachedTrade.Price, _) = stopLine.GetPriceAtTime(attachedTrade.Timestamp, true);
+                                //attachedTrade.ExchangeStatus = TradeExchangeStatus.ENTERING_ON_EXCHANGE;
 
-                                        attachedTrade.ExchangeStatus = TradeExchangeStatus.ENTERING_ON_EXCHANGE;
-
-                                        SetUpdateRequest(attachedTrade);
-                                    }
-                                    SetStopOnExchange_Synchronised(attachedTrade); //trailing stop won't have a line
-                                    break;
-                                case TradeAction.TAKE_PROFIT:
-                                    var tpLine = AllLinesForSymbol.FirstOrDefault(x => x.TradeId == attachedTrade.Id);
-                                    if (tpLine != null)
-                                    {
-                                        (attachedTrade.Price, _) = tpLine.GetPriceAtTime(attachedTrade.Timestamp, true);
-
-                                        SetUpdateRequest(attachedTrade);
-                                    }
-                                    break;
-
+                                SetUpdateRequest(attachedTrade);
                             }
+                            //SetStopOnExchange_Synchronised(attachedTrade); //trailing stop won't have a line
+                            break;
                         }
-
                     }
-
-
                 }
             }
         }
@@ -1593,7 +1563,15 @@ namespace AlgoTrader.Shared
 
 
         //this allows for selective removal of stops before exchange removal, if the latter is not used (stop and floor on Bitmex or just stop on Binance)
-        protected virtual void RemoveTradeBeforeExchangeRemoval_Synchronised(_Trade trade, bool removeLine, bool allowForceRemove) { }
+        protected void RemoveTradeBeforeExchangeRemoval_Synchronised(_Trade trade, bool removeLine, bool allowForceRemove)
+        {
+            if (!allowForceRemove && (trade.Action == TradeAction.STOP || trade.Action == TradeAction.FLOOR))
+            {
+                return;
+            }
+            RemoveTradeFromLine_UI_synchronised(trade, removeLine);
+            SetUpdateRequest(trade, TradeUpdateRequest.DELETE);
+        }
 
         //note, this method uses the AllTrades list
         private bool RemoveTradeFromSystem_UI_synchronised(_Trade trade, bool removeLine, bool allowForceRemove = false)
@@ -1677,10 +1655,12 @@ namespace AlgoTrader.Shared
                         {
                             //if stop is added then removed before first update, won't have been set on exchange
                             //also, if not setting stops on exchange then bail here
-                            if (trade.Action == TradeAction.STOP || trade.Action == TradeAction.FLOOR)
+                            if (trade.Action == TradeAction.STOP)
                             {
-                                RemoveStopFromExchange_Synchronised(trade);
-                                //SetUpdateRequest(trade, TradeUpdateRequest.DELETE);
+                                AlertDialog.Show("Stop is live, cannot remove from Exchange");
+                                {
+                                    return false;
+                                }
                             }
                             return true;
                         }
@@ -1688,7 +1668,7 @@ namespace AlgoTrader.Shared
                         {
                             RemoveTradeFromLine_UI_synchronised(trade, false);
                             SetUpdateRequest(trade, TradeUpdateRequest.DELETE);
-                            if (trade.Action == TradeAction.STOP || trade.Action == TradeAction.FLOOR)
+                            if (trade.Action == TradeAction.STOP)
                             {
                                 AlertDialog.Show("Stop was not set on exchange, only removed from local system ");
                             }
@@ -1697,14 +1677,6 @@ namespace AlgoTrader.Shared
 
                     break;
 
-                    // case TradeAction.FLOOR:
-                    //will allow floor delete while trade is live
-                    //if (trade.ItemStatus == TradeItemStatus.CLOSED && trade.GlobalStatus == TradeGlobalStatus.STOPPED || trade.ExchangeStatus != TradeExchangeStatus.ENTERED_ON_EXCHANGE)
-                    //{
-                    //    SetUpdateRequest(trade, TradeUpdateRequest.DELETE);
-                    //}
-
-                    // break;
             }
 
             return true;
@@ -1746,20 +1718,6 @@ namespace AlgoTrader.Shared
                     currentTradeSetReference = order.TradeReference;
                 }
 
-                /************************************************/
-                //set a floor
-                // - no, this is unnecessary as one will be set anyway by default on trade entry
-                //var floorPC = 1 + STOP_MIN_VALUE / 100;
-                //var currPrice = line.GetPriceAtTime(currentDataItem.Timestamp, true).price;
-                //var floorPrice = MainObj.GetFloorPrice(currPrice, STOP_MIN_VALUE, position);
-
-                ////add a new stop derived from the trade
-                //var trade = order.Clone(); //this should only happen if a stop has been deleted completely
-                //trade.ItemId = null; //because Bitmex will have a new ID for the stop
-                //trade.Action = TradeAction.FLOOR;
-                //trade.Price = floorPrice;
-                //SetUpdateRequest(trade);
-                /************************************************/
 
                 var oppositeSide = position == TradePosition.LONG ? TradePosition.SHORT : TradePosition.LONG;
                 var oppOrder = AllTrades.FirstOrDefault(x =>
@@ -2042,7 +2000,7 @@ namespace AlgoTrader.Shared
             {
                 return (false, false);
             }
-            //if trade is on a line, use that for price, otherwise use supplied price (i.e. for ceiling, floor etc. where there is no line)
+            //if trade is on a line, use that for price, otherwise use supplied price
             if (tradeLine != null)
             {
                 (price, _) = tradeLine.GetPriceAtTime(currentDataItem.Timestamp, true);
@@ -2058,8 +2016,6 @@ namespace AlgoTrader.Shared
                     (basePrice, _) = orderLine.GetPriceAtTime(currentDataItem.Timestamp, true);
                 }
             }
-
-
 
             var v = MainObj.GetPriceDiff(basePrice, price, position) * 100;
 

@@ -3,6 +3,7 @@ using AlgoTrader.Shared.Logging;
 using AlgoTrader.Shared.Windows;
 using BitMEX;
 using OpenExchangeRates;
+using System.Diagnostics;
 using System.Transactions;
 using System.Windows.Media.Animation;
 using static BitMEX.BitMEXApi;
@@ -110,7 +111,7 @@ namespace AlgoTrader.Shared
                                             x.ItemStatus == TradeItemStatus.OPEN &&
                                             x.GlobalStatus == TradeGlobalStatus.ACTIVE);
         }
-        protected override void EnterTradeOnSystem_ExchangeSpecific_Synchronised()
+        protected /*override*/void EnterTradeOnSystem_ExchangeSpecific_Synchronised()
         {
             //todo - create a complete quote asset trade, with the opening balance from the last closed trade
             #region create quote asset trade
@@ -243,15 +244,15 @@ namespace AlgoTrader.Shared
         }
 
 
-        //public override void RunTrade_exchangeSpecific()
-        //{
-        //}
-
         void WriteDeliniatedMessage(string msg)
         {
             LogTrades.WriteLine($"\n**************************************\n{msg}\n**************************************");
         }
 
+        protected override void EnterTradeOnSystem_synchronised(decimal price, double quantity, TradeExchangeStatus orderType)
+        {
+            //throw new NotImplementedException();
+        }
 
         #region Leverage and order quantity
 
@@ -539,11 +540,10 @@ namespace AlgoTrader.Shared
                             var lastQuoteValue = USE_SIMULATED_EXCHANGE ? 0 : bitmexAPI.GetLastPrice(symbolName); //can't get price feed from testnet, only live
                             if (lastQuoteValue == 0)
                             {
-                                (var v2, var s1) = GetValueForSymbol(symbolName); //note that the symbol name does not use the fiat asset symbol
+                                var v2 = GetValueForSymbol(symbolName); //note that the symbol name does not use the fiat asset symbol
 
-                                if (s1 != null)
+                                if (v2 == 0)
                                 {
-                                    LogTrades.WriteLine($"Error getting balance: {s1}");
                                     break;
                                 }
                                 lastQuoteValue = v2;
@@ -579,16 +579,16 @@ namespace AlgoTrader.Shared
                                 }
                                 Stop = _stop;
                             }
-                            var _floor = trades.FirstOrDefault(x => x.Action == TradeAction.FLOOR);
-                            if (_floor != null)
-                            {
-                                var floorDiff = MainObj.GetPriceDiffPercent(currentDataItem, _floor.Price, Order.Position) * 100;
-                                if (stopPC == 0 || floorDiff < stopPC) //use smallest stop
-                                {
-                                    stopPC = floorDiff;
-                                }
-                                Floor = _floor;
-                            }
+                            //var _floor = trades.FirstOrDefault(x => x.Action == TradeAction.FLOOR);
+                            //if (_floor != null)
+                            //{
+                            //    var floorDiff = MainObj.GetPriceDiffPercent(currentDataItem, _floor.Price, Order.Position) * 100;
+                            //    if (stopPC == 0 || floorDiff < stopPC) //use smallest stop
+                            //    {
+                            //        stopPC = floorDiff;
+                            //    }
+                            //    Floor = _floor;
+                            //}
 
                             //if there is no stop, take the opposing order as one instead
                             if (stopPC == 0)
@@ -743,7 +743,7 @@ namespace AlgoTrader.Shared
                                 SetStopOnExchange_Synchronised(Stop);
                                 SetUpdateRequest(Stop);
                             }
-                            else if (!AUTO_SET_TRAILING_STOP) //trailing stop will be subsequently set if this value is > 0, otherwise set a floor
+                            else  if (!AUTO_SET_TRAILING_STOP) //trailing stop will be subsequently set if this value is > 0, otherwise set a floor
                             {
                                 //add a floor if there is not already one. The stop will be dynamically updated, so should not be dropped, but if there was an error which caused the stop to be misplaced or lost, a default floor is needed to avoid liquidation
 
@@ -792,6 +792,7 @@ namespace AlgoTrader.Shared
                     case CLOSE_ORDER_SCRIPT:
 
                         entryTimeStamp = DateTime.UtcNow;
+                        Debug.WriteLine(entryTimeStamp);
 
                         if (Close == null)
                         {
@@ -806,11 +807,11 @@ namespace AlgoTrader.Shared
                         if (USE_SIMULATED_EXCHANGE)
                         {
                             //remove any floor
-                            _CancelStop(Floor);
+                            //_CancelStop(Floor);
                             _CancelStop(Stop);
                             Entry.ExchangeMethodScript = Close.ExchangeMethodScript = null;
                             SetUpdateRequest(Entry);
-                            (var v2, var s1) = GetValueForSymbol(symbolName);
+                            var v2 = GetValueForSymbol(symbolName);
                             LogTrades.WriteLine("Closing order on simulated exchange");
                             CloseTradeOnSystem_synchronised((decimal)v2);
                         }
@@ -947,7 +948,7 @@ namespace AlgoTrader.Shared
             });
         }
 
-        public override async void SetStopOnExchange_Synchronised(_Trade stop)
+        public override async void SetStopOnExchange_Synchronised()
         {
 
             base.SetStopOnExchange_Synchronised(stop);
@@ -973,7 +974,7 @@ namespace AlgoTrader.Shared
             }
 
             //just an extra safety check...
-            (var lastValue, var _) = GetValueForSymbol(symbolName);
+            var lastValue = GetValueForSymbol(symbolName);
 
             if (stop.Position == TradePosition.SHORT && stop.Price < lastValue || stop.Position == TradePosition.LONG && stop.Price > lastValue)
             {
@@ -1140,15 +1141,6 @@ namespace AlgoTrader.Shared
             }
         }
 
-        protected override void RemoveTradeBeforeExchangeRemoval_Synchronised(_Trade trade, bool removeLine, bool allowForceRemove)
-        {
-            if (!allowForceRemove && (trade.Action == TradeAction.STOP || trade.Action == TradeAction.FLOOR))
-            {
-                return;
-            }
-            RemoveTradeFromLine_UI_synchronised(trade, removeLine);
-            SetUpdateRequest(trade, TradeUpdateRequest.DELETE);
-        }
         #endregion
 
         double GetLotSize()

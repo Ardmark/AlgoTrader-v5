@@ -3,8 +3,13 @@ const binanceRest = new api.BinanceRest({
     //key: 'api-key', // Get this from your account on binance.com (this default value will work to read data though)
     //secret: 'api-secret', // Same for this
 
-    key: 'vVo1RvHqDbC07mA7QTaj8Q7dtF6qE7mCrTBztdHOidQLml5dhdk4v1nLDwlzHyZ6', // also, should enable only trusted IP addresses on Binance - have not done this yet
-    secret: 'H7IhdsS3TVUoTjowVOC93lGpcVZo5PjCD1I2vwUeWbIO02N1EUTeb21nWavZfrB1', // Same for this
+    //live
+   // key: 'vVo1RvHqDbC07mA7QTaj8Q7dtF6qE7mCrTBztdHOidQLml5dhdk4v1nLDwlzHyZ6', // also, should enable only trusted IP addresses on Binance - have not done this yet
+ //   secret: 'H7IhdsS3TVUoTjowVOC93lGpcVZo5PjCD1I2vwUeWbIO02N1EUTeb21nWavZfrB1', // Same for this
+
+    //testnet
+    key: 'rssumaVWFRJ6b1Uh3n6E87CXwKz3UytIfpkaGngMVx21ukjCl0Mtik8VwAePt99K',
+    secret: '9vTXpWsL5mSVWAb6piM40kLb9qXumu6wxYFhXwLW4OTZt8YIXc5nhGEHhtzkrK35',
 
     timeout: 15000, // Optional, defaults to 15000, is the request time out in milliseconds
     recvWindow: 10000, // Optional, defaults to 5000, increase if you're getting timestamp errors
@@ -20,7 +25,11 @@ const binanceRest = new api.BinanceRest({
      * binance's server time, calculating the difference with your own clock, and then reattempting
      * the request.
      */
-    baseUrl: 'https://api.binance.com/',
+    //live
+  //  baseUrl: 'https://api.binance.com/',
+    //testnet
+    baseUrl: 'https://testnet.binance.vision',
+
     /*
      * Optional, default is 'https://api.binance.com/'. Can be useful in case default url stops working.
      * In february 2018, Binance had a major outage and when service started to be up again, only
@@ -140,14 +149,13 @@ onCombinedStream
 
 //rw - regardless of whether this is done here or in the onKline method, only one line of data at a time is streamed, not the entire data set for the candle
 
-/*
 
 
+//only setup for JSON in ExchangeDataProcessorBinance, the simpler OnKline just returns non-JSON formatted data.
 binanceWS.onCombinedStream(
     [
 
-        streams.kline('BTCUSDC', '1m')
-     //   streams.kline('ALGOBTC', '1m')
+        streams.kline('BTCUSDT', '1m')
      //  streams.depth('BNBBTC'),
      //   streams.trade('BNBBTC'),
      //   streams.ticker('BNBBTC')
@@ -157,8 +165,8 @@ binanceWS.onCombinedStream(
             let data = JSON.stringify(streamEvent.data); //could remove the JSON.parse() call from ws._setupWebSocket() and work with the single-letter identifiers, if this needed to be more efficient
             switch (streamEvent.stream) {
 
-                case streams.kline('BTCUSDC', '1m'): //fires when trade numbers change, price changes etc., with 'final' field set to true when period ends (60000 ms expired). Close is the current price at this time.
-                case streams.kline('BNBBTC', '1m'):
+                case streams.kline('BTCUSDT', '1m'): //fires when trade numbers change, price changes etc., with 'final' field set to true when period ends (60000 ms expired). Close is the current price at this time.
+                //case streams.kline('BNBBTC', '1m'):
                     console.log(data);
                     break;
 
@@ -188,7 +196,7 @@ binanceWS.onCombinedStream(
     }
            
 );
- */
+ 
 
 
 
