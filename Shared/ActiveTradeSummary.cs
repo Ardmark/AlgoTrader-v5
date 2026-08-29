@@ -35,13 +35,12 @@ namespace AlgoTrader.Shared
             {
                 var ret = await Task.Run(() =>
                 {
-                    using DataContext db = new DataContext();
-                    if (tradeEngine != null)
-                    {
-                        //this is not required for a timed update, that is just to refresh the info window
-                        //otherwise, it is assumed that this call has probably altered the waiting or active trade status somewhere
-                        tradeEngine.UpdateCurrentTradeSetReference(db);
-                    }
+                    using DataContext db = new();
+                    //this is not required for a timed update, that is just to refresh the info window
+                    //otherwise, it is assumed that this call has probably altered the waiting or active trade status somewhere
+
+                    tradeEngine?.UpdateCurrentTradeSetReference(db); //this is called null propagation
+
                     var allTrades = db.Trades.AsNoTracking().AsParallel().Where(x => x.GlobalStatus == TradeGlobalStatus.ACTIVE).ToList();
                     //because check is made against script name, if a trade has exited but still has a script it will be interrupted so will show in the list
                     var enteredTrades = allTrades.Where(x => x.Action == TradeAction.ENTRY).ToList();
@@ -60,8 +59,9 @@ namespace AlgoTrader.Shared
                     var outputString = string.Empty;
                     string dailySummaryString = string.Empty;
 
-                    #region get 9 and 24-hour summaries
+                    #region get 9 and 24-hour summaries (unused)
 
+                    /*
                     unchecked
                     {
                         //if (dailySummary)
@@ -108,10 +108,10 @@ namespace AlgoTrader.Shared
                         //    countdownTimer.Start();
                         //}
                     }
-
+                    */
                     #endregion
 
-                    StringBuilder sb = new StringBuilder(dailySummaryString);
+                    var sb = new StringBuilder(dailySummaryString);
 
                     sb.Append($"{MainObj.GetUpdateCount()} data updates received per minute\n");
 
@@ -153,7 +153,7 @@ namespace AlgoTrader.Shared
 
                     sb.Append(SPACER);
 
-                    #region running base asset trades
+                    #region running trades
                     sb.Append("Running trades:\n");
                     //e.g. Running: Binance BNBBTC   Price +0.5%   Stop -1%    Take profit +16%  (Market Break)
                     foreach (var trade in enteredTrades.OrderBy(x => x.Timestamp))
@@ -211,46 +211,8 @@ namespace AlgoTrader.Shared
 
                     #endregion
 
-                    #region running quote asset trade
-                    //foreach (var trade in enteredTrades.OrderBy(x => x.ExchangeId).ThenBy(x => x.SymbolName))
-                    //{
-                    //    if (currentSymbolList.TryGetValue(trade.SymbolName, out SymbolDataItem currentSymbol))
-                    //    {
-                    //        bool isQuoteAsset = false;
-                    //        foreach (var quoteAsset in SymbolNamesBinance.QUOTE_ASSETS)
-                    //        {
-                    //            if (trade.SymbolName == quoteAsset)
-                    //            {
-                    //                isQuoteAsset = true;
-                    //                break;
-                    //            }
-                    //        }
-                    //        if (isQuoteAsset)
-                    //        {
-                    //            var s = trade.ExchangeStatus == TradeExchangeStatus.ENTERED_ON_EXCHANGE ? " " : "Test ";
-                    //            s += trade.ExchangeMethodScript == null ? "" : " INTERRUPTED";
-
-                    //            sb.Append(string.Concat("\n", Pad12(trade.SymbolName)));
-
-                    //            var priceDiff = -MainObj.GetPriceDiff(trade.Price, currentSymbol.Close, trade.Position) * 100;
-                    //            sb.Append(Pad20(string.Format("Price {0}{1}%", priceDiff < 0 ? "" : "+", priceDiff.ToString("F"))));
-                    //            sb.Append(string.Concat("    ", Enum.GetName(typeof(TradeType), trade.Type)));
-
-                    //            var entry = db.Trades.Where(x => x.TradeReference == trade.TradeReference && x.Action == TradeAction.ENTRY).FirstOrDefault();
-                    //            var entryString = entry != null
-                    //                ? $",  entered {entry.Timestamp:g} at {entry.Price}"
-                    //                : string.Empty;
-
-                    //            sb.Append(Pad20(entryString));
-                    //            sb.Append(s);
-                    //            sb.Append("\n");
-                    //        }
-                    //    }
-                    //}
-
-                    #endregion
-
                     sb.Append(SPACER);
+                 
                     #region waiting trades
                     //e.g. Waiting: Binance ALGOBTC  
                     sb.Append("Waiting trades:\n");
@@ -271,7 +233,6 @@ namespace AlgoTrader.Shared
                     sb.Append(SPACER);
 
                     #region closed trades
-
                     sb.Append("Closed trades:\n");
                     //sb.Append("\tLeverage\tAmount\tEntry: Date\tTime\tPrice\tBalance\tExit: Date\tTime\tPrice\tBalance\tEquity\tResult\tResult Leveraged\tEquity result\tDollar result\tSide\tTF\t$ P/L\tUSDGBP\t£ P/L\n");
                     //this does not really line up so omit it
@@ -293,18 +254,13 @@ namespace AlgoTrader.Shared
                             //binance has a close quantity of BTC and a close price of BTC $ value
                             double entryEquity = 0;
                             double closeEquity = 0;
+                            double prevEquity = 0;
                             switch (TradeEngine.EXCHANGE)
                             {
                                 case ExchangeId.BINANCE:
                                     entryEquity = entry.Quantity * entry.Price;
                                     closeEquity = close.Quantity * close.Price;
                                     break;
-
-                                //case ExchangeId.BITMEX:
-                                //    entryEquity = entry.Quantity;
-                                //    closeEquity = close.Quantity;
-                                //    //entry and close quantities are always the same for a 100% close, so calculate profit / loss from %
-                                //    break;
                             }
 
                             //display intermediate trade result
@@ -330,8 +286,8 @@ namespace AlgoTrader.Shared
                                         $"{entry.Balance:F2}\t" +
                                         //"\t" +
                                         $"{_result:F2}%\t" +
-                                        "\t" +
                                         //"\t" +
+                                        "\t" +
                                         "\t" +
                                         "\t" +
                                         "\t" +
@@ -347,13 +303,12 @@ namespace AlgoTrader.Shared
                             var leverage = close.Leverage == 0 ? 1 : close.Leverage; //just to be safe
                             var result = close.Result; //already adjusted for fees
 
-                            var balanceResult = (close.Balance / entry.Balance - 1) * 100;
+                            var balanceResult = entry.Balance > 0 ? (close.Balance / entry.Balance - 1) * 100 : 0;
                             var profit = close.Balance - entry.Balance;
                             var pos = close.Position == TradePosition.LONG ? "long" : "short";
                             //var stopResult = order != null ? order.Result.ToString("F1") : "--"; //Order.Result holds the stop percent, I think
                             var leveragedResult = result * leverage;
                             var gbp = profit * close.ExchangeRate;
-                            //var equityResult = prevEquity > 0 ? 100* (close.Equity - prevEquity) / prevEquity : 0;
                             //prevEquity = close.Equity;
                             sb.Append(
                                 $"{symbolName}\t" +
@@ -367,10 +322,8 @@ namespace AlgoTrader.Shared
                                 $"{close.Timestamp:t}\t" +
                                 $"{PriceFormatter.Format(close.Price)}\t" +
                                 $"{close.Balance:F2}\t" +
-                                //$"{close.Equity:F6}\t" +
                                 $"{result:F}%\t" +
                                 $"{leveragedResult:F2}%\t" +
-                                //$"{equityResult:F2}%\t" +
                                 $"{balanceResult:F}%\t" +
                                 $"{pos}\t" +
                                 $"{close.TimeFrame}\t" +

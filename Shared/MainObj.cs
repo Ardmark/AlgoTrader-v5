@@ -952,7 +952,7 @@ namespace AlgoTrader.Shared
 
                 mainViewModel.SetTimeframeMenuState(TimeFrame);
                 mainViewModel.SetInitialTime(timeFrame);
-                mainViewModel.SetConcurrentOrdersMenuState(TradeEngine.MAX_CONCURRENT_TRADES);
+
                 mainViewModel.SetLeverage((int)TradeEngine.DEFAULT_LEVERAGE);
                 if (!BACKTEST)
                 {
@@ -1478,7 +1478,6 @@ namespace AlgoTrader.Shared
             visibleChart.GoToFrame(frame, offsetFrames);
             ScrollToEnd();
             DrawCurrentDispatcher();
-
         }
 
         internal static async void TradeStatusChanged(TradeEngine tradeEngine, bool redraw = true)
@@ -1508,7 +1507,6 @@ namespace AlgoTrader.Shared
 
         internal static void SetCurrentSeconds(double countdownSeconds)
         {
-            //mainViewModel.CurrentSeconds(((TimeFrame - TotalItems % TimeFrame - 1) * 60 + countdownSeconds));
             mainViewModel.CurrentSeconds(countdownSeconds);
         }
         #endregion
@@ -1608,9 +1606,6 @@ namespace AlgoTrader.Shared
             return DateTime.Compare(DateTime.Now, new DateTime(DateTime.Now.Year, DateTime.Now.Month, DateTime.Now.Day, startHour, startMinute, 0)) > 0 && DateTime.Compare(DateTime.Now, new DateTime(DateTime.Now.Year, DateTime.Now.Month, DateTime.Now.Day, endHour, endMinute, 0)) < 0;
         }
 
-
-
-
         public static bool IsOnTimeBoundary(int timeFrame, int frame)
         {
             //display time is not the same as internal bar time in bst
@@ -1671,12 +1666,7 @@ namespace AlgoTrader.Shared
             catch { }
         }
 
-        public static bool TradeRunningLocally(_Trade trade)
-        {
-            return MainObj.IsBacktesting
-                    || trade.ExchangeStatus == TradeExchangeStatus.ENTERED_OFF_EXCHANGE
-                    || ((trade.Action == TradeAction.STOP || trade.Action == TradeAction.FLOOR || trade.Action == TradeAction.CEILING || trade.Action == TradeAction.TAKE_PROFIT) && TradeEngine.USE_SIMULATED_EXCHANGE == true);
-        }
+
 
 
         #endregion
@@ -1688,6 +1678,12 @@ namespace AlgoTrader.Shared
         //public delegate T MyFunc<in TradeEngine, in Chart, out T>(Chart arg);
 
         /*
+        public static bool TradeRunningLocally(_Trade trade)
+        {
+            return MainObj.IsBacktesting
+                    || trade.ExchangeStatus == TradeExchangeStatus.ENTERED_OFF_EXCHANGE
+                    || ((trade.Action == TradeAction.STOP || trade.Action == TradeAction.FLOOR || trade.Action == TradeAction.CEILING || trade.Action == TradeAction.TAKE_PROFIT) && TradeEngine.USE_SIMULATED_EXCHANGE == true);
+        }
         internal static void ClearOrders(TradeType tradeType, DataContext db)
         {
             db.Trades.RemoveRange(dataContext_UI.Trades.Where(d =>

@@ -35,7 +35,7 @@ namespace AlgoTrader.Shared
         public static bool showClosedTrades = true;
         public static bool showOnlyActiveTrade = true;
         public static bool showTrades = true;
-        public static bool showFloorTrades = true;
+        public static bool showTakeProfit = true;
         public static bool showLiquidations = false;
 
         public static readonly SolidColorBrush STOPPED_COLOR_L = Brushes.Black;
@@ -503,9 +503,17 @@ namespace AlgoTrader.Shared
                             // - so the lines that have beenn initialised still have their initialisation settings
 
                             //the <= and >= just did not work sometimes withing the lambda
+
+                            //by comparing the trade action with one which is never assigned, they will all pass
+                            //otherwise we can just block them selectively to hide the lines
+                            TradeAction allTradeActionsAllowed = showTakeProfit ? TradeAction.NULL : TradeAction.TAKE_PROFIT;
                             visibleLines = tradeEngine.UI_Lines.Where(f =>
+                                                                            f.Trade != null &&
+                                                                            f.Trade.Action != allTradeActionsAllowed &&
+                                                                            (
                                                                             (DateTime.Compare(f.StartTimeStamp, rightEdgeTimestamp) <= 0 && DateTime.Compare(f.EndTimeStamp, leftEdgeTimestamp) >= 0) ||
                                                                             (DateTime.Compare(f.StartTimeStamp, leftEdgeTimestamp) >= 0 && DateTime.Compare(f.EndTimeStamp, rightEdgeTimestamp) <= 0)
+                                                                            )
                                                                         );
                         }
                         #region Hide lines if only showing selected trade (unused)
@@ -541,10 +549,10 @@ namespace AlgoTrader.Shared
                             {
                                 orders = orders.Where(x => x.GlobalStatus != TradeGlobalStatus.STOPPED);
                             }
-                            //if (!showFloorTrades)
-                            //{
-                            //    orders = orders.Where(x => x.Action != TradeAction.FLOOR && x.Action != TradeAction.CEILING);
-                            //}
+                            if (!showTakeProfit)
+                            {
+                                orders = orders.Where(x => x.Action != TradeAction.TAKE_PROFIT);
+                            }
 
 
                             //include any orders where the order and current time / close are either visible or bracket the visible area
@@ -582,14 +590,14 @@ namespace AlgoTrader.Shared
 
                                 if (canShow)
                                 {
-                                    //if (!showFloorTrades)
-                                    //{
-                                    //    visibleOrActiveOrders.AddRange(tradeEngine.UI_Trades.Where(x => x.TradeReference == trade.TradeReference && x.Action != TradeAction.FLOOR && x.Action != TradeAction.CEILING));
-                                    //}
-                                    //else
-                                    //{
-                                        visibleOrActiveOrders.AddRange(tradeEngine.UI_Trades.Where(x => x.TradeReference == trade.TradeReference));
-                                    //}
+                                    if (!showTakeProfit)
+                                    {
+                                        visibleOrActiveOrders.AddRange(tradeEngine.UI_Trades.Where(x => x.TradeReference == trade.TradeReference && x.Action != TradeAction.TAKE_PROFIT));
+                                    }
+                                    else
+                                    {
+                                      visibleOrActiveOrders.AddRange(tradeEngine.UI_Trades.Where(x => x.TradeReference == trade.TradeReference));
+                                    }
                                 }
                             }
 
@@ -802,10 +810,10 @@ namespace AlgoTrader.Shared
                             var stop = tradeGroup.FirstOrDefault(x => x.Action == TradeAction.STOP); //can also be a flip order stop
                             var stopWaiting = tradeGroup.FirstOrDefault(x => x.Action == TradeAction.WAITING_STOP);
                             var takeProfit = tradeGroup.FirstOrDefault(x => x.Action == TradeAction.TAKE_PROFIT);
-                            var ceiling = tradeGroup.FirstOrDefault(x => x.Action == TradeAction.CEILING);
-                            var floor = tradeGroup.FirstOrDefault(x => x.Action == TradeAction.FLOOR);
+                            //var ceiling = tradeGroup.FirstOrDefault(x => x.Action == TradeAction.CEILING);
+                            //var floor = tradeGroup.FirstOrDefault(x => x.Action == TradeAction.FLOOR);
                             var close = tradeGroup.FirstOrDefault(x => x.Action == TradeAction.CLOSE);
-                            var breakEven = tradeGroup.FirstOrDefault(x => x.Action == TradeAction.BREAK_EVEN);
+                            //var breakEven = tradeGroup.FirstOrDefault(x => x.Action == TradeAction.BREAK_EVEN);
                             var flipOrder = tradeGroup.FirstOrDefault(x => x.Type == TradeType.FLIP_ORDER);
 
                             var oppPosition = order.Position == TradePosition.LONG ? TradePosition.SHORT : TradePosition.LONG;
@@ -917,7 +925,7 @@ namespace AlgoTrader.Shared
                                             if (trade.ItemStatus == TradeItemStatus.OPEN || trade.GlobalStatus == TradeGlobalStatus.ACTIVE || entry == null)
                                             {
                                                 string extraText = string.Empty;
-                                                if (floor == null && stop == null)
+                                                if (stop == null)
                                                 {
                                                     if (flipOrder != null)
                                                     {
@@ -1124,19 +1132,12 @@ namespace AlgoTrader.Shared
                                             canvas1 = TradeTakeProfitMarker(left + currentTimeOffset, top, color, outline, trade.Position, (trade.GlobalStatus == TradeGlobalStatus.ACTIVE ? text : " stopped"), trade.Type == TradeType.LINE_BREAK_ORDER).canvas;
                                             break;
 
-                                        case TradeAction.CEILING:
-
-                                            text = trade.Quantity.ToString() + " ceiling ";
-
-                                            if (tradeEngine.currentDataItem != null)
-                                            {
-                                                var ceilingPricePC = -MainObj.GetPriceDiff(orderPriceNow, trade.Price, order.Position) * 100;
-                                                text += GetStopText(ceilingPricePC, hasEntered, order, false, false);
-                                            }
-
-                                            canvas1 = TradeTakeProfitMarker(left + currentTimeOffset, top, color, outline, trade.Position, (trade.GlobalStatus == TradeGlobalStatus.ACTIVE ? text : " stopped"), trade.Type == TradeType.FLIP_ORDER).canvas;
+                                        case TradeAction.CLOSE:
+                                            var s1 = (trade.Position == TradePosition.LONG ? "Long " : "Short ") + trade.Result.ToString("0.0000") + "%";
+                                            canvas1 = TradeExitMarker(left, top, MainObj.darkBG, outline, s1).canvas;
                                             break;
-
+                                            
+                                            /*
                                         case TradeAction.BREAK_EVEN:
 
                                             text = trade.Quantity.ToString() + " break even ";
@@ -1149,38 +1150,48 @@ namespace AlgoTrader.Shared
 
                                             canvas1 = TradeBreakEvenMarker(left + currentTimeOffset, top, color, outline, trade.Position, trade.GlobalStatus == TradeGlobalStatus.ACTIVE ? text : " stopped").canvas;
                                             break;
+                                        case TradeAction.CEILING:
 
+                                        text = trade.Quantity.ToString() + " ceiling ";
+
+                                        if (tradeEngine.currentDataItem != null)
+                                        {
+                                            var ceilingPricePC = -MainObj.GetPriceDiff(orderPriceNow, trade.Price, order.Position) * 100;
+                                            text += GetStopText(ceilingPricePC, hasEntered, order, false, false);
+                                        }
+
+                                        canvas1 = TradeTakeProfitMarker(left + currentTimeOffset, top, color, outline, trade.Position, (trade.GlobalStatus == TradeGlobalStatus.ACTIVE ? text : " stopped"), trade.Type == TradeType.FLIP_ORDER).canvas;
+                                        break;
                                         case TradeAction.FLOOR:
 
-                                            if (showFloorTrades)
+                                        if (showFloorTrades)
+                                        {
+                                            text = "floor";
+
+                                            if (tradeEngine.currentDataItem != null)
                                             {
-                                                text = "floor";
+                                                var floorPricePC = order.Position == TradePosition.LONG
+                                                    ? -MainObj.GetPriceDiff(orderPriceNow, trade.Price, order.Position) * 100
+                                                    : -MainObj.GetPriceDiff(trade.Price, orderPriceNow, order.Position) * 100;
 
-                                                if (tradeEngine.currentDataItem != null)
+
+                                                if (entry == null)
                                                 {
-                                                    var floorPricePC = order.Position == TradePosition.LONG
-                                                        ? -MainObj.GetPriceDiff(orderPriceNow, trade.Price, order.Position) * 100
-                                                        : -MainObj.GetPriceDiff(trade.Price, orderPriceNow, order.Position) * 100;
-
-
-                                                    if (entry == null)
-                                                    {
-                                                        //will add this in when it breaks the entry line
-                                                        floorPricePC -= TradeEngine.ENTRY_LINE_PRICE_GAP_PC;
-                                                    }
-
-                                                    text += GetStopText(floorPricePC, hasEntered, order, false, true);
+                                                    //will add this in when it breaks the entry line
+                                                    floorPricePC -= TradeEngine.ENTRY_LINE_PRICE_GAP_PC;
                                                 }
 
-                                                canvas1 = TradeStopMarker(trade.Position, left + currentTimeOffset, top, color, outline, (trade.GlobalStatus == TradeGlobalStatus.ACTIVE ? text : " stopped"), trade.Type == TradeType.FLIP_ORDER, trade.ExecutionSystem == TradeExecutionSystem.EXCHANGE_UNSYNCHED).canvas;
+                                                text += GetStopText(floorPricePC, hasEntered, order, false, true);
                                             }
-                                            break;
 
-                                        case TradeAction.CLOSE:
-                                            var s1 = (trade.Position == TradePosition.LONG ? "Long " : "Short ") + trade.Result.ToString("0.0000") + "%";
-                                            canvas1 = TradeExitMarker(left, top, MainObj.darkBG, outline, s1).canvas;
-                                            break;
+                                            canvas1 = TradeStopMarker(trade.Position, left + currentTimeOffset, top, color, outline, (trade.GlobalStatus == TradeGlobalStatus.ACTIVE ? text : " stopped"), trade.Type == TradeType.FLIP_ORDER, trade.ExecutionSystem == TradeExecutionSystem.EXCHANGE_UNSYNCHED).canvas;
+                                        }
+                                        break;
+                                        */
+
+
                                     }
+
 
                                     if (canvas1 != null)
                                     {
@@ -1218,9 +1229,9 @@ namespace AlgoTrader.Shared
                                                 switch (trade.Action)
                                                 {
                                                     case TradeAction.STOP:
-                                                    case TradeAction.FLOOR:
-                                                    case TradeAction.CEILING:
-                                                    case TradeAction.BREAK_EVEN:
+                                                    //case TradeAction.FLOOR:
+                                                    //case TradeAction.CEILING:
+                                                    //case TradeAction.BREAK_EVEN:
                                                     case TradeAction.TAKE_PROFIT:
                                                         CurrentTrade = trade;
                                                         e.Handled = true;
@@ -1265,7 +1276,7 @@ namespace AlgoTrader.Shared
                             }
 
                             _ChartLine stopLine = stop == null ? null : visibleLines.FirstOrDefault(x => x.TradeId == stop.Id);
-                            _ChartLine tpLine = takeProfit == null ? null : visibleLines.FirstOrDefault(x => x.TradeId == takeProfit.Id);
+                            _ChartLine tpLine = showTakeProfit && takeProfit != null ? visibleLines.FirstOrDefault(x => x.TradeId == takeProfit.Id) : null;
 
                             //this will draw all trades at the Order timestamp, not the trade timestamp - 
                             // so stops, which will track with time, will always show lined up with the other orders
@@ -1305,6 +1316,7 @@ namespace AlgoTrader.Shared
                             }
                             if (close == null)// && entry?.GlobalStatus == TradeGlobalStatus.ACTIVE)
                             {
+                                /*
                                 if (ceiling != null)
                                 {
                                     DrawStopLines(ceiling.Price, TAKE_PROFIT_COLOR_ACTIVE, right, 2, true);
@@ -1314,10 +1326,12 @@ namespace AlgoTrader.Shared
                                 {
                                     DrawStopLines(floor.Price, STOP_COLOR_ACTIVE, right, 2, true);
                                 }
+                                
                                 if (breakEven != null)
                                 {
                                     DrawStopLines(breakEven.Price, BREAKEVEN_COLOR_ACTIVE, right, 2, true);
                                 }
+                                */
 
                                 var topPrice = tradeGroup.Max(x => x.Price);
                                 var botPrice = tradeGroup.Min(x => x.Price);
@@ -1435,7 +1449,7 @@ namespace AlgoTrader.Shared
                     var hideClosed = Chart.showClosedTrades == false ? "\nClosed trades hidden" : string.Empty;
                     var hideAll = Chart.showTrades == false ? "\nAll trades hidden" : string.Empty;
                     var hideAllButSelected = string.Empty;
-                    if (!showFloorTrades) hideAllButSelected += "\nFloor trades hidden";
+                    if (!showTakeProfit) hideAllButSelected += "\nTake Profit trades hidden";
                     if (!showLiquidations) hideAllButSelected += "\nLiquidation levels hidden";
                     var sn = symbolName + (MainObj.invertChart ? " INVERTED\n" : "\n");
                     var leverage = TradeEngine.EXCHANGE == ExchangeId.BITMEX ? $"{(int)TradeEngine.Leverage}x " : "";

@@ -224,10 +224,7 @@ namespace AlgoTrader.Shared
             MainObj.DrawImmediate();
         }
 
-        internal void SetStopAtPrice_UI_synchronised(DateTime timeStamp, double price, TradeStop tradeStop)
-        {
-            SetStop_UI(timeStamp, price, TradeAction.STOP, TradeType.NO_FLIP_ORDER, tradeStop);
-        }
+
 
         //internal void SetFloorAtPrice_UI_synchronised(DateTime timeStamp, double price)
         //{
@@ -246,6 +243,11 @@ namespace AlgoTrader.Shared
         //    SetStop_UI(timeStamp, price, TradeAction.BREAK_EVEN, TradeType.NO_FLIP_ORDER);
         //}
         
+        internal void SetStopAtPrice_UI_synchronised(DateTime timeStamp, double price, TradeStop tradeStop)
+        {
+            SetStop_UI(timeStamp, price, TradeAction.STOP, TradeType.NO_FLIP_ORDER, tradeStop);
+        }        
+        
         internal void SetTakeProfitAtPrice_UI_synchronised(DateTime timeStamp, double price)
         {
             SetStop_UI(timeStamp, price, TradeAction.TAKE_PROFIT, TradeType.NO_FLIP_ORDER);
@@ -261,54 +263,57 @@ namespace AlgoTrader.Shared
                     return;
                 }
             }
-            InitForDataContext(() =>
+            Task.Run(() =>
             {
-                if (Order != null)
+                InitForDataContext(() =>
                 {
-                    AlertDialog.Show("Cannot set 2 active trades to run concurrently on same symbol", "Not possible");
-                    return;
-                }
+                    if (Order != null)
+                    {
+                        AlertDialog.Show("Cannot set 2 active trades to run concurrently on same symbol", "Not possible");
+                        return;
+                    }
 
-                //must have at least 24 hours of data, or trade can be placed before first midnight boundary so will never be visible unless it closes the following day
-                if (results.Count < 24 * MainObj.INITIAL_TIMEFRAME)
-                {
-                    AlertDialog.Show("Could not set market break order, needs 24 bars data", "Insufficient data");
-                    return;
-                }
+                    //must have at least 24 hours of data, or trade can be placed before first midnight boundary so will never be visible unless it closes the following day
+                    if (results.Count < 24 * MainObj.INITIAL_TIMEFRAME)
+                    {
+                        AlertDialog.Show("Could not set market break order, needs 24 bars data", "Insufficient data");
+                        return;
+                    }
 
-                var order = new _Trade
-                {
-                    Timestamp = timeStamp,
-                    TradeReference = _Trade.GetNewTradeId(),
-                    Type = TradeType.MARKET_ORDER,
-                    Position = position,
-                    Action = TradeAction.ORDER,
-                    Price = price,
-                    TimeFrame = Chart.TimeFrame,
-                    SymbolName = symbolName,
-                    ExchangeId = exchangeId,
-                };
+                    var order = new _Trade
+                    {
+                        Timestamp = timeStamp,
+                        TradeReference = _Trade.GetNewTradeId(),
+                        Type = TradeType.MARKET_ORDER,
+                        Position = position,
+                        Action = TradeAction.ORDER,
+                        Price = price,
+                        TimeFrame = Chart.TimeFrame,
+                        SymbolName = symbolName,
+                        ExchangeId = exchangeId,
+                    };
 
-                SetUpdateRequest(order);
+                    SetUpdateRequest(order);
 
-                currentTradeSetReference = order.TradeReference;
+                    currentTradeSetReference = order.TradeReference;
 
-                var currentTradeIndicator = GetCurrentTradeIndicator(order);
+                    var currentTradeIndicator = GetCurrentTradeIndicator(order);
 
-                //when a trade is changed, added or deleted, mark it with a TradeUpdateRequest and add to the trades list
-                (bool hasEntered, bool tradeKilled) = EnterIfPossible_synchronised(order, null);
-                if (tradeKilled)
-                {
-                    order.ItemStatus = TradeItemStatus.CLOSED;
-                    order.GlobalStatus = TradeGlobalStatus.STOPPED;
-                }
-                if (hasEntered)
-                {
-                    Order = order;
-                }
+                    //when a trade is changed, added or deleted, mark it with a TradeUpdateRequest and add to the trades list
+                    (bool hasEntered, bool tradeKilled) = EnterIfPossible_synchronised(order, null);
+                    if (tradeKilled)
+                    {
+                        order.ItemStatus = TradeItemStatus.CLOSED;
+                        order.GlobalStatus = TradeGlobalStatus.STOPPED;
+                    }
+                    if (hasEntered)
+                    {
+                        Order = order;
+                    }
+                });
+
+                MainObj.TradeStatusChanged(this);
             });
-
-            MainObj.TradeStatusChanged(this);
         }
 
         internal void AddBreakToLineLocal_UI_synchronised(int chartLineId, TradePosition position, double price, bool isBacktest)
@@ -603,6 +608,11 @@ namespace AlgoTrader.Shared
                     return;
                 }
 
+                if ((trade.ItemStatus == TradeItemStatus.OPEN || trade.GlobalStatus == TradeGlobalStatus.ACTIVE) && trade.ExchangeStatus == TradeExchangeStatus.ENTERED_ON_EXCHANGE)
+                {
+                    AlertDialog.Show("Cannot delete a live trade!");
+                    return;
+                }
                 RemoveTradeFromSystem_UI_synchronised(trade, false, allowForceRemove);
 
                 MainObj.TradeStatusChanged(this);
@@ -1562,17 +1572,6 @@ namespace AlgoTrader.Shared
         #endregion
 
 
-        //this allows for selective removal of stops before exchange removal, if the latter is not used (stop and floor on Bitmex or just stop on Binance)
-        protected void RemoveTradeBeforeExchangeRemoval_Synchronised(_Trade trade, bool removeLine, bool allowForceRemove)
-        {
-            if (!allowForceRemove && (trade.Action == TradeAction.STOP || trade.Action == TradeAction.FLOOR))
-            {
-                return;
-            }
-            RemoveTradeFromLine_UI_synchronised(trade, removeLine);
-            SetUpdateRequest(trade, TradeUpdateRequest.DELETE);
-        }
-
         //note, this method uses the AllTrades list
         private bool RemoveTradeFromSystem_UI_synchronised(_Trade trade, bool removeLine, bool allowForceRemove = false)
         {
@@ -1587,44 +1586,19 @@ namespace AlgoTrader.Shared
                     var tradesToRemove = AllTrades.Where(x => x.TradeReference == trade.TradeReference);
                     var entry = tradesToRemove.Where(x => x.Action == TradeAction.ENTRY).FirstOrDefault();
 
-                    //Binance_RemovePendingTradeRequest();
-
                     //if this is a locally entered trade, can remove it without closing on the exchange
-                    if (allowForceRemove)
+                    foreach (var t in tradesToRemove)
                     {
-                        foreach (var t in tradesToRemove)
-                        {
-                            RemoveTradeFromLine_UI_synchronised(t, removeLine);
-                            SetUpdateRequest(t, TradeUpdateRequest.FORCE_DELETE);
-                        }
-                        break;
+                        RemoveTradeFromLine_UI_synchronised(t, removeLine);
+                        SetUpdateRequest(t, allowForceRemove ? TradeUpdateRequest.FORCE_DELETE : TradeUpdateRequest.DELETE);
                     }
+                    break;
+                   
 
-                    if (!CanDeleteTrade_synchronised(trade, entry))
-                    {
-                        AlertDialog.Show("Close trade first before removing", "Remove running trade");
-                        {
-                            return false;
-                        }
-                    }
                     //dump the lot
                     if (entry != null && entry.ExchangeMethodScript != null)
                     {
                         AlertDialog.Show($"{entry.SymbolName} was an interrupted trade. Check status on Exchange!");
-                    }
-                    foreach (var t in tradesToRemove)
-                    {
-                        RemoveTradeFromLine_UI_synchronised(t, removeLine);
-
-
-                        if (entry == null || entry.GlobalStatus == TradeGlobalStatus.STOPPED)
-                        {
-                            SetUpdateRequest(t, TradeUpdateRequest.FORCE_DELETE);
-                        }
-                        else
-                        {
-                            SetUpdateRequest(t, TradeUpdateRequest.DELETE);
-                        }
                     }
                     break;
 
@@ -1632,12 +1606,7 @@ namespace AlgoTrader.Shared
                 //for stops and take profits, these can be removed while trade is live
                 case TradeAction.STOP:
                 case TradeAction.WAITING_STOP:
-                case TradeAction.CEILING:
                 case TradeAction.TAKE_PROFIT:
-                case TradeAction.BREAK_EVEN:
-                case TradeAction.FLOOR:
-
-                    RemoveTradeBeforeExchangeRemoval_Synchronised(trade, removeLine, allowForceRemove || Entry == null);
 
                     if (trade.Type == TradeType.FLIP_ORDER)
                     {
@@ -1649,31 +1618,9 @@ namespace AlgoTrader.Shared
                             SetUpdateRequest(waitingStop, TradeUpdateRequest.DELETE);
                         }
                     }
-                    if (Entry != null)
-                    {
-                        if (trade.ExchangeStatus == TradeExchangeStatus.ENTERED_ON_EXCHANGE)
-                        {
-                            //if stop is added then removed before first update, won't have been set on exchange
-                            //also, if not setting stops on exchange then bail here
-                            if (trade.Action == TradeAction.STOP)
-                            {
-                                AlertDialog.Show("Stop is live, cannot remove from Exchange");
-                                {
-                                    return false;
-                                }
-                            }
-                            return true;
-                        }
-                        else
-                        {
-                            RemoveTradeFromLine_UI_synchronised(trade, false);
-                            SetUpdateRequest(trade, TradeUpdateRequest.DELETE);
-                            if (trade.Action == TradeAction.STOP)
-                            {
-                                AlertDialog.Show("Stop was not set on exchange, only removed from local system ");
-                            }
-                        }
-                    }
+
+                    RemoveTradeFromLine_UI_synchronised(trade, false);
+                    SetUpdateRequest(trade, allowForceRemove ? TradeUpdateRequest.FORCE_DELETE : TradeUpdateRequest.DELETE);
 
                     break;
 
@@ -2027,25 +1974,20 @@ namespace AlgoTrader.Shared
                 case TradeAction.ORDER:
                     //isClose = v < MIN_ORDER_THRESHOLD;
                     break;
-                case TradeAction.BREAK_EVEN:
-                    isClose = v < BREAK_EVEN_THRESHOLD;
-                    isWrongSide = v < 0;
-                    break;
+                //case TradeAction.BREAK_EVEN:
+                //    isClose = v < BREAK_EVEN_THRESHOLD;
+                //    isWrongSide = v < 0;
+                //    break;
                 case TradeAction.TAKE_PROFIT:
-                case TradeAction.CEILING:
+                //case TradeAction.CEILING:
                     isClose = -v < STOPLINE_MIN_VALUE;
                     isWrongSide = v > 0;
                     break;
-                case TradeAction.FLOOR:
+                //case TradeAction.FLOOR:
                 case TradeAction.STOP:
                 case TradeAction.WAITING_STOP:
                     isClose = v < STOPLINE_MIN_VALUE;
                     isWrongSide = v < 0;
-                    //break;
-                    //case TradeAction.WAITING_STOP:
-                    //isClose = v < STOPLINE_MIN_VALUE;
-                    //isClose = position == TradePosition.LONG ? -v > STOPLINE_MIN_VALUE : v > STOPLINE_MIN_VALUE;
-                    //isWrongSide =
                     break;
             }
 

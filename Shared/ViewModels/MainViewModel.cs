@@ -288,7 +288,7 @@ namespace AlgoTrader.Live.ViewModels
         public bool HeikinAshi_Checked { get; set; }
         public bool ShowClosedTrades_Checked { get; set; } = true;
         public bool ShowOnlyActiveTrade_Checked { get; set; } = false;
-        public bool ShowFloorTrades_Checked { get; set; } = true;
+        public bool ShowTakeProfit_Checked { get; set; } = true;
         public bool ShowLiquidations_Checked { get; set; } = true;
         public bool DarkMode_Checked { get; set; } = true;
         public bool DrawingMode_Checked { get; set; } = false;
@@ -401,7 +401,6 @@ namespace AlgoTrader.Live.ViewModels
         #region Concurrent orders
         ICommand concurrentOrdersCommand;
         //when changing the menu timeframes, also remember to change the key bindings in MainWindow.xaml as well
-        public ICommand ConcurrentOrdersCommand => concurrentOrdersCommand ?? (concurrentOrdersCommand = new CommandHandler((param) => SetConcurrentOrders(param), true));
         #endregion
 
         ICommand restartAllStoppedOrders;
@@ -515,7 +514,7 @@ namespace AlgoTrader.Live.ViewModels
         public ICommand ShowClosedTradesCommand => showClosedTradesCommand ?? (showClosedTradesCommand = new CommandHandler1(() => { ToggleShowClosedTrades(); }, true));
         public ICommand ShowWaitingTradesCommand => showWaitingTradesCommand ?? (showWaitingTradesCommand = new CommandHandler1(() => { ToggleShowOnlyActiveTrade(); }, true));
         public ICommand ShowAllTradesCommand => showAllTradesCommand ?? (showAllTradesCommand = new CommandHandler1(() => { ToggleShowAllTrades(); }, true));
-        public ICommand ShowFloorTradesCommand => showFloorTradesCommand ?? (showFloorTradesCommand = new CommandHandler1(() => { ToggleShowFloorTrades(); }, true));
+        //public ICommand ShowFloorTradesCommand => showFloorTradesCommand ?? (showFloorTradesCommand = new CommandHandler1(() => { ToggleShowFloorTrades(); }, true));
         public ICommand ShowLiquidationsCommand => showLiquidationsCommand ?? (showLiquidationsCommand = new CommandHandler1(() => { ShowHideLiquidations(); }, true));
         public ICommand DrawingModeCommand => drawingModeCommand ?? (drawingModeCommand = new CommandHandler1(() => { ToggleDrawingMode(); }, true));
         public ICommand ToggleDarkModeCommand => darkModeCommand ?? (darkModeCommand = new CommandHandler1(() => { ToggleDarkMode(); }, true));
@@ -573,14 +572,14 @@ namespace AlgoTrader.Live.ViewModels
         #endregion
 
         #region Button commands
-        ICommand synchStopsWithExchangeButton_Click, showHideFloors_Command, cleanupTradesAndLines_Command, cleanupLines_Command, cleanupTrades_Command, extendLines_Command, removeUnallocatedLines_Command, setOrderButton_Command, nextTradeButton_Command, prevTradeButton_Command, scrollButton1_Command, scrollButton2_Command, scrollButton3_Command, scrollButton4_Command, scrollButton5_Command, scrollButton6_Command, scaleButton1_Command, scaleButton2_Command;
+        ICommand synchStopsWithExchangeButton_Click, showHideTP_Command, cleanupTradesAndLines_Command, cleanupLines_Command, cleanupTrades_Command, extendLines_Command, removeUnallocatedLines_Command, setOrderButton_Command, nextTradeButton_Command, prevTradeButton_Command, scrollButton1_Command, scrollButton2_Command, scrollButton3_Command, scrollButton4_Command, scrollButton5_Command, scrollButton6_Command, scaleButton1_Command, scaleButton2_Command;
         public ICommand SynchStopsWithExchangeButton_Click => synchStopsWithExchangeButton_Click ?? (synchStopsWithExchangeButton_Click = new CommandHandler1(() => SynchStopsWithExchange(), true));
         public ICommand SetOrderButton_Click => setOrderButton_Command ?? (setOrderButton_Command = new CommandHandler((param) => ShowSetOrderAtPriceDialog(param), true));
         public ICommand ExtendLine_Click => extendLines_Command ?? (extendLines_Command = new CommandHandler((param) => ExtendLines(param), true));
         public ICommand CleanupLines_Click => cleanupLines_Command ?? (cleanupLines_Command = new CommandHandler1(() => CleanupLines(), true));
         public ICommand CleanupTrades_Click => cleanupTrades_Command ?? (cleanupTrades_Command = new CommandHandler1(() => CleanupTrades(), true));
         public ICommand CleanupTradesAndLines_Click => cleanupTradesAndLines_Command ?? (cleanupTradesAndLines_Command = new CommandHandler1(() => { CleanupTrades(); CleanupLines(); }, true));
-        public ICommand ToggleFloor_Click => showHideFloors_Command ?? (showHideFloors_Command = new CommandHandler1(() => { ShowHideFloors(); }, true));
+        public ICommand ToggleTP_Click => showHideTP_Command ?? (showHideTP_Command = new CommandHandler1(() => { ShowHideTP(); }, true));
         //public ICommand ToggleLiquidation_Click => showHideLiquidations_Command ?? (showHideLiquidations_Command = new CommandHandler1(() => { ShowHideLiquidations(); CleanupLines(); }, true));
 
         public ICommand RemoveUnallocatedLines_Click => removeUnallocatedLines_Command ?? (removeUnallocatedLines_Command = new CommandHandler1(() => RemoveUnallocatedLines(true), true));
@@ -1161,7 +1160,7 @@ namespace AlgoTrader.Live.ViewModels
                     {
                         (DateTime timeStamp, double price) = MainObj.visibleChart.GetTimeAndPriceFromLastMouse(true);
                         MainObj.visibleTradeEngine.SetStopAtPrice_UI_synchronised(timeStamp, price, TradeStop.STOP_ON_LINE_BREAK);
-                        Chart.showFloorTrades = true;
+                        Chart.showTakeProfit = true;
                     }
                     RemovePopupWindow();
                 },
@@ -1364,37 +1363,38 @@ namespace AlgoTrader.Live.ViewModels
             //todo:
             //1) go through symbol menu items, set up lists
             //2) add all items to appropriate lists
-            SymbolMenu = new ObservableCollection<MenuItem>();
+            SymbolMenu = [];
 
-            var listNames = SymbolNames.SYMBOL_NAMES.GroupBy(x => x.listName);
-            foreach (var name in listNames)
-            {
-                var v = name.Key;
-                var subMenu = new MenuItem
-                {
-                    Header = v,
-                };
-                foreach (var g in name)
-                {
-                    subMenu.Items.Add(
+            //this just added a sub-menu for 'Base symbols'
+            //var listNames = SymbolNames.SYMBOL_NAMES.GroupBy(x => x.listName);
+            //foreach (var name in listNames)
+            //{
+            //    var v = name.Key;
+            //    var subMenu = new MenuItem
+            //    {
+            //        Header = v,
+            //    };
+            //    foreach (var g in name)
+            //    {
+            //        subMenu.Items.Add(
 
-                        new MenuItem
-                        {
-                            Header = g.baseAsset + g.quoteAsset,
-                            Command = ChangeSymbolCommand,
-                            CommandParameter = g.baseAsset + g.quoteAsset
-                        }
-                    );
-                }
+            //            new MenuItem
+            //            {
+            //                Header = g.baseAsset + g.quoteAsset,
+            //                Command = ChangeSymbolCommand,
+            //                CommandParameter = g.baseAsset + g.quoteAsset
+            //            }
+            //        );
+            //    }
 
-                SymbolMenu.Add(subMenu);
-            }
+            //    SymbolMenu.Add(subMenu);
+            //}
 
-            SymbolMenu.Add(new MenuItem
-            {
-                Header = "----------",
-                IsEnabled = false
-            });
+            //SymbolMenu.Add(new MenuItem
+            //{
+            //    Header = "----------",
+            //    IsEnabled = false
+            //});
 
             foreach (var symbolName in SymbolNames.GetSymbolNames().OrderBy(x => x))
             {
@@ -1539,10 +1539,10 @@ namespace AlgoTrader.Live.ViewModels
             MainObj.DrawImmediate();
         }
 
-        private void ToggleShowFloorTrades()
+        private void ShowHideTakeProfit()
         {
-            Chart.showFloorTrades = !Chart.showFloorTrades;
-            SetProperty("ShowFloorTrades_Checked", Chart.showFloorTrades);
+            Chart.showTakeProfit = !Chart.showTakeProfit;
+            SetProperty("ShowTakeProfit_Checked", Chart.showTakeProfit);
             MainObj.DrawImmediate();
         }
 
@@ -1606,10 +1606,10 @@ namespace AlgoTrader.Live.ViewModels
         {
             MainObj.CleanupLines();
         }
-        private void ShowHideFloors()
+        private void ShowHideTP()
         {
-            Chart.showFloorTrades = !Chart.showFloorTrades;
-            SetProperty("ShowFloorTrades_Checked", Chart.showFloorTrades);
+            Chart.showTakeProfit = !Chart.showTakeProfit;
+            SetProperty("ShowTakeProfit_Checked", Chart.showTakeProfit);
             MainObj.DrawImmediate();
         }
 
@@ -1967,13 +1967,6 @@ namespace AlgoTrader.Live.ViewModels
             SetLeverageMenuState(leverage);
         }
 
-        public void SetConcurrentOrders(object param)
-        {
-            int.TryParse(param as string, out int concurrentOrders);
-            TradeEngine.MAX_CONCURRENT_TRADES = concurrentOrders;
-            SetConcurrentOrdersMenuState(concurrentOrders);
-        }
-
         public void SetInitialTime(int timeFrame)
         {
             SetProperty("UI_Interval", timeFrame.ToString()); //this is an alternative to calling the method and putting OnPropertyChanged there
@@ -1990,23 +1983,20 @@ namespace AlgoTrader.Live.ViewModels
 
             switch (timeFrame)
             {
-                case 3:
-                    SetProperty("TimeFrame1_Checked", true); 
-                    break;
                 case 5:
-                    SetProperty("TimeFrame2_Checked", true);
+                    SetProperty("TimeFrame1_Checked", true);
                     break;                                  
                 case 15:                                    
-                    SetProperty("TimeFrame3_Checked", true);
+                    SetProperty("TimeFrame2_Checked", true);
                     break;                                  
                 case 60:                                    
-                    SetProperty("TimeFrame4_Checked", true);
+                    SetProperty("TimeFrame3_Checked", true);
                     break;                                  
                 case 240:                                   
-                    SetProperty("TimeFrame5_Checked", true);
+                    SetProperty("TimeFrame4_Checked", true);
                     break;                                  
                 case 1440:                                  
-                    SetProperty("TimeFrame6_Checked", true);
+                    SetProperty("TimeFrame5_Checked", true);
                     break;
             }
             SetProperty("UI_Interval", timeFrame.ToString()); //this is an alternative to calling the method and putting OnPropertyChanged there
@@ -2143,11 +2133,11 @@ namespace AlgoTrader.Live.ViewModels
                     //GotoNextClosedSymbol();
                     MainObj.DrawImmediate();
                     break;
-                case Key.F:
+                case Key.P:
                     AlgoTrader.Shared.Logging.LogConnection.WriteLine(key.ToString());
                     if (!keysDown.Contains(key))
                     {
-                        ShowHideFloors();
+                        ShowHideTakeProfit();
                     }
                     break;
                 case Key.L:

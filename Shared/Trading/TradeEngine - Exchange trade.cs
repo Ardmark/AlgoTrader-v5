@@ -132,7 +132,7 @@ namespace AlgoTrader.Shared
             Stop.Timestamp = DateTime.UtcNow;
             SetUpdateRequest(Stop); //to prevent timeout from triggering
         }
-        protected virtual bool RemoveStopFromExchange_Synchronised() { }
+        protected virtual bool RemoveStopFromExchange_Synchronised() { return false; }
 
         //get account balances - this is for display only, it is not part of trade placement
         internal virtual void ShowAccountBalances() { }

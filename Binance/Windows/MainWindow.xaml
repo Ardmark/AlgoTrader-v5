@@ -89,7 +89,6 @@
                         <MenuItem Header="Last year" CommandParameter="8760" Command="{Binding ClearClosedTrades}"></MenuItem>
                     </MenuItem>
                     <MenuItem Header="Show closed trades" InputGestureText="C" Command="{Binding ShowClosedTradesCommand}" IsChecked="{Binding ShowClosedTrades_Checked}"></MenuItem>
-                    <!--<MenuItem Header="Show only active trade" InputGestureText="A" Command="{Binding ShowWaitingTradesCommand}" IsChecked="{Binding ShowOnlyActiveTrade_Checked}"></MenuItem>-->
                     <MenuItem Header="Show all trades + lines" InputGestureText="A" Command="{Binding ShowAllTradesCommand}" IsChecked="{Binding ShowAllTrades_Checked}"></MenuItem>
                     <MenuItem Header="Show floor trades" InputGestureText="F" Command="{Binding ShowFloorTradesCommand}" IsChecked="{Binding ShowFloorTrades_Checked}"></MenuItem>
                     <MenuItem Header="Show liquidation levels" InputGestureText="L" Command="{Binding ShowLiquidationsCommand}" IsChecked="{Binding ShowLiquidations_Checked}"></MenuItem>
@@ -110,14 +109,11 @@
 
                     <MenuItem Header="Clear connection log" Command="{Binding ClearLogWindow}"></MenuItem>
 
-
                     <MenuItem Header="Refresh active trade summary" Command="{Binding RefreshDailyPercent}"></MenuItem>
                     <!--<MenuItem Header="Remove unused lines" Command="{Binding RemoveUnallocatedLines_Click}" CommandParameter="1" />-->
                     <Separator />
                     <MenuItem Header="Show Results" Command="{Binding ShowResults}" CommandParameter="2"></MenuItem>
                 </MenuItem>
-                |
-
 
                 <MenuItem Header="Orders">
                     <MenuItem Header="Leverage">
@@ -135,32 +131,15 @@
                         <MenuItem Header="10" Command="{Binding LeverageCommand}" CommandParameter="10" IsChecked="{Binding Leverage10_Checked}"></MenuItem>
 
                     </MenuItem>
-                    <MenuItem Header="Max. concurrent orders">
-                        <!--also change max number in MainViewModel.SetConcurrentOrdersMenuState() and check there are enough properties-->
-                        <MenuItem Header="1"  Command="{Binding ConcurrentOrdersCommand}" CommandParameter="1"  IsChecked="{Binding ConcurrentOrders1_Checked}"></MenuItem>
-                        <MenuItem Header="2"  Command="{Binding ConcurrentOrdersCommand}" CommandParameter="2"  IsChecked="{Binding ConcurrentOrders2_Checked}"></MenuItem>
-                        <MenuItem Header="3"  Command="{Binding ConcurrentOrdersCommand}" CommandParameter="3"  IsChecked="{Binding ConcurrentOrders3_Checked}"></MenuItem>
-                        <MenuItem Header="4"  Command="{Binding ConcurrentOrdersCommand}" CommandParameter="4"  IsChecked="{Binding ConcurrentOrders4_Checked}"></MenuItem>
-                        <MenuItem Header="5"  Command="{Binding ConcurrentOrdersCommand}" CommandParameter="5"  IsChecked="{Binding ConcurrentOrders5_Checked}"></MenuItem>
-                        <MenuItem Header="6"  Command="{Binding ConcurrentOrdersCommand}" CommandParameter="6"  IsChecked="{Binding ConcurrentOrders6_Checked}"></MenuItem>
-                        <MenuItem Header="7"  Command="{Binding ConcurrentOrdersCommand}" CommandParameter="7"  IsChecked="{Binding ConcurrentOrders7_Checked}"></MenuItem>
-                        <MenuItem Header="8"  Command="{Binding ConcurrentOrdersCommand}" CommandParameter="8"  IsChecked="{Binding ConcurrentOrders8_Checked}"></MenuItem>
-                        <MenuItem Header="9"  Command="{Binding ConcurrentOrdersCommand}" CommandParameter="9"  IsChecked="{Binding ConcurrentOrders9_Checked}"></MenuItem>
-                        <MenuItem Header="10" Command="{Binding ConcurrentOrdersCommand}" CommandParameter="10" IsChecked="{Binding ConcurrentOrders10_Checked}"></MenuItem>
-                        <MenuItem Header="11" Command="{Binding ConcurrentOrdersCommand}" CommandParameter="11" IsChecked="{Binding ConcurrentOrders11_Checked}"></MenuItem>
-                        <MenuItem Header="12" Command="{Binding ConcurrentOrdersCommand}" CommandParameter="12" IsChecked="{Binding ConcurrentOrders12_Checked}"></MenuItem>
-                    </MenuItem>
-
-                    <MenuItem Header="Set stop trail percent"  Command="{Binding SetStopTrailPercent}"></MenuItem>
-
+                  
                     <Separator />
-                    <!--<MenuItem Header="Run test trade" Command="{Binding RunTestTradeCommand}"></MenuItem>
-                    <Separator />-->
 
                     <MenuItem Header="Stop unentered orders" Command="{Binding StopUnenteredOrdersCommand}"></MenuItem>
 
-
-                    <!--<MenuItem Header="{Binding RunBacktestForSymbolHeader}" Command="{Binding RunBacktestsForSymbolCommand}" CommandParameter="1"></MenuItem>
+                    <!--
+                        <MenuItem Header="Set stop trail percent"  Command="{Binding SetStopTrailPercent}"></MenuItem>
+                        <MenuItem Header="Run test trade" Command="{Binding RunTestTradeCommand}"></MenuItem>
+                        <MenuItem Header="{Binding RunBacktestForSymbolHeader}" Command="{Binding RunBacktestsForSymbolCommand}" CommandParameter="1"></MenuItem>
                         <MenuItem Header="{Binding RunAllBacktestHeader}" Command="{Binding RunAllBacktestsCommand}" CommandParameter="1"></MenuItem>
                         <MenuItem Header="{Binding PauseBacktestHeader}" Command="{Binding PauseBacktestCommand}" IsEnabled="{Binding PauseBacktestEnabled}"></MenuItem>
                         <MenuItem Header="{Binding RunBatchBacktestHeader}" Command="{Binding RunBatchBacktestsCommand}" CommandParameter="1"></MenuItem
@@ -168,13 +147,9 @@
                         <MenuItem Header="Set backtest timeframe to 1" Command="{Binding SetBacktestTimeframe}" CommandParameter="1"></MenuItem>
                         <MenuItem Header="Set backtest timeframe to 5" Command="{Binding SetBacktestTimeframe}" CommandParameter="5"></MenuItem>
                         <MenuItem Header="Set backtest timeframe to 15" Command="{Binding SetBacktestTimeframe}" CommandParameter="15"></MenuItem>
-                        <MenuItem Header="Set backtest timeframe to 60" Command="{Binding SetBacktestTimeframe}" CommandParameter="60"></MenuItem>-->
-                    <!--<MenuItem Header="Clear backtests" Command="{Binding ClearBacktestsCommand}" CommandParameter="1"></MenuItem>-->
-
-
-
-                    <!--
-                    <MenuItem Header="Auto order">
+                        <MenuItem Header="Set backtest timeframe to 60" Command="{Binding SetBacktestTimeframe}" CommandParameter="60"></MenuItem>
+                        <MenuItem Header="Clear backtests" Command="{Binding ClearBacktestsCommand}" CommandParameter="1"></MenuItem>
+                        <MenuItem Header="Auto order">
                         <MenuItem Header="{Binding EnableLiveTradingAutoHeader}" Command="{Binding EnableLiveTradingCommand}" IsEnabled="False"></MenuItem>
                         <Separator />
                         <MenuItem Header="{Binding RunBacktestForSymbolHeader}" Command="{Binding RunBacktestsForSymbolCommand}" CommandParameter="2"></MenuItem>
@@ -182,7 +157,9 @@
                         <MenuItem Header="{Binding PauseBacktestHeader}" Command="{Binding PauseBacktestCommand}" IsEnabled="{Binding PauseBacktestEnabled}"></MenuItem>
                     </MenuItem>
                     <MenuItem Header="Remove unentered orders" Command="{Binding RemoveUnenteredOrdersCommand}"></MenuItem>
-                    <MenuItem Header="Reset max. entry time" Command="{Binding ResetMaxEntryTimeCommand}"></MenuItem>-->
+                    <MenuItem Header="Reset max. entry time" Command="{Binding ResetMaxEntryTimeCommand}"></MenuItem>
+                    -->
+                    
                 </MenuItem>
                 <MenuItem Header="Symbols" ItemsSource="{Binding SymbolMenu, Mode=TwoWay}"></MenuItem>
 
@@ -199,10 +176,10 @@
                     <Image Source="Resources/Bomb.png" Stretch="Fill"/>
                 </StackPanel>
             </Button>
-            <Button Command="{Binding ToggleFloor_Click}" CommandParameter="0" ToolTip="Show / hide Floors and Ceilings" Margin="10,0,5,0" Padding="5, 0, 5, 0" >
+            <Button Command="{Binding ToggleTP_Click}" CommandParameter="0" ToolTip="Show / hide Take Profit" Margin="10,0,5,0" Padding="5, 0, 5, 0" >
                 <StackPanel Orientation="Horizontal">
                     <Image Source="Resources/Eye.png" Stretch="Fill"/>
-                    <TextBlock Text=" F+C"  />
+                    <TextBlock Text=" T/P"  />
                 </StackPanel>
             </Button>
             <Button Command="{Binding ShowLiquidationsCommand}" CommandParameter="0" ToolTip="Show / hide liquidation levels" Margin="0,0,5,0" Padding="5, 0, 5, 0" >

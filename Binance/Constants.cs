@@ -32,6 +32,7 @@ namespace AlgoTrader.Windows
             #endregion
 
             #region Trading
+            TradeEngine.FEE = 0.15; //percent, total for 2 trades
             TradeEngine.DEFAULT_LEVERAGE = 3;
             //TradeEngineBitmex.MIN_LEVERAGE_SHORT = 1;
             //TradeEngineBitmex.MIN_LEVERAGE_LONG = 1.333;
@@ -47,8 +48,6 @@ namespace AlgoTrader.Windows
             TradeEngine.INITIAL_TAKE_PROFIT_PERCENT_MARKET = 6; //will auto-set ceiling to this value - and it is then used in the OCO (Binance) will default to 10% if set to zero here
             TradeEngine.ENTRY_LINE_PRICE_GAP_PC = 0; //percent to offset trade entry lines
             TradeEngine.STOP_LINE_PRICE_GAP_PC = 0; //percent to offset trade stop lines
-
-            TradeEngine.MAX_CONCURRENT_TRADES = 1;
 
             TradeEngineBinance.RETAINED_BNB_PERCENTAGE = 10;
 

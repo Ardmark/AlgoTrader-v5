@@ -107,11 +107,12 @@ namespace AlgoTrader.Shared.Enums
         ENTRY,
         CLOSE,
         STOP,           //line-attached
-        FLOOR,          //additional stop, not line attached
-        CEILING,        //additional take profit, not line attached
+        //FLOOR,          //additional stop, not line attached
+        //CEILING,        //additional take profit, not line attached
         TAKE_PROFIT,
-        BREAK_EVEN,
-        WAITING_STOP
+        //BREAK_EVEN,
+        WAITING_STOP,
+        NULL //just a convenient way to hide take profits!
     }
 
     // trade status - either running or stopped, this applies to individual trades

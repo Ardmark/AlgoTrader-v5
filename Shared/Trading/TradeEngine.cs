@@ -86,6 +86,7 @@ namespace AlgoTrader.Shared
         public DateTime BACKTEST_START_DATE { get; set; } = new DateTime(2021, 4, 19);
         public const int MIN_RIGHT_DISPLAY_BARS_TO_SHOW_TRADE = 2;
 
+        public static double FEE { get; set; }
         public static float DEFAULT_LEVERAGE { get; set; } = 2;
         //stops
         public static double STOPLINE_MIN_VALUE { get; set; } = 0.5; //Do not set to zero. As above, but for moving stop lines. Closer for easier debugging, etc.
@@ -1184,11 +1185,11 @@ namespace AlgoTrader.Shared
                     {
                         switch (trade.Action)
                         {
-                            case TradeAction.FLOOR:
+                            //case TradeAction.FLOOR:
                             case TradeAction.STOP:
-                            case TradeAction.CEILING:
+                            //case TradeAction.CEILING:
                             case TradeAction.TAKE_PROFIT:
-                            case TradeAction.BREAK_EVEN:
+                            //case TradeAction.BREAK_EVEN:
                                 //to reduce db load, only save stop, tp, floor timestamps on the minute
                                 if (itemAdded)
                                 {
@@ -1441,9 +1442,7 @@ namespace AlgoTrader.Shared
             Close.Price = (double)price;
             Close.ItemStatus = TradeItemStatus.CLOSED;
             Close.GlobalStatus = TradeGlobalStatus.STOPPED;
-
-            //Close.Balance = GetAccountEquity();
-            Close.Balance = 0;
+            (_, Close.Balance) = GetTotalEquity();
 
             if (Entry != null)
             {
@@ -1585,18 +1584,18 @@ namespace AlgoTrader.Shared
                         var _baseAsset = SymbolNames.GetBaseAssetForSymbol(symbolName);
                         if (_baseAsset != null)
                         {
-                            var balance = GetFreeBalance(_baseAsset);
-                            if (balance != 0)
+                            (var freeBalance, var totalEquity) = GetTotalEquity();
+                            if (freeBalance != 0)
                             {
-                                using (DataContext db = new DataContext())
+                                using (DataContext db = new())
                                 {
                                     var closedTrade = db.Trades.FirstOrDefault(x => x.TradeReference == entryRef && x.Action == TradeAction.CLOSE);
                                     if (closedTrade != null)
                                     {
-                                        closedTrade.Balance = (double)balance;
-                                        //closedTrade.Equity = equity;
+                                        closedTrade.Balance = freeBalance;
+                                        closedTrade.Equity = totalEquity;
                                         db.SaveChanges();
-                                        LogTrades.WriteLine($"Saving final closing balance of {balance}");
+                                        LogTrades.WriteLine($"Saving final closing balance of {freeBalance}");
                                     }
                                 }
                                 await ActiveTradeSummary.Update(this);
@@ -1615,35 +1614,17 @@ namespace AlgoTrader.Shared
 
         private bool CanDeleteTrade_synchronised(_Trade trade, _Trade entry)
         {
-            //entry is required for non-stop delete, so it is passed in as it may be the Entry property (live trade) or derived from UI interraction
-            bool canDelete = true;
             switch (trade.Action)
             {
-                case TradeAction.STOP:
-                case TradeAction.CEILING:
-                case TradeAction.FLOOR:
-                    //can delete if not entered (stop not on exchange) or if closed
-                    canDelete = true;
-                    //canDelete = trade.ItemId == null || 
-                    //            trade.ItemStatus == TradeItemStatus.CLOSED || 
-                    //            trade.GlobalStatus == TradeGlobalStatus.STOPPED ||
-                    //            //trade.ExchangeMethodInterrupted == true || 
-                    //            (trade.ExchangeMethodScript == null && trade.ExchangeStatus == TradeExchangeStatus.ENTERED_OFF_EXCHANGE);
-
-                    break;
-
                 case TradeAction.ORDER:
                 case TradeAction.ENTRY:
                 case TradeAction.CLOSE:
+                case TradeAction.STOP:
+                case TradeAction.TAKE_PROFIT:
                     //can only delete if trade not live
-                    canDelete = (trade.ItemStatus == TradeItemStatus.OPEN || trade.GlobalStatus == TradeGlobalStatus.STOPPED) &&
-                                (entry == null || entry.GlobalStatus == TradeGlobalStatus.STOPPED);
-
-
-
-                    break;
+                    return entry == null || entry.GlobalStatus == TradeGlobalStatus.STOPPED;
             }
-            return canDelete;
+            return false;
         }
         #endregion
 
@@ -1690,7 +1671,7 @@ namespace AlgoTrader.Shared
             currentTradeSetReference = trade.TradeReference;
             SetUpdateRequest(line);
         }
-        public virtual double AdjustResultForFees(double result) { return result; }// - 0.2;  } //default of 0.1% * 2, bitmex does it properly
+        public virtual double AdjustResultForFees(double result) { return result - FEE; }// - 0.2;  } //default of 0.1% * 2, bitmex does it properly
 
         protected void AdjustStopPriceToMinimum_Synchronised(_Trade entry, _Trade _floorStop, double minVal)
         {
@@ -1708,8 +1689,7 @@ namespace AlgoTrader.Shared
                 var v = MainObj.GetPriceDiff(high, stopPrice, _floorStop.Position) * 100; //the position may be different from Entry position, if this is a flip stop waiting
                 if (v < minVal)
                 {
-                    var s = _floorStop.Action == TradeAction.FLOOR ? "Floor" : "Stop";
-                    LogTrades.WriteLine($"{s} too close to order price. {s} price was adjusted");
+                    LogTrades.WriteLine($"Stop too close to order price. Stop price was adjusted");
 
                     var prevPrice = stopPrice;
 

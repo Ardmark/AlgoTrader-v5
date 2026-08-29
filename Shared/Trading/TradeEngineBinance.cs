@@ -384,38 +384,39 @@ namespace AlgoTrader.Shared
          *  require 0.015 BNB to receive the specified amount of BTC, it will only sell 0.01 BNB
          * */
 
-        public override void Test()
+
+        public override async void Test()
         {
-            var p = 78965.123456;
-            var price = GetCorrectPrecisionForPrice(p);
-           // exchangeInfo = Deserialize<ExchangeInfoData>(binanceAPI.ExchangeInfoAsync().Result);
+
+
+            // exchangeInfo = Deserialize<ExchangeInfoData>(binanceAPI.ExchangeInfoAsync().Result);
             //var _symbol = exchangeInfo.Symbols.Where(x => x.Symbol == "BTCUSDT").FirstOrDefault();
 
-                //var data = new Dictionary<string, string>
-                //{
-                //    { SYMBOL, "BTCUSDT"},
-                //    { SIDE, SELL},
-                //    { ABOVE_TYPE, TAKE_PROFIT},
-                //    { ABOVE_STOP_PRICE, "85000"},
-                //    { QUANTITY, "0.00012"},
-                //    { BELOW_TYPE, STOP_LOSS},
-                //    { BELOW_STOP_PRICE, "75000"},      
-                //};
+            //var data = new Dictionary<string, string>
+            //{
+            //    { SYMBOL, "BTCUSDT"},
+            //    { SIDE, SELL},
+            //    { ABOVE_TYPE, TAKE_PROFIT},
+            //    { ABOVE_STOP_PRICE, "85000"},
+            //    { QUANTITY, "0.00012"},
+            //    { BELOW_TYPE, STOP_LOSS},
+            //    { BELOW_STOP_PRICE, "75000"},      
+            //};
 
-                //var json =  binanceAPI.NewOcoAsync(data).Result;
-                //var r = Deserialize<NewOCOData>(json);
+            //var json =  binanceAPI.NewOcoAsync(data).Result;
+            //var r = Deserialize<NewOCOData>(json);
 
 
-                try
+            try
             {
 
                 //todo - stop and tp do not have same ClientOrderId and _Trade.ItemId
                 //todo - there are 2 separate orders so can the stop just be updated??
                 var stopId = "BRwFaq5dPlJFS830P8N6XX";
                 //var re1t = CancelAllOpenOrders();               
-                var ret = GetOpenOrders();
-                var rey1 = CancelAllOpenOrders();  
-                var ret2 = GetOpenOrders();
+                //var ret = GetOpenOrders();
+                //var rey1 = CancelAllOpenOrders();  
+                //var ret2 = GetOpenOrders();
                 return;
               var data = new Dictionary<string, string>
           {
@@ -582,51 +583,43 @@ namespace AlgoTrader.Shared
 
                 //can really ignore locked amount, this is just for trades placed on the exchange which have not yet entered
 
-                if (USE_TESTNET)
-                {
-                    //this will have equity for every symbol, so it would be many API calls to get the total equity,
-                    //which would be really pointless anyway
-                    totalEquity = 100000; //just assume a testnet balance of 1000 USDT
-                }
-                else
-                {
 
-                    /*************/
-                    /* UNTESTED */
-                    foreach (var v in accountData.Balances.Where(x => x.Free > 0 || x.Locked > 0))
+                /*************/
+                /* Note, this only tests for BTC and USDT since testnet has every symbol with some asset valuu */
+                foreach (var v in accountData.Balances.Where(x => x.Asset == SymbolNames.FIAT_ASSET || x.Asset == "BTC" && (x.Free > 0 || x.Locked > 0)))
+                {
+                    if (SymbolNames.SYMBOLS_TO_EXCLUDE.Contains(v.Asset))
                     {
-                        if (SymbolNames.SYMBOLS_TO_EXCLUDE.Contains(v.Asset))
-                        {
-                            continue;
-                        }
+                        continue;
+                    }
 
-                        if (v.Asset == SymbolNames.FIAT_ASSET)
+                    if (v.Asset == SymbolNames.FIAT_ASSET)
+                    {
+                        //e.g. USDT
+                        totalEquity += v.Free + v.Locked;
+                        freeEquity += v.Free;
+                        //resultMsg += $"{v.Asset}:\t{pc.ToString("0.0")}%\t\t${value.ToString("0.00")}\n";
+                    }
+                    else if (v.Free + v.Locked > 0)
+                    {
+                        //e.g. BTC, so get the price of BTC in USDT and calculate the total equity in USDT
+                        try
                         {
-                            //e.g. USDT
-                            totalEquity += v.Free + v.Locked;
-                            freeEquity += v.Free;
-                            //resultMsg += $"{v.Asset}:\t{pc.ToString("0.0")}%\t\t${value.ToString("0.00")}\n";
+                            //get the current average price, rather than just look for the last price on the system, since we may not be
+                            // actually trading the asset.
+                            var priceData = Deserialize<QuoteData>(binanceAPI.TickerPriceAsync(v.Asset + SymbolNames.FIAT_ASSET).Result);
+                            var price = priceData.Price;
+                            totalEquity += (v.Free + v.Locked) * price;
+                            freeEquity += v.Free * price;
                         }
-                        else if (v.Free + v.Locked > 0)
+                        catch
                         {
-                            //e.g. BTC, so get the price of BTC in USDT and calculate the total equity in USDT
-                            try
-                            {
-                                //get the current average price, rather than just look for the last price on the system, since we may not be
-                                // actually trading the asset.
-                                var priceData = Deserialize<QuoteData>(binanceAPI.TickerPriceAsync(v.Asset + SymbolNames.FIAT_ASSET).Result);
-                                var price = priceData.Price;
-                                totalEquity += (v.Free + v.Locked) * price;
-                                freeEquity += v.Free * price;
-                            }
-                            catch
-                            {
-                                LogTrades.WriteLine($"Could not get price for {v.Asset}{SymbolNames.FIAT_ASSET}, skipping in total equity calculation");
-                            }
+                            LogTrades.WriteLine($"Could not get price for {v.Asset}{SymbolNames.FIAT_ASSET}, skipping in total equity calculation");
                         }
                     }
                 }
-                return (freeEquity, totalEquity);
+                
+                return (Math.Round(freeEquity, 2), Math.Round(totalEquity, 2));
             }
             catch (Exception e)
             {
@@ -775,6 +768,8 @@ namespace AlgoTrader.Shared
                     #region New order
                     case NEW_ORDER_SCRIPT:
 
+                        var p = Entry.Position == TradePosition.LONG ? "long" : "short";
+                        LogTrades.WriteLine($"Starting new {p} order:");
                         entryTimeStamp = DateTime.UtcNow;
 
                         //since we are not removing orders if the exchange returns as order closed (no open positions) or stop filled, because these things
@@ -783,29 +778,33 @@ namespace AlgoTrader.Shared
 
                         //TODO - find if there are any residual open orders and remove them
 
-                        //LogTrades.WriteLine("Deleting any residual stops...");
+                        LogTrades.WriteLine("Deleting any residual stops...");
                         //this throws an exception, "unknown order sent"
-                        //var result = binanceAPI.CancelOpenOrdersAsync(symbolName).Result;
+                        try
+                        {
+                            var result = binanceAPI.CancelOpenOrdersAsync(symbolName).Result;
+                        }
+                        catch { }
 
                         void _KillOrder(string msg, bool interrupted = false)
                         {
                             WriteDeliniatedMessage(msg);
                             KillEntryOrCloseOrder(interrupted);
                         }
-                        var balance = GetFreeBalance(SymbolNames.FIAT_ASSET);
+                        (_, var balance) = GetTotalEquity();
                         if (balance <= 0)
                         {
                             LogTrades.WriteLine($"Could not get balance for {symbolName}, exiting StartEntryOrClose_Synchronised");
                             KillEntryOrCloseOrder();
                             return;
                         }
+                        Entry.Balance = balance;
 
                         balance = RESTRICTED_TRADE_VALUE > 0 ? RESTRICTED_TRADE_VALUE : balance * 0.95; //this will just be a 95% order for now
 
-                        LogTrades.WriteLine($"Balance is {balance} for new order");
+                        LogTrades.WriteLine($"Trade amount is {balance} for new order");
 
                         //save balance (previously saved equity as well, which would be total for all symbols)
-                        Entry.Balance = balance;
                         Entry.TradeReference = Order.TradeReference;//shared with all trades in this group
                         SetUpdateRequest(Entry);
 
@@ -828,12 +827,14 @@ namespace AlgoTrader.Shared
                         //Floor = trades.FirstOrDefault(x => x.Action == TradeAction.FLOOR);
                         //need the closest of the current stop or opposing trade. If neither found, use the default floor value
                         double stopPC = 0;
+                        double stopPrice = 0;
                         if (Stop != null)
                         {
+
                             var stopLine = AllLinesForSymbol.FirstOrDefault(x => x.TradeId == Stop.Id);
                             if (stopLine != null)
                             {
-                                (var stopPrice, _) = stopLine.GetPriceAtTime(DateTime.UtcNow, true);
+                                (stopPrice, _) = stopLine.GetPriceAtTime(DateTime.UtcNow, true);
                                 stopPC = MainObj.GetPriceDiffPercent(currentDataItem, stopPrice, Order.Position) * 100;
                             }
                         }
@@ -852,6 +853,7 @@ namespace AlgoTrader.Shared
                                 var orderLine = AllLinesForSymbol.FirstOrDefault(x => x.TradeId == _oppOrder.Id);
                                 if (orderLine != null)
                                 {
+                                    LogTrades.WriteLine("Taking opposite order as stop");
                                     (var oppOrderPrice, _) = orderLine.GetPriceAtTime(DateTime.UtcNow, true);
                                     stopPC = MainObj.GetPriceDiffPercent(currentDataItem, oppOrderPrice, Order.Position) * 100;
                                 }
@@ -911,6 +913,10 @@ namespace AlgoTrader.Shared
                         }
                         Order.ExchangeStatus = Entry.ExchangeStatus = TradeExchangeStatus.ENTERING_ON_EXCHANGE;
                         Entry.ItemId = _Trade.GetNewTradeId();
+                        LogTrades.WriteLine("Getting equity...");
+                        (_, Entry.Equity) = GetTotalEquity();
+                        LogTrades.WriteLine($"Equity returned as ${Entry.Equity}");
+                        LogTrades.WriteLine("Sending order to exchange...");
                         var orderEntry = SendOrder(tradeAmount, Side.BUY, Entry.ItemId);
                         if (orderEntry != null)
                         {
@@ -948,7 +954,7 @@ namespace AlgoTrader.Shared
                                 }
                             }
                             var pos = Entry.Position == TradePosition.LONG ? "Long" : "Short";
-                            LogTrades.WriteLineOrder($"\n{pos} order FILLED for {Entry.SymbolName} at {DateTime.UtcNow}");
+                            LogTrades.WriteLineOrder($"{pos} order FILLED for {Entry.SymbolName} at {DateTime.UtcNow}");
 
                             //at this point, trade is entered live
                             EnterTradeOnSystem_synchronised(orderEntry.AveragePrice, orderEntry.ExecutedQty, TradeExchangeStatus.ENTERED_ON_EXCHANGE);
@@ -960,7 +966,9 @@ namespace AlgoTrader.Shared
                             var stop = tradeEngine.GetTradeForTradeReference(TradeAction.STOP, Entry.TradeReference);
                             if (stop != null)
                             {
+                                LogTrades.WriteLine("Using existing stop.");
                                 Stop = stop;
+                                Stop.Price = stopPrice;
                                 Stop.ExchangeStatus = TradeExchangeStatus.ENTERING_ON_EXCHANGE; //or will not be entered by base method
                                 Stop.Quantity = Entry.Quantity;
                             }
@@ -969,10 +977,14 @@ namespace AlgoTrader.Shared
                                 var stopPercent = GetDefaultStop();// CalculateStopFromLeverage(Entry.Leverage, Entry.Position);
                                 if (stopPercent == 0)
                                 {
-                                    LogTrades.WriteLine("Could not get default value for stop for this timeframe, using 0.5%");
+                                    LogTrades.WriteLine("Could not get default value for stop for this timeframe, using 1%");
                                     stopPercent = 1;
-                                }  
-                                
+                                }
+                                else
+                                {
+                                    LogTrades.WriteLine($"Setting stop at {stopPercent}%");
+                                }
+
                                 Stop = Entry.Clone();
                                 //although precision is set when OCO is sent to exchange, it helps to keep the number of decimal places down anyway.
                                 var price = GetCorrectPrecisionForPrice(MainObj.GetFloorPrice(Entry.Price, stopPercent, Order.Position));
@@ -985,22 +997,17 @@ namespace AlgoTrader.Shared
                                 AddLineToTrade_synchronised(Stop);
                             }
 
+                            LogTrades.WriteLine("Sending stop to exchange");
                             SetStopOnExchange_Synchronised();
                             SetUpdateRequest(Stop);
 
-                            using DataContext db = new();
-                            var tr = Entry.TradeReference;
-                            var ex = (double)await GetGBPUSDRate();
-                            var _entry = db.Trades.FirstOrDefault(x => x.TradeReference == tr && x.Action == TradeAction.ENTRY);
-
-                            if (_entry != null)
-                            {
-                                _entry.ExchangeRate = ex;
-                                db.SaveChanges();
-                            }
+                            //cannot have any synched objects after this as synchronisation will exit before this method completes
+                            LogTrades.WriteLine("Getting exchange conversion rate");
+                            var gbp = await GetConversionRate(Entry.ItemId);
+                            LogTrades.WriteLine($"Conversion rate received of {gbp.ToString("F2")}, Entry complete!");
                         }
                         break;
-                    #endregion
+                        #endregion
 
                     #region Close order
                     case CLOSE_ORDER_SCRIPT:
@@ -1036,7 +1043,7 @@ namespace AlgoTrader.Shared
                             {
                                 LogTrades.WriteLine("No BTC, closing trade locally.");
                                 CloseTradeOnSystem_synchronised(currentDataItem.Close);
-                            }        
+                            }
                         }
                         catch (Exception ex)
                         {
@@ -1104,9 +1111,13 @@ namespace AlgoTrader.Shared
 
                                         LogTrades.WriteLineOrder($"Close order filled, closing trade on system at {DateTime.UtcNow}");
                                         CloseTradeOnSystem_synchronised(dataClose.Price);
+
                                         EndEntryOrCloseScript();
                                         LogTrades.WriteSpacer();
 
+                                        //this will cause synchronisation to exit before this awaitable method completes,
+                                        // so CANNOT have any synched objects accessed after this (like Close, etc.)
+                                        await GetConversionRate(Close.ItemId);
 
                                         break;
 
@@ -1182,13 +1193,13 @@ namespace AlgoTrader.Shared
 
                                 var amount = GetCorrectPrecisionForTrade(coinBalance);
 
-                                    
+
                                 //An OCO has 2 legs called the above leg and below leg.
                                 //One of the legs must be a LIMIT_MAKER order and the other leg must be STOP_LOSS or STOP_LOSS_LIMIT order.
                                 //Price restrictions:
                                 //If the OCO is on the SELL side: LIMIT_MAKER price > Last Traded Price > stopPrice
                                 //If the OCO is on the BUY side: LIMIT_MAKER price < Last Traded Price < stopPrice
-                                    
+
 
                                 //this is calling the rest.js method correctly, so the error is within this data
                                 //(-1104 "not all sent parameters were read")
@@ -1281,8 +1292,9 @@ namespace AlgoTrader.Shared
                         }
                     }
                     */
-                #endregion
-                        
+                    #endregion
+
+                    //No more access to Entry, Close etc. after call to async GetConversionRate()!!!
                 }
 
                 MainObj.DrawCurrentDispatcher();
@@ -1290,6 +1302,7 @@ namespace AlgoTrader.Shared
 
 
         }
+
         _Trade GetOppositeOrder(TradePosition position)
         {
             var oppositeSide = position == TradePosition.LONG ? TradePosition.SHORT : TradePosition.LONG;
@@ -1313,10 +1326,7 @@ namespace AlgoTrader.Shared
                 //get the EF tracked trade - if this is a live entry, will be using a different data context to the one the parameter is running on
 
                 Order.ExchangeStatus = orderType;
-                if (MAX_CONCURRENT_TRADES > 0) //obviously it cannot be zero but doesn't hurt to check
-                {
-                    Order.ActionValue = 1.0 / (double)MAX_CONCURRENT_TRADES; //set this as a record of the equity fraction traded, so this will be copied over to Entry and Close
-                }
+
                 SetUpdateRequest(Order);
 
                 //set trade time, frame and price to entry point (line entry will be different from order position)
@@ -1330,8 +1340,6 @@ namespace AlgoTrader.Shared
                     SetUpdateRequest(Entry);
                 }
 
-                LogTrades.WriteLine(string.Format("{0} {1} entered at {2}.\nTrade complete.", Order.SymbolName, Order.ExchangeStatus == TradeExchangeStatus.ENTERED_ON_EXCHANGE ? "LIVE" : "TEST", DateTime.UtcNow));
-                LogTrades.WriteSpacer();
                 Entry.Price = Order.Price = (double)price;
                 Entry.Quantity = Order.Quantity = quantity; //set both the entry and order quantity, as either may be used when closing, etc.
                 Entry.ExchangeStatus = orderType;
@@ -1339,7 +1347,7 @@ namespace AlgoTrader.Shared
 
                 Order.ItemStatus = TradeItemStatus.CLOSED; //close the order, this is now an active trade
                 SetUpdateRequest(Order);
-                
+
                 //Set flip from opposing trade
                 //if there is an opposing trade:
                 // 1) convert any opposing trade stop to waiting stop
@@ -1347,7 +1355,7 @@ namespace AlgoTrader.Shared
 
 
 
-                    var firstOppositeOrder = GetOppositeOrder(Order.Position);
+                var firstOppositeOrder = GetOppositeOrder(Order.Position);
                 if (firstOppositeOrder != null)
                 {
                     //if (stop != null)
@@ -1418,7 +1426,7 @@ namespace AlgoTrader.Shared
                     firstOppositeOrder.Position = Order.Position; //because a flip is the same side as the order it is flipping.
                     SetUpdateRequest(firstOppositeOrder);
                 }
-                
+
             }
             catch (Exception e)
             {
@@ -1430,17 +1438,6 @@ namespace AlgoTrader.Shared
                 //MainObj.PlaySound(MainObj.ALERT_SOUND);
             }
         }
-
-        protected override void KillEntryOrCloseOrder(bool interrupted = false)
-        {
-            base.KillEntryOrCloseOrder(interrupted);
-        }
-
-        protected override void EndEntryOrCloseScript()
-        {
-            base.EndEntryOrCloseScript();
-        }
-
 
         bool IsTradeClosed()
         {
@@ -1749,6 +1746,39 @@ namespace AlgoTrader.Shared
 
         #endregion
 
+        #region Conversion rate
+        //NOTE on use of async:
+        //If you want to call the method outside of an async method:
+        // You can only use Result if the method has a return type (obvious), BUT it will call the method on the same thread which
+        // will completely block execution. Not sure why but the BinanceAPI methods all use ConfigureAwaiter(false) which seems to stop the problem
+        // but that only causes the return type to be an awaitable Task. The BinanceAPI methods then retrieve content from that and nothing seems 
+        // to block but that does not work here. Just leave everything async.
+        async Task<double> GetConversionRate(string tradeId)
+        {
+            try
+            {
+                using var client = new OpenExchangeRatesClient("51581f4479b84a29921ca25369900524");
+                var latestRatesResponse = await client.GetLatestRatesAsync();
+                var gbp = latestRatesResponse.Rates.FirstOrDefault(x => x.Key == "GBP").Value;
+
+                using DataContext db = new(); //Close can drop out of context after the await method call above
+                var trade = db.Trades.FirstOrDefault(x => x.ItemId == tradeId);
+                if (trade != null)
+                {
+                    trade.ExchangeRate = (double)gbp;
+                    db.SaveChanges();
+                }
+
+                return (double)gbp;
+            }
+            catch (Exception ex)
+            {
+                LogTrades.WriteLine($"Failed to get currency conversion rate: {ex}");
+                return 0;
+            }
+        }
+    #endregion
+
         #region Utility methods  
 
         //Get the correct precision for a trade and return the amended amount, this is for the base asset
@@ -1827,22 +1857,6 @@ namespace AlgoTrader.Shared
             return -1;
         }
 
-        async Task<decimal> GetGBPUSDRate()
-        {
-            try
-            {
-                //this is tested and it works. Will need to display the data in ActiveTradeSummary, the entry rate will be the exit rate for the intermediate BTC trade
-                using var client = new OpenExchangeRatesClient("51581f4479b84a29921ca25369900524");
-                var latestRatesResponse = await client.GetLatestRatesAsync();
-                var gbp = latestRatesResponse.Rates.FirstOrDefault(x => x.Key == "GBP").Value;
-                //convertResponse = await client.ConvertAsync("GBP", "USD", 1m); //1m is decimal  - this throws 'Forbidden' exception error, poss. a paid function
-                return gbp;
-            }
-            catch (Exception ex)
-            {
-                return 0;
-            }
-        }
         void WriteDeliniatedMessage(string msg)
         {
             LogTrades.WriteLine($"\n**************************************\n{msg}\n**************************************");
