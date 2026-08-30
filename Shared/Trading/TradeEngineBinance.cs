@@ -848,11 +848,6 @@ namespace AlgoTrader.Shared
                                 stopPC = MainObj.GetPriceDiffPercent(currentDataItem, stopPrice, Order.Position) * 100;
                             }
                         }
-                        //if (Floor != null)
-                        //{
-                        //    var floorDiff = MainObj.GetPriceDiffPercent(currentDataItem, Floor.Price, Order.Position) * 100;
-                        //    stopPC = floorDiff < stopPC ? floorDiff : stopPC;
-                        //}
 
                         //if there is no stop, take the opposing order as one instead
                         if (stopPC == 0)
@@ -1004,7 +999,7 @@ namespace AlgoTrader.Shared
                                 Stop.ItemId = null; //need a new ID for this as it is a new order.
                                 Stop.ExchangeStatus = TradeExchangeStatus.ENTERING_ON_EXCHANGE;
 
-                                AddLineToTrade_synchronised(Stop);
+                                AddLineToTrade_synchronised(Stop, DateTime.UtcNow.AddMinutes(-1));
                             }
 
                             LogTrades.WriteLine("Sending stop to exchange");
@@ -1046,13 +1041,19 @@ namespace AlgoTrader.Shared
 
                         try
                         {
-                            //remove the stop
-                            CancelAllOpenOrders();
+                            LogTrades.WriteLine("Cancelling OCO...");
+                            //this throws an exception, "unknown order sent"
+                            try
+                            {
+                                var result = binanceAPI.CancelOpenOrdersAsync(symbolName).Result;
+                            }
+                            catch { }
 
                             if (IsTradeClosed()) //i.e there is no BTC
                             {
                                 LogTrades.WriteLine("No BTC, closing trade locally.");
                                 CloseTradeOnSystem_synchronised(currentDataItem.Close);
+                                return;
                             }
                         }
                         catch (Exception ex)
@@ -1143,6 +1144,9 @@ namespace AlgoTrader.Shared
 
                                 tradeStatusChanged = true;
 
+                                LogTrades.WriteLine("Getting exchange conversion rate");
+                                var gbp = await GetConversionRate(Entry.ItemId);
+                                LogTrades.WriteLine($"Conversion rate received of {gbp.ToString("F2")}, Trade close complete!");
                                 ShowAccountBalances(); //will log balance
                             }
                             else
@@ -1578,7 +1582,7 @@ namespace AlgoTrader.Shared
                 TakeProfit.Result = TakeProfit.Price;
                     
 
-                AddLineToTrade_synchronised(TakeProfit);
+                AddLineToTrade_synchronised(TakeProfit, DateTime.UtcNow.AddMinutes(-1));
                 SetUpdateRequest(TakeProfit);
             }
 
@@ -1612,9 +1616,6 @@ namespace AlgoTrader.Shared
             }
             else
             {
-                var v1 = Math.Abs(Stop.Price / Stop.Result);
-                var v2 = Math.Abs(TakeProfit.Price / TakeProfit.Result);
-
                 //trade is running, update stop
                 //however, we don't want to send updates unless the stop price or take profit price has actually changed
                 //can just use the Result property to save the previous price
@@ -1840,7 +1841,7 @@ namespace AlgoTrader.Shared
         }
 
         //as above, but this is for the quote asset (USDT)
-        private double GetCorrectPrecisionForPrice(double balanceToTrade)
+        protected override double GetCorrectPrecisionForPrice(double balanceToTrade)
         {
             if (balanceToTrade > 0) //just in case there are too many active trades for some reason, which would present a negative value
             {

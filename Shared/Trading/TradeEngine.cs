@@ -541,6 +541,8 @@ namespace AlgoTrader.Shared
                         x.TradeReference == _reference);
         }
 
+        protected virtual double GetCorrectPrecisionForPrice(double balanceToTrade) { return balanceToTrade; }
+
         internal bool IsActiveTrade(_Trade trade)
         {
             return (Order != null && Order.TradeReference == trade.TradeReference);
@@ -1519,15 +1521,11 @@ namespace AlgoTrader.Shared
                     SetUpdateRequest(Entry);
 
                     //enter close on system here, it is required for closing order regardless of flip
-
                     Close = Order.Clone();
                     Close.ItemId = _Trade.GetNewTradeId(); //set the client-assigned Id (could wait for the binance-assigned one instead) but this way, can query status even if no confirmation yet received
                     Close.Action = TradeAction.CLOSE;
                     Close.Timestamp = GetTimeStamp();
-                    //Close.Price = currentDataItem != null ? currentDataItem.Close : 0; //should never be zero, but won't take entry price in case entry has been lost for some reason
-                    //Close.Result = AdjustResultForFees(-MainObj.GetPriceDiff(Entry.Price, currentDataItem.Close, Order.Position) * 100); //setting result here in case close times out but does actually close on exchange, in which case there is still a record here of the result                                                                                                                                      //save balance and exchange rate
-                    //                                                                                                                     //need to wait a few seconds before getting the final balance
-                    //UpdateAccountEquityForTrade(Entry.TradeReference);
+
                     SetUpdateRequest(Close); //update adds if there is no Id set
 
                     if (!allowFlip)
@@ -1545,25 +1543,11 @@ namespace AlgoTrader.Shared
                     ResetLiveUpdateTimer();
                     StartEntryOrClose_Synchronised(); //will remove stop and floor and do the flip, and will call CloseTradeOnSystem_Synchronised()
 
-
-                    //at this point, order will be null and all exchange method scripts will be null. Close will have been added
-                    //if (allowFlip)
-                    //{
-                    //    if (Stop != null)
-                    //    {
-                    //        if (Stop.Type == TradeType.FLIP_ORDER)
-                    //        {
-                    //            DoFlip_Synchronised();
-                    //        }
-                    //    }
-                    //}
-
                     MainObj.DrawCurrentDispatcher();
                     return;
                 }
 
-                LogTrades.WriteLine("Closing order either backtesting or ENTERED_OFF_EXCHANGE");
-                CloseTradeOnSystem_synchronised(price); //close the trade on this system
+                //CloseTradeOnSystem_synchronised(price); //close the trade on this system
 
             }
         }
@@ -1653,9 +1637,8 @@ namespace AlgoTrader.Shared
 
         public double takerFee = 0; //retain this, so no need to get it when the trade closes (can assume it is still the same)
 
-        internal void AddLineToTrade_synchronised(_Trade trade)
-        {
-            var timeStamp = DateTime.UtcNow.AddMinutes(-1); 
+        internal void AddLineToTrade_synchronised(_Trade trade, DateTime timeStamp)
+        { 
             var line = new _ChartLine
             {
                 StartTimeStamp = timeStamp,

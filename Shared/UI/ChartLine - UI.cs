@@ -247,8 +247,8 @@ namespace AlgoTrader.Shared
 
 
                                     //line up other trades and lines to the order
-                                    tradeEngine.LineUpTrades(lines, TradeAction.STOP, order, entry != null);
-                                    tradeEngine.LineUpTrades(lines, TradeAction.TAKE_PROFIT, order, entry != null);
+                                    tradeEngine.LineUpTrades_synchronised(lines, TradeAction.STOP, order, entry != null);
+                                    tradeEngine.LineUpTrades_synchronised(lines, TradeAction.TAKE_PROFIT, order, entry != null);
 
                                     tradeEngine.UpdateUIList(chartLine);
                                     tradeEngine.currentTradeSetReference = chartLine.Trade.TradeReference;

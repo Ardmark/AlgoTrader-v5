@@ -49,7 +49,7 @@ namespace AlgoTrader.Shared
         //So it is vital that this does NOT start another synchronised section.
         public virtual void StartEntryOrClose_Synchronised() { }
 
-        //this is only overridden in the Binance class, to clear the account data object
+
         protected virtual void KillEntryOrCloseOrder(bool interrupted = false)
         {
             //kill order only applies to new entry being abandoned prior to submitting order request to exchange, or if it is rejected by exchange
