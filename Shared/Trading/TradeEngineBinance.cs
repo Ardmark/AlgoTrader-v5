@@ -681,11 +681,21 @@ namespace AlgoTrader.Shared
         {
             try
             {
-                return Deserialize<NewOCOData>(binanceAPI.NewOcoAsync(data).Result);
+                var ret = Deserialize<NewOCOData>(binanceAPI.NewOcoAsync(data).Result);
+
+                var stopResponse = ret.OrderReports.FirstOrDefault(x => x.Type == "STOP_LOSS" && x.Status == "NEW");
+                if (stopResponse == null)
+                {
+                    //presumably if the TakeProfit was rejected, the entire list would fail so there would be no stop anyway
+                    LogConnection.WriteLine($"Stop (OCO) order was rejected: {stopResponse.Status}");
+                    return null;
+                }
+
+                return ret;
             }
             catch (Exception e)
             {
-                LogTrades.WriteLine($"Error executing order: {e.Message}");
+                LogConnection.WriteLine($"Error executing order: {e.Message}");
                 return null;
             }
         }
@@ -1526,12 +1536,6 @@ namespace AlgoTrader.Shared
                 return;
             }
 
-            //don't want to do updates on the exchange if the stop is flat
-            if (Math.Abs(Stop.Price / lastPrice) > 0.9999) //less than 0.01% difference 
-            {
-                return;
-            }
-
             if (Stop.ExchangeStatus == TradeExchangeStatus.ENTERED_OFF_EXCHANGE && Stop.Type != TradeType.STOP_WAITING)
             {
                 LogTrades.WriteLine($"Did not set Stop on exchange, exchange status was {Stop.ExchangeStatus} - you need to add a new stop!");
@@ -1540,22 +1544,26 @@ namespace AlgoTrader.Shared
                 return;
             }
 
-            if (Stop.Position == TradePosition.SHORT && Stop.Price < lastPrice || Stop.Position == TradePosition.LONG && Stop.Price > lastPrice)
+            if (
+                Stop.Position == TradePosition.SHORT && Stop.Price < lastPrice || 
+                Stop.Position == TradePosition.LONG && Stop.Price > lastPrice
+                )
             {
-                LogTrades.WriteLine($"Did not set Stop on exchange, price was wrong side of candle data");
+                LogTrades.WriteLine($"Did not set Stop on exchange, Stop price was wrong side of candle data");
                 return;
             }
 
-            if (Stop.Quantity == 0 && Entry != null && Order.ActionValue != 0)
+
+            //check take profit price as well, if it is set
+            if ( TakeProfit != null &&
+                (TakeProfit.Position == TradePosition.SHORT && TakeProfit.Price > lastPrice ||
+                TakeProfit.Position == TradePosition.LONG && TakeProfit.Price < lastPrice)
+                )
             {
-                //this will be called from Order when setting stops automatically
-                Stop.Quantity = Entry.Quantity;
-                LogTrades.WriteLine($"Stop quantity was zero, Stop not yet set, setting Stop...");
+                LogTrades.WriteLine($"Did not set Take Profit on exchange, Take Profit price was wrong side of candle data");
+                return;
             }
 
-            bool isUpdating = Stop.ItemId != null;
-
-            Stop.ItemId ??= _Trade.GetNewTradeId();
 
             //will add a Take Profit since Binance require an OCO
             if (TakeProfit == null)
@@ -1563,18 +1571,26 @@ namespace AlgoTrader.Shared
                 TakeProfit = Entry.Clone();
                 TakeProfit.Action = TradeAction.TAKE_PROFIT;
                 TakeProfit.Timestamp = GetTimeStamp();
-                TakeProfit.Quantity = Entry.Quantity;
-                TakeProfit.ItemId = _Trade.GetNewTradeId();
                 TakeProfit.Price =
                     Entry.Position == TradePosition.LONG
                         ? lastPrice * (1 + INITIAL_TAKE_PROFIT_PERCENT_MARKET / 100)
                         : lastPrice * (1 - INITIAL_TAKE_PROFIT_PERCENT_MARKET / 100);
+                TakeProfit.Result = TakeProfit.Price;
                     
 
                 AddLineToTrade_synchronised(TakeProfit);
                 SetUpdateRequest(TakeProfit);
             }
 
+            Stop.ItemId ??= _Trade.GetNewTradeId();
+            TakeProfit.ItemId ??= _Trade.GetNewTradeId();
+
+            if (Stop.Quantity == 0 && Entry != null && Order.ActionValue != 0)
+            {
+                //this will be called from Order when setting stops automatically
+                Stop.Quantity = TakeProfit.Quantity = Entry.Quantity;
+                LogTrades.WriteLine($"Stop quantity was zero, Stop not yet set, setting Stop...");
+            }
 
             if (Stop.ExchangeStatus == TradeExchangeStatus.ENTERING_ON_EXCHANGE)
             {
@@ -1585,18 +1601,27 @@ namespace AlgoTrader.Shared
 
                 if (SendOCOToExchange(false)) //not updating, so will not remove OCO first
                 {
+                    LogConnection.WriteLine("OCO order accepted.");
                     Stop.ExchangeStatus = TakeProfit.ExchangeStatus = TradeExchangeStatus.ENTERED_ON_EXCHANGE;
                     Stop.ExchangeMethodScript = TakeProfit.ExchangeMethodScript = null;
+                }
+                else
+                {
+                    LogConnection.WriteLine("OCO order NOT accepted.");
                 }
             }
             else
             {
-                //trade is running, update stop (asynchronously using a new data context???)
-                //however, we don't want to send updates unless the stop price has actually changed
+                var v1 = Math.Abs(Stop.Price / Stop.Result);
+                var v2 = Math.Abs(TakeProfit.Price / TakeProfit.Result);
+
+                //trade is running, update stop
+                //however, we don't want to send updates unless the stop price or take profit price has actually changed
                 //can just use the Result property to save the previous price
-                if (Stop.Result != Stop.Price)
+                if (Stop.Price !=  Stop.Result || TakeProfit.Price != TakeProfit.Result)
                 {
                     Stop.Result = Stop.Price;
+                    TakeProfit.Result = TakeProfit.Price;
 
                     Stop.ExchangeMethodScript = TakeProfit.ExchangeMethodScript = EXCHANGE_NOT_SYNCHED;
                     SetUpdateRequest(Stop);
@@ -1607,12 +1632,18 @@ namespace AlgoTrader.Shared
                     //    InitForDataContext(() =>
                     //    {
 
+                    LogConnection.WriteLine("Sending OCO...");
                     if (SendOCOToExchange(true))
                     {
+                        LogConnection.WriteLine("OCO order accepted.");
                         Stop.ExchangeStatus = TakeProfit.ExchangeStatus = TradeExchangeStatus.ENTERED_ON_EXCHANGE;
                         Stop.ExchangeMethodScript = TakeProfit.ExchangeMethodScript = null;
                         SetUpdateRequest(Stop);
                         SetUpdateRequest(TakeProfit);
+                    }
+                    else
+                    {
+                        LogConnection.WriteLine("OCO order NOT accepted.");
                     }
 
                     //    });
@@ -1646,16 +1677,7 @@ namespace AlgoTrader.Shared
 
                     if (orderStop == null)
                     {
-                        return false;
-                    }
-                    if (orderStop.OrderReports != null)
-                    {
-                        var stopResponse = orderStop.OrderReports.FirstOrDefault(x => x.Type == "STOP_LOSS" && x.Status == "NEW");
-                        if (stopResponse == null)
-                        {
-                            WriteDeliniatedMessage($"Stop order was rejected: {stopResponse.Status}");
-                            return false;
-                        }
+                        return false; //log output and error checking handled by ExecuteOCO
                     }
 
                     //can only cancel the OCO from the listClientOrderId so this can be set in place of the stop itemId

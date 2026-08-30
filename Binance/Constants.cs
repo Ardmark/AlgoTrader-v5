@@ -10,9 +10,9 @@ namespace AlgoTrader.Windows
             TradeEngine.EXCHANGE = Shared.Enums.ExchangeId.BINANCE;
 
             
-            //live
-            TradeEngine.LIVE_KEY =    "vVo1RvHqDbC07mA7QTaj8Q7dtF6qE7mCrTBztdHOidQLml5dhdk4v1nLDwlzHyZ6"; // also, should enable only trusted IP addresses on Binance - have not done this yet
-            TradeEngine.LIVE_SECRET = "H7IhdsS3TVUoTjowVOC93lGpcVZo5PjCD1I2vwUeWbIO02N1EUTeb21nWavZfrB1"; // Same for this
+            //live (keys are OK but commented to be safe)
+            //TradeEngine.LIVE_KEY =    "vVo1RvHqDbC07mA7QTaj8Q7dtF6qE7mCrTBztdHOidQLml5dhdk4v1nLDwlzHyZ6"; // also, should enable only trusted IP addresses on Binance - have not done this yet
+            //TradeEngine.LIVE_SECRET = "H7IhdsS3TVUoTjowVOC93lGpcVZo5PjCD1I2vwUeWbIO02N1EUTeb21nWavZfrB1"; // Same for this
 
             //testnet
             TradeEngine.TESTNET_KEY =    "rssumaVWFRJ6b1Uh3n6E87CXwKz3UytIfpkaGngMVx21ukjCl0Mtik8VwAePt99K";

@@ -18,7 +18,7 @@ namespace AlgoTrader.Shared.Windows
   * */
     public partial class AlertDialog : Window
     {
-        public AlertDialog(string message, string title, Action callback, double x, double y, bool hideCancel = false)
+        public AlertDialog(string message, string title, Action<bool> callback, double x, double y, bool hideCancel = false)
         {
             InitializeComponent();
             Loaded += new RoutedEventHandler(AlertDialog_Loaded);
@@ -29,6 +29,8 @@ namespace AlgoTrader.Shared.Windows
             //WindowStartupLocation = WindowStartupLocation.Manual;
             //location = new Point(x, y);
         }
+
+
 
         void AlertDialog_Loaded(object sender, RoutedEventArgs e)
         {
@@ -41,11 +43,15 @@ namespace AlgoTrader.Shared.Windows
 
         static string currentTitle = null;
         static string currentMessage = null;
-        static Action currentCallback = null;
+        static Action<bool> currentCallback = null;
         static AlertDialog currentDialog = null;
-        Action callback;
+        Action<bool> callback;
+        private string message;
+        private double x;
+        private double y;
+        private bool hideCancel;
 
-        public static void ShowCallback(string message, string title, Action callback, double x = 0, double y = 0, bool hideCancel = false)
+        public static void ShowCallback(string message, string title, Action<bool> callback, double x = 0, double y = 0, bool hideCancel = false)
         {
             //to prevent showing multiple identical message boxes, one on top of the other, e.g. for a UI move event which is not allowed,
             //check for variation of data. This would not happen with modal dialog.
@@ -94,15 +100,13 @@ namespace AlgoTrader.Shared.Windows
         private void BtnOk_Click(object sender, RoutedEventArgs e)
         {
             Close();
-            if (callback != null)
-            {
-                callback();
-            }
+            callback?.Invoke(true);
         }
 
         private void BtnCancel_Click(object sender, RoutedEventArgs e)
         {
             Close();
+            callback?.Invoke(false);
         }
         protected override void OnClosed(EventArgs e)
         {

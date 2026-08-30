@@ -636,7 +636,7 @@ namespace AlgoTrader.Shared
                                 MainObj.TradeStatusChanged(this, true);
                             }
                         }
-                        catch (Exception ex) 
+                        catch (Exception ex)
                         {
                         }
                     }

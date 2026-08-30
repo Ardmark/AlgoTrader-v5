@@ -14,38 +14,6 @@ namespace AlgoTrader.Shared
         #region Properties
 
         //the data properties for this class are in a separate file in DataObjects, to keep all DB elements together
-
-        /*
-        //base class properties
-        public string Symbol { get; set; }
-        public Enums.ExchangeId ExchangeId { get; set; } = Enums.ExchangeId.BINANCE;
-
-        //drawing can be associated with a trade
-        public int TradeId { get; set; }
-
-        public bool IsVisible { get; set; }
-        public double Opacity { get; set; }
-
-        //color
-        public byte Red { get; set; }
-        public byte Green { get; set; }
-        public byte Blue { get; set; }
-        public byte Alpha { get; set; }
-
-        //bounds
-        public DateTime StartTimeStamp { get; set; }
-        public DateTime EndTimeStamp { get; set; }
-        public double StartPrice { get; set; }
-        public double EndPrice { get; set; }
-        public int StartFrame { get; set; } //to save getting frame from timestamp each time
-        public int EndFrame { get; set; }
-
-        //line-specific properties
-        public LineType Type { get; set; }
-        public LineStyle Style { get; set; }
-        public double Thickness { get; set; }
-
-        */
         #endregion
 
         #region Fields

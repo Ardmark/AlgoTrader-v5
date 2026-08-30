@@ -408,7 +408,7 @@ namespace AlgoTrader.Live.ViewModels
 
         public void RestartStoppedOrders()
         {
-            AlertDialog.ShowCallback("This will start all Stopped Orders", "Start all stopped orders?", () =>
+            AlertDialog.ShowCallback("This will start all Stopped Orders", "Start all stopped orders?", (_) =>
             {
                 using DataContext db = new();
                 var allTrades = db.Trades.Where(x =>
@@ -433,7 +433,7 @@ namespace AlgoTrader.Live.ViewModels
 
         public void RemoveStoppedOrders()
         {
-            AlertDialog.ShowCallback("This will remove all Stopped Orders", "Remove all stopped orders?", () =>
+            AlertDialog.ShowCallback("This will remove all Stopped Orders", "Remove all stopped orders?", (_) =>
             {
                 var tradesToRemove = new List<_Trade>();
                 using (DataContext db = new())
@@ -780,7 +780,7 @@ namespace AlgoTrader.Live.ViewModels
                     }
                     else
                     {
-                        AlertDialog.ShowCallback("This will remove a locally placed order, without sending a buy order to the Exchange.\nThis will also force-remove any running trade from the system.", "Remove trade locally?", () =>
+                        AlertDialog.ShowCallback("This will remove a locally placed order, without sending a buy order to the Exchange.\nThis will also force-remove any running trade from the system.", "Remove trade locally?", (_) =>
                         {
                             tradeEngine.RemoveTrade_UI_synchronised(GetTradeId(), true);
                             RemovePopupWindow();
@@ -1184,7 +1184,7 @@ namespace AlgoTrader.Live.ViewModels
                         }
                         else
                         {
-                            AlertDialog.ShowCallback("This order will execute immediately!", "Set Long Market order?", () =>
+                            AlertDialog.ShowCallback("This order will execute immediately!", "Set Long Market order?", (_) =>
                             {
                                 try
                                 {
@@ -1220,7 +1220,7 @@ namespace AlgoTrader.Live.ViewModels
                         }
                         else
                         {
-                            AlertDialog.ShowCallback("This order will execute immediately!", "Set Short Market order?", () =>
+                            AlertDialog.ShowCallback("This order will execute immediately!", "Set Short Market order?", (_) =>
                             {
                                 try
                                 {
@@ -1473,7 +1473,7 @@ namespace AlgoTrader.Live.ViewModels
 
         public void KillOrders()
         {
-            AlertDialog.ShowCallback("This will terminate all open and running orders on this symbol.", "KILL ALL ORDERS ON THIS SYMBOL?", () =>
+            AlertDialog.ShowCallback("This will terminate all open and running orders on this symbol.", "KILL ALL ORDERS ON THIS SYMBOL?", (_) =>
             {
                 MainObj.KillOrders();
                 RemovePopupWindow();
@@ -1591,7 +1591,7 @@ namespace AlgoTrader.Live.ViewModels
         {
             if (int.TryParse(param as string, out int result))
             {
-                AlertDialog.ShowCallback("", "Extend trade lines to next interval?", () =>
+                AlertDialog.ShowCallback("", "Extend trade lines to next interval?", (_) =>
                 {
                     MainObj.ExtendLines_UI(result);
                 });
@@ -1831,7 +1831,7 @@ namespace AlgoTrader.Live.ViewModels
 
         private void StopUnenteredOrders()
         {
-            AlertDialog.ShowCallback("This will stop all unentered orders on the system - and remember to enable RDP (Settings -> System) for remote access", "Stop unentered orders", () =>
+            AlertDialog.ShowCallback("This will stop all unentered orders on the system - and remember to enable RDP (Settings -> System) for remote access", "Stop unentered orders", (ret) =>
             {
                 MainObj.StopWaitingTrades_UI();
             });
@@ -1839,7 +1839,7 @@ namespace AlgoTrader.Live.ViewModels
 
         private void RemoveUnenteredOrders()
         {
-            AlertDialog.ShowCallback("Remove all unentered orders from the system?", "Remove unentered orders", () =>
+            AlertDialog.ShowCallback("Remove all unentered orders from the system?", "Remove unentered orders", (_) =>
             {
                 MainObj.RemoveWaitingTrades_UI();
             });
@@ -1912,7 +1912,7 @@ namespace AlgoTrader.Live.ViewModels
 
             if (MainObj.exchangeConnector.IsConnected)
             {
-                AlertDialog.ShowCallback("Pause data feed", "Are you sure?", () =>
+                AlertDialog.ShowCallback("Pause data feed", "Are you sure?", (_) =>
                 {
                     bool ret = MainObj.exchangeConnector.ToggleConnection();
                     string title = ret ? "Pause connection" : "Start connection";
@@ -1937,7 +1937,7 @@ namespace AlgoTrader.Live.ViewModels
         {
             OnMouseUp(); //to stop drag
 
-            AlertDialog.ShowCallback("This will restart data feed", "Restart connection", () =>
+            AlertDialog.ShowCallback("This will restart data feed", "Restart connection", (_) =>
             {
                 MainObj.exchangeConnector.RestartConnection();
                 SetProperty("ConnectionMenuTitle", "Pause connection");

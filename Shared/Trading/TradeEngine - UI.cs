@@ -1,4 +1,5 @@
 ﻿using AlgoTrader.Shared.Enums;
+using AlgoTrader.Shared.Logging;
 using AlgoTrader.Shared.TradeIndicators;
 using AlgoTrader.Shared.Windows;
 
@@ -255,14 +256,6 @@ namespace AlgoTrader.Shared
         
         internal void SetMarketOrderAtTime_UI_synchronised(DateTime timeStamp, double price, TradePosition position)
         {
-            if (EXCHANGE == ExchangeId.BINANCE)
-            {
-                if (position == TradePosition.SHORT)
-                {
-                    AlertDialog.Show("Short orders not available on Binance", "Not available");
-                    return;
-                }
-            }
             Task.Run(() =>
             {
                 InitForDataContext(() =>
@@ -799,6 +792,7 @@ namespace AlgoTrader.Shared
             MainObj.TradeStatusChanged(this);
         }
 
+        //this sets both stops and take profits
         private void SetStop_UI(DateTime timeStamp, double price, TradeAction tradeAction, TradeType tradeType = TradeType.NO_FLIP_ORDER, TradeStop tradeStop = TradeStop.STOP_ON_LINE_BREAK, _ChartLine chartLine = null)
         {
 
@@ -862,6 +856,7 @@ namespace AlgoTrader.Shared
 
             void SetStop()
             {
+
                 InitForDataContext(() =>
                 {
                     if (chartLine != null)
@@ -882,18 +877,22 @@ namespace AlgoTrader.Shared
 
                     _Trade trade = GetTradeForTradeReference(tradeAction);
 
-                    if (trade == null)
+                    if (trade != null)
                     {
-                        //add a new stop derived from the trade
-                        trade = order.Clone(); //this should only happen if a stop has been deleted completely
-                        trade.ItemId = null; //because Bitmex will have a new ID for the stop
+                        //just update the existing stop
+                        var line = AllLinesForSymbol.FirstOrDefault(x => x.TradeId == trade.Id);
+                        var priceDiff = price - trade.Price;
+                        line.StartPrice += priceDiff;
+                        line.EndPrice += priceDiff;
+                        trade.Price = price;
+                        
+                        SetStopOnExchange_Synchronised(); //this will not do anything if trade is not entered
+
                         SetUpdateRequest(trade);
+                        SetUpdateRequest(line);
+                        return;
                     }
-                    else
-                    {
-                        //if existing stop is a line stop, just remove the line attachment
-                        RemoveTradeFromLine_UI_synchronised(trade);
-                    }
+
 
                     trade.ItemStatus = TradeItemStatus.OPEN;
                     trade.Stop = tradeStop;
@@ -1069,7 +1068,7 @@ namespace AlgoTrader.Shared
                 if (!isWrongSide)
                 {
                     //need to block setting on wrong side of current price entirely to be safe
-                    AlertDialog.ShowCallback($"Requested position is too close to Order and may trigger immediate exit.\nDo you wish to procede? ", $"Terminating trade position may not be valid", () =>            
+                    AlertDialog.ShowCallback($"Requested position is too close to Order and may trigger immediate exit.\nDo you wish to procede? ", $"Terminating trade position may not be valid", (_) =>            
                         SetStop()
                     );
                 }
