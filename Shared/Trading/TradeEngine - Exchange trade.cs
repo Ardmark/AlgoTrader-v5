@@ -31,23 +31,14 @@ namespace AlgoTrader.Shared
 
         #region Script names
         //script names - rather than enums - because these are stored in the db as strings so are easier to use when debugging
-        internal const string QUERY_ORDER_SCRIPT = "Query Order"; //to update a trade with live server data
         internal const string NEW_ORDER_SCRIPT = "New Order";
         internal const string CLOSE_ORDER_SCRIPT = "Close Order";
-        internal const string CANCEL_ORDER_SCRIPT = "Cancel Order"; //to cancel a stop, tp or floor (or OCO)
-        internal const string CLOSED_ON_EXCHANGE = "Closed on exchange";
         internal const string EXCHANGE_NOT_SYNCHED = "Exchange not synched"; //this is just used if the exchange returns no open trades, it is just for drawing
-
-        //binance - specific
-        internal const string SET_STOP_SCRIPT = "Set Stop";
-        internal const string CANCEL_STOP_SCRIPT = "Cancel Stop";
         internal const string UPDATE_LIVE_STATE_SCRIPT = "Update live state";
         #endregion
 
-        //The entry point for all trades
-        //This method is only called from a single point, which is within a synchronised block.
-        //So it is vital that this does NOT start another synchronised section.
-        public virtual void StartEntryOrClose_Synchronised() { }
+        public virtual void StartEntry_Synchronised() { }
+        public virtual void StartClose_Synchronised() { }
 
 
         protected virtual void KillEntryOrCloseOrder(bool interrupted = false)

@@ -15,14 +15,12 @@ namespace AlgoTrader.Shared
 
         public override bool CanEnterTrade_synchronised(_Trade order)
         {
-            if (!MainObj.BACKTEST)
-            {
-                if (tradeEngine.dataReady == false)
-                {
-                    return false;
-                }
-            }
 
+            if (tradeEngine.dataReady == false)
+            {
+                return false;
+            }
+            
             //move order to current trade position
             order.Timestamp = tradeEngine.currentDataItem.Timestamp;
 

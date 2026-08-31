@@ -45,10 +45,6 @@ namespace AlgoTrader.Shared.TradeIndicators
             int startFrame = Chart.ScrollBars;
             int numFrames = Chart.ScaleBars;
 
-            if (MainObj.IsBacktesting)
-            {
-                return;
-            }
             //overlays chart, so must use the same scaling
             Low = Chart.Low;
             High = Chart.High;

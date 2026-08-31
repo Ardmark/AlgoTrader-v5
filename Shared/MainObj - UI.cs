@@ -22,54 +22,52 @@ namespace AlgoTrader.Shared
 
         internal static void StopWaitingTrades_UI()
         {
-            if (!IsBacktesting)
-            {
-                foreach (var s in SymbolNames.GetSymbolNames())
-                {
-                    var tradeEngine = GetTradeEngineForSymbol(s);
-                    tradeEngine?.StopWaitingTrades_UI_synchronised();
-                    TradeStatusChanged(tradeEngine, false);
-                }
-                DrawCurrentDispatcher();
-            }
-        }
-
-        internal static void RemoveWaitingTrades_UI()
-        {
-#pragma warning disable CS0162
-            if (!IsBacktesting)
-            {
-                foreach (var s in SymbolNames.GetSymbolNames())
-                {
-                    var tradeEngine = GetTradeEngineForSymbol(s);
-                    tradeEngine?.RemoveWaitingTrades_UI_synchronised();
-                    TradeStatusChanged(tradeEngine, false);
-                }
-                DrawCurrentDispatcher();
-            }
-        }
-
-        internal static void RemoveUnallocatedLines_UI()
-        {
-            visibleTradeEngine.RemoveUnallocatedLines_UI_synchronised();
-            DrawCurrentDispatcher();
-        }
-
-        internal static void ExtendLines_UI(int numIntervals)
-        {
-            var nextEarliest = GetNextInterval_UI(DateTime.UtcNow);
-            for (int i = 0; i < numIntervals; i++)
-            {
-                nextEarliest = GetNextInterval_UI(nextEarliest);
-            }
-
             foreach (var s in SymbolNames.GetSymbolNames())
             {
-                GetTradeEngineForSymbol(s)?.ExtendLines_UI_synchronised(nextEarliest);
+                var tradeEngine = GetTradeEngineForSymbol(s);
+                tradeEngine?.StopWaitingTrades_UI_synchronised();
+                TradeStatusChanged(tradeEngine, false);
             }
-
             DrawCurrentDispatcher();
+
         }
+
+//        internal static void RemoveWaitingTrades_UI()
+//        {
+//#pragma warning disable CS0162
+//            if (!IsBacktesting)
+//            {
+//                foreach (var s in SymbolNames.GetSymbolNames())
+//                {
+//                    var tradeEngine = GetTradeEngineForSymbol(s);
+//                    tradeEngine?.RemoveWaitingTrades_UI_synchronised();
+//                    TradeStatusChanged(tradeEngine, false);
+//                }
+//                DrawCurrentDispatcher();
+//            }
+//        }
+
+        //internal static void RemoveUnallocatedLines_UI()
+        //{
+        //    visibleTradeEngine.RemoveUnallocatedLines_UI_synchronised();
+        //    DrawCurrentDispatcher();
+        //}
+
+        //internal static void ExtendLines_UI(int numIntervals)
+        //{
+        //    var nextEarliest = GetNextInterval_UI(DateTime.UtcNow);
+        //    for (int i = 0; i < numIntervals; i++)
+        //    {
+        //        nextEarliest = GetNextInterval_UI(nextEarliest);
+        //    }
+
+        //    foreach (var s in SymbolNames.GetSymbolNames())
+        //    {
+        //        GetTradeEngineForSymbol(s)?.ExtendLines_UI_synchronised(nextEarliest);
+        //    }
+
+        //    DrawCurrentDispatcher();
+        //}
 
         internal static void CleanupTrades()
         {

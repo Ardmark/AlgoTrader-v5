@@ -82,54 +82,6 @@ namespace AlgoTrader.Shared.ViewModels
                 //this assumes backtests will not be mixed between manual and auto-generated
                 var allTrades = db.Trades.AsNoTracking().AsParallel().Where(d => d.GlobalStatus == TradeGlobalStatus.STOPPED).ToList();
                 var allCloses = allTrades.Where(x => x.Action == TradeAction.CLOSE).ToList();
-#if BACKTEST
-                /*
-                 * Issue with backtests: tests are done per-symbol, so cannot account for concurrency of trades
-                 * Therefore, must filter out here if required.
-                 * This will show either ONLY non-concurrent live trades, or ALL as live trades regardless of concurrency
-                 * */
-                //if (!TradeEngine.ENTER_CONCURRENT_TRADES_AS_TESTS)
-                //{
-                //    //filter out entries which should not have been entered
-                //    var entries = allTrades.Where(x => x.Action == TradeAction.ENTRY).OrderBy(x => x.Timestamp).ToList();
-                //    var tradesToRemove = new List<Trade>();
-                //    foreach (var entry in entries)
-                //    {
-                //        if (entry.OrderType != OrderType.NEVER_ENTERED)
-                //        {
-                //            var close = allTrades.Where(x => x.TradeId == entry.TradeId && x.Action == TradeAction.CLOSE).FirstOrDefault();
-                //            if (close != null)
-                //            {
-                //                var overlapStartTrades = entries.Where(x => x.Action == TradeAction.ENTRY && x.TradeId != entry.TradeId && x.OrderType != OrderType.NEVER_ENTERED && x.Timestamp <= entry.Timestamp).ToList();
-                //                if (overlapStartTrades.Any())
-                //                {
-                //                    foreach (var overlapEntry in overlapStartTrades)
-                //                    {
-                //                        var overlapClose = allTrades.Where(x => x.Action == TradeAction.CLOSE && x.TradeId == overlapEntry.TradeId && x.Timestamp > entry.Timestamp).FirstOrDefault();
-                //                        if (overlapClose != null)
-                //                        {
-                //                            tradesToRemove.Add(close);
-                //                            entry.OrderType = OrderType.NEVER_ENTERED;
-                //                            break;
-                //                        }
-                //
-                //                    }
-                //                }
-                //            }
-                //        }
-                //    }
-                //
-                //    foreach (var t in tradesToRemove)
-                //    {
-                //        allCloses.Remove(t);
-                //    }
-                //    foreach (var t in allCloses)
-                //    {
-                //        t.OrderType = OrderType.ENTERED_ON_EXCHANGE; //or is confusing as most will show as not entered, as that will come from previous backtest etc.
-                //    }
-                //
-                //}
-#endif
 
                 //TODO - this needs changing for tables
                 //var symbolGroups = db.SymbolDataItems.AsNoTracking().AsParallel().GroupBy(x => x.SymbolName);

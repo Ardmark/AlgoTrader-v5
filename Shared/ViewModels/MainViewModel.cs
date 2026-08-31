@@ -1,9 +1,5 @@
-﻿#if BACKTEST
-using AlgoTrader.Backtest.Backtesting;
-#endif
-using AlgoTrader.Shared;
+﻿using AlgoTrader.Shared;
 using AlgoTrader.Shared.Enums;
-using AlgoTrader.Shared.ExchangeConnection;
 using AlgoTrader.Shared.Interfaces;
 using AlgoTrader.Shared.Logging;
 using AlgoTrader.Shared.TradeIndicators;
@@ -16,10 +12,9 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Shapes;
-using TextBox = System.Windows.Controls.TextBox;
-using MessageBox = System.Windows.MessageBox;
 using KeyEventArgs = System.Windows.Input.KeyEventArgs;
-using System;
+using MessageBox = System.Windows.MessageBox;
+using TextBox = System.Windows.Controls.TextBox;
 
 //won't build without the fully-qualified namespace here, referenced in MainWindow.xaml by xmlns:myAttachedProperties
 namespace AlgoTrader.Live.ViewModels
@@ -371,19 +366,20 @@ namespace AlgoTrader.Live.ViewModels
         }
         #endregion
 
-        #region Menu commands  
+        #region Menu commands
+        
         #region Orders
         ICommand moveStopsCommand, killOrdersCommand;
-        public ICommand MoveStops_Click => moveStopsCommand ?? (moveStopsCommand = new CommandHandler((param) => MoveTrades(param), true));
-        public ICommand KillOrders_Click => killOrdersCommand ?? (killOrdersCommand = new CommandHandler1(() => KillOrders(), true));
+        public ICommand MoveStops_Click => moveStopsCommand ??= new CommandHandler((param) => MoveTrades(param), true);
+        public ICommand KillOrders_Click => killOrdersCommand ??= new CommandHandler1(KillOrders, true);
 
         #endregion
 
         #region Connection
         ICommand connectionCommand, restartCommand, backupDBCommand;
-        public ICommand ConnectionCommand => connectionCommand ?? (connectionCommand = new CommandHandler1(() => ToggleConnection(), true));
-        public ICommand RestartCommand => restartCommand ?? (restartCommand = new CommandHandler1(() => RestartConnection(), true));
-        public ICommand BackupDBCommand => backupDBCommand ?? (backupDBCommand = new CommandHandler1(async () => await MainObj.BackupDB(), true));
+        public ICommand ConnectionCommand => connectionCommand ??= new CommandHandler1(() => ToggleConnection(), true);
+        public ICommand RestartCommand => restartCommand ??= new CommandHandler1(() => RestartConnection(), true);
+        public ICommand BackupDBCommand => backupDBCommand ??= new CommandHandler1(async () => await MainObj.BackupDB(), true);
         #endregion
 
         #region Time
@@ -398,141 +394,17 @@ namespace AlgoTrader.Live.ViewModels
         public ICommand LeverageCommand => leverageCommand ?? (leverageCommand = new CommandHandler((param) => SetLeverage(param), true));
         #endregion
 
-        #region Concurrent orders
-        ICommand concurrentOrdersCommand;
-        //when changing the menu timeframes, also remember to change the key bindings in MainWindow.xaml as well
-        #endregion
-
-        ICommand restartAllStoppedOrders;
-        public ICommand RestartAllStoppedOrders => restartAllStoppedOrders ?? (restartAllStoppedOrders = new CommandHandler1(() => RestartStoppedOrders(), true));
-
-        public void RestartStoppedOrders()
-        {
-            AlertDialog.ShowCallback("This will start all Stopped Orders", "Start all stopped orders?", (_) =>
-            {
-                using DataContext db = new();
-                var allTrades = db.Trades.Where(x =>
-                    x.GlobalStatus == TradeGlobalStatus.STOPPED &&
-                    (x.Action == TradeAction.ORDER));
-
-
-                foreach (var trade in allTrades)
-                {
-                    var close = db.Trades.FirstOrDefault(x => x.TradeReference == trade.TradeReference && x.Action == TradeAction.CLOSE);
-                    if (close == null)
-                    {
-                        var tradeEngine = MainObj.GetTradeEngineForSymbol(trade.SymbolName);
-                        tradeEngine.RestartTrade_UI_synchronised(trade.Id);
-                    }
-                }
-            });
-        }
-
-        ICommand removeAllStoppedOrders;
-        public ICommand RemoveAllStoppedOrdersCommand => removeAllStoppedOrders ?? (removeAllStoppedOrders = new CommandHandler1(() => RemoveStoppedOrders(), true));
-
-        public void RemoveStoppedOrders()
-        {
-            AlertDialog.ShowCallback("This will remove all Stopped Orders", "Remove all stopped orders?", (_) =>
-            {
-                var tradesToRemove = new List<_Trade>();
-                using (DataContext db = new())
-                {
-                    var allTrades = db.Trades.Where(x =>
-                        x.GlobalStatus == TradeGlobalStatus.STOPPED &&
-                        (x.Action == TradeAction.ORDER));
-
-
-                    foreach (var trade in allTrades)
-                    {
-                        var close = db.Trades.FirstOrDefault(x => x.TradeReference == trade.TradeReference && x.Action == TradeAction.CLOSE);
-                        if (close == null) //we have an order which has no close associated with it
-                        {
-                            tradesToRemove.Add(trade);
-                        }
-                    }
-                }
-
-                foreach (var trade in tradesToRemove)
-                {
-                    var tradeEngine = MainObj.GetTradeEngineForSymbol(trade.SymbolName);
-                    tradeEngine.RemoveStoppedTrades_UI_Synchronised(trade);
-                }
-                MainObj.DrawCurrentDispatcher(true);
-            });
-        }
-
-
-        //ICommand setStopTrailPercent;
-        //public ICommand SetStopTrailPercent => setStopTrailPercent ?? (setStopTrailPercent = new CommandHandler1(() => SetStopTrailPC(), true));
-
-        //public void SetStopTrailPC()
-        //{
-        //    var ret = double.TryParse(SetOrderAtPriceDialog.Prompt("1", $"Set trailing stop percent", mouseMoveX, mouseMoveY), out double price);
-
-        //    if (ret)
-        //    {
-
-        //        if (price < 0.5)
-        //        {
-        //            AlertDialog.Show("Cannot set trail this close");
-        //            return;
-        //        }                
-                
-        //        //get any trailing stop
-        //        using DataContext db = new();
-        //        var stop = db.Trades.FirstOrDefault(x => x.Action == TradeAction.STOP && x.Stop == TradeStop.STOP_TRAIL && x.GlobalStatus == TradeGlobalStatus.ACTIVE);
-
-        //        if (stop == null)
-        //        {
-        //            MainObj.visibleTradeEngine.SetStopAtPrice_UI_synchronised(DateTime.UtcNow, price, TradeStop.STOP_TRAIL);
-        //        }
-        //        else
-        //        {
-        //            //reset action value
-        //            stop.ActionValue = price / 100;
-        //            Order.DoTrail(stop);
-
-        //            //must update on the exchange, otherwise it will only update when the trail moves which may not happen for ages if the market is falling (long)
-        //            var tradeEngine = MainObj.visibleTradeEngine as TradeEngineBitmex;
-        //            if (tradeEngine != null)
-        //            {
-        //                tradeEngine.SendStopToExchange(stop);
-        //                tradeEngine.UpdateUIList(stop);
-        //            }
-        //        }
-
-        //        db.SaveChanges();
-        //        MainObj.DrawCurrentDispatcher(true);
-        //    }
-        //}
-
-
         #region View
-        ICommand showHeikinAshiCommand, showClosedTradesCommand, showWaitingTradesCommand, showFloorTradesCommand, showLiquidationsCommand, drawingModeCommand, darkModeCommand, showAllTradesCommand;
+        ICommand changeSymbolCommand, getAccountBalances, clearClosedTrades, refreshDailyPercent, clearLogWindow, invertChartCommand, showHeikinAshiCommand, showClosedTradesCommand, showWaitingTradesCommand, showFloorTradesCommand, showLiquidationsCommand, drawingModeCommand, darkModeCommand, showAllTradesCommand;
         public ICommand ShowHeikinAshiCommand => showHeikinAshiCommand ?? (showHeikinAshiCommand = new CommandHandler1(() => { ToggleHeikinAshi(); }, true));
         public ICommand ShowClosedTradesCommand => showClosedTradesCommand ?? (showClosedTradesCommand = new CommandHandler1(() => { ToggleShowClosedTrades(); }, true));
-        public ICommand ShowWaitingTradesCommand => showWaitingTradesCommand ?? (showWaitingTradesCommand = new CommandHandler1(() => { ToggleShowOnlyActiveTrade(); }, true));
         public ICommand ShowAllTradesCommand => showAllTradesCommand ?? (showAllTradesCommand = new CommandHandler1(() => { ToggleShowAllTrades(); }, true));
-        //public ICommand ShowFloorTradesCommand => showFloorTradesCommand ?? (showFloorTradesCommand = new CommandHandler1(() => { ToggleShowFloorTrades(); }, true));
         public ICommand ShowLiquidationsCommand => showLiquidationsCommand ?? (showLiquidationsCommand = new CommandHandler1(() => { ShowHideLiquidations(); }, true));
         public ICommand DrawingModeCommand => drawingModeCommand ?? (drawingModeCommand = new CommandHandler1(() => { ToggleDrawingMode(); }, true));
         public ICommand ToggleDarkModeCommand => darkModeCommand ?? (darkModeCommand = new CommandHandler1(() => { ToggleDarkMode(); }, true));
-
-
-        ICommand invertChartCommand;
         public ICommand InvertChartCommand => invertChartCommand ?? (invertChartCommand = new CommandHandler1(() => { InvertChart(); }, true));
-
-        ICommand clearLogWindow;
         public ICommand ClearLogWindow => clearLogWindow ?? (clearLogWindow = new CommandHandler1(() => ClearLogs(), true));
-
-        ICommand changeSymbolCommand;
-        public ICommand ChangeSymbolCommand => changeSymbolCommand ?? (changeSymbolCommand = new CommandHandler((param) => ChangeSymbol(param), true));
-
-        ICommand refreshDailyPercent;
         public ICommand RefreshDailyPercent => refreshDailyPercent ?? (refreshDailyPercent = new CommandHandler1(() => MainObj.RefreshActiveTradeSummary(), true));
-
-        ICommand clearClosedTrades;
         public ICommand ClearClosedTrades => refreshDailyPercent ?? (clearClosedTrades = new CommandHandler(async (param) =>
         {
             await ActiveTradeSummary.ClearClosedTrades(param);
@@ -540,49 +412,27 @@ namespace AlgoTrader.Live.ViewModels
             SetProperty("ShowClosedTrades_Checked", Chart.showClosedTrades);
             MainObj.DrawImmediate();
         }, true));
-
-        ICommand getAccountBalances;
         public ICommand GetAccountBalances => getAccountBalances ?? (getAccountBalances = new CommandHandler1(() => GetBalances(), true));
+        public ICommand ChangeSymbolCommand => changeSymbolCommand ?? (changeSymbolCommand = new CommandHandler((param) => ChangeSymbol(param), true));
 
         #endregion
 
         #region Run / stop Orders
-
-#if BACKTEST
-        ICommand setBacktestTimeframe, runBacktestsForSymbolCommand, runAllBacktestsCommand, runBatchBacktestsCommand, pauseBacktestCommand, stopBacktestCommand;
-        public ICommand RunBacktestsForSymbolCommand => runBacktestsForSymbolCommand ?? (runBacktestsForSymbolCommand = new CommandHandler((param) => BacktestSymbol(param), true));
-        public ICommand RunAllBacktestsCommand => runAllBacktestsCommand ?? (runAllBacktestsCommand = new CommandHandler((param) => RunAllBacktests(param), true));
-        public ICommand RunBatchBacktestsCommand => runBatchBacktestsCommand ?? (runBatchBacktestsCommand = new CommandHandler((param) => RunBatchBacktests(param), true));
-        public ICommand PauseBacktestCommand => pauseBacktestCommand ?? (pauseBacktestCommand = new CommandHandler1(() => PauseBacktest(), true));
-        public ICommand StopBacktestCommand => stopBacktestCommand ?? (stopBacktestCommand = new CommandHandler1(() => StopBacktest(), true)); //just the stop command because Stop Market is run from menu so that command also stops
-        public ICommand SetBacktestTimeframe => setBacktestTimeframe ?? (setBacktestTimeframe = new CommandHandler((param) => SetBacktestTimeframeCommand(param), true)); //just the stop command because Stop Market is run from menu so that command also stops
-
-#endif
         ICommand resetMaxEntryTimeCommand, enableLiveTradingCommand, stopLiveTrades, stopUnenteredOrders, removeUnenteredOrders;
-        public ICommand EnableLiveTradingCommand => enableLiveTradingCommand ?? (enableLiveTradingCommand = new CommandHandler1(() => EnableLiveTradingAuto(), true));
-        public ICommand StopAllLiveTradesCommand => stopLiveTrades ?? (stopLiveTrades = new CommandHandler1(() => StopAllLiveTrades(), true));
         public ICommand StopUnenteredOrdersCommand => stopUnenteredOrders ?? (stopUnenteredOrders = new CommandHandler1(() => StopUnenteredOrders(), true));
-        public ICommand RemoveUnenteredOrdersCommand => removeUnenteredOrders ?? (removeUnenteredOrders = new CommandHandler1(() => RemoveUnenteredOrders(), true));
         #endregion
-
 
         ICommand showResults;
         public ICommand ShowResults => showResults ?? (showResults = new CommandHandler((param) => ShowResultsWindow(param), true));
-
         #endregion
 
         #region Button commands
         ICommand synchStopsWithExchangeButton_Click, showHideTP_Command, cleanupTradesAndLines_Command, cleanupLines_Command, cleanupTrades_Command, extendLines_Command, removeUnallocatedLines_Command, setOrderButton_Command, nextTradeButton_Command, prevTradeButton_Command, scrollButton1_Command, scrollButton2_Command, scrollButton3_Command, scrollButton4_Command, scrollButton5_Command, scrollButton6_Command, scaleButton1_Command, scaleButton2_Command;
         public ICommand SynchStopsWithExchangeButton_Click => synchStopsWithExchangeButton_Click ?? (synchStopsWithExchangeButton_Click = new CommandHandler1(() => SynchStopsWithExchange(), true));
-        public ICommand SetOrderButton_Click => setOrderButton_Command ?? (setOrderButton_Command = new CommandHandler((param) => ShowSetOrderAtPriceDialog(param), true));
-        public ICommand ExtendLine_Click => extendLines_Command ?? (extendLines_Command = new CommandHandler((param) => ExtendLines(param), true));
-        public ICommand CleanupLines_Click => cleanupLines_Command ?? (cleanupLines_Command = new CommandHandler1(() => CleanupLines(), true));
-        public ICommand CleanupTrades_Click => cleanupTrades_Command ?? (cleanupTrades_Command = new CommandHandler1(() => CleanupTrades(), true));
-        public ICommand CleanupTradesAndLines_Click => cleanupTradesAndLines_Command ?? (cleanupTradesAndLines_Command = new CommandHandler1(() => { CleanupTrades(); CleanupLines(); }, true));
+        public ICommand CleanupLines_Click => cleanupLines_Command ?? (cleanupLines_Command = new CommandHandler1(() => MainObj.CleanupLines(), true));
+        public ICommand CleanupTrades_Click => cleanupTrades_Command ?? (cleanupTrades_Command = new CommandHandler1(() => MainObj.CleanupTrades(), true));
+        public ICommand CleanupTradesAndLines_Click => cleanupTradesAndLines_Command ?? (cleanupTradesAndLines_Command = new CommandHandler1(() => { MainObj.CleanupTrades(); MainObj.CleanupLines(); }, true));
         public ICommand ToggleTP_Click => showHideTP_Command ?? (showHideTP_Command = new CommandHandler1(() => { ShowHideTP(); }, true));
-        //public ICommand ToggleLiquidation_Click => showHideLiquidations_Command ?? (showHideLiquidations_Command = new CommandHandler1(() => { ShowHideLiquidations(); CleanupLines(); }, true));
-
-        public ICommand RemoveUnallocatedLines_Click => removeUnallocatedLines_Command ?? (removeUnallocatedLines_Command = new CommandHandler1(() => RemoveUnallocatedLines(true), true));
         public ICommand Scrollbutton1_Click => scrollButton1_Command ?? (scrollButton1_Command = new CommandHandler1(() => MainObj.ScrollToStart(), true));
         public ICommand Scrollbutton2_Click => scrollButton2_Command ?? (scrollButton2_Command = new CommandHandler1(() => MainObj.ScrollForward(true), true));
         public ICommand Scrollbutton3_Click => scrollButton3_Command ?? (scrollButton3_Command = new CommandHandler1(() => MainObj.ScrollForward(false), true));
@@ -593,6 +443,18 @@ namespace AlgoTrader.Live.ViewModels
         public ICommand Scalebutton2_Click => scaleButton2_Command ?? (scaleButton2_Command = new CommandHandler1(() => Magnify(true), true));
         public ICommand PrevTradeButton_Click => prevTradeButton_Command ?? (prevTradeButton_Command = new CommandHandler1(() => GotoNextTrade(false), true));
         public ICommand NextTradeButton_Click => nextTradeButton_Command ?? (nextTradeButton_Command = new CommandHandler1(() => GotoNextTrade(true), true));
+        #endregion
+
+        #region unused
+        //public ICommand ExtendLine_Click => extendLines_Command ?? (extendLines_Command = new CommandHandler((param) => ExtendLines(param), true));
+        //public ICommand ShowWaitingTradesCommand => showWaitingTradesCommand ?? (showWaitingTradesCommand = new CommandHandler1(() => { ToggleShowOnlyActiveTrade(); }, true));
+        //public ICommand ShowFloorTradesCommand => showFloorTradesCommand ?? (showFloorTradesCommand = new CommandHandler1(() => { ToggleShowFloorTrades(); }, true));
+        //public ICommand EnableLiveTradingCommand => enableLiveTradingCommand ?? (enableLiveTradingCommand = new CommandHandler1(() => EnableLiveTradingAuto(), true));
+        //public ICommand StopAllLiveTradesCommand => stopLiveTrades ?? (stopLiveTrades = new CommandHandler1(() => StopAllLiveTrades(), true));
+        //public ICommand RemoveUnenteredOrdersCommand => removeUnenteredOrders ?? (removeUnenteredOrders = new CommandHandler1(() => RemoveUnenteredOrders(), true));
+        //public ICommand SetOrderButton_Click => setOrderButton_Command ?? (setOrderButton_Command = new CommandHandler((param) => ShowSetOrderAtPriceDialog(param), true));
+        //public ICommand ToggleLiquidation_Click => showHideLiquidations_Command ?? (showHideLiquidations_Command = new CommandHandler1(() => { ShowHideLiquidations(); CleanupLines(); }, true));
+        //public ICommand RemoveUnallocatedLines_Click => removeUnallocatedLines_Command ?? (removeUnallocatedLines_Command = new CommandHandler1(() => RemoveUnallocatedLines(true), true));
         #endregion
 
         #region Pop-up window for menu
@@ -824,7 +686,7 @@ namespace AlgoTrader.Live.ViewModels
                     {
                         var trade = db.Trades.FirstOrDefault(x => x.Id == id);
 
-                        if (trade != null && !MainObj.BACKTEST)
+                        if (trade != null)
                         {
                             if ((trade.ItemStatus == TradeItemStatus.OPEN || trade.GlobalStatus == TradeGlobalStatus.ACTIVE) && trade.ExchangeStatus == TradeExchangeStatus.ENTERED_ON_EXCHANGE)
                             {
@@ -865,7 +727,14 @@ namespace AlgoTrader.Live.ViewModels
 
                         using (DataContext db = new DataContext())
                         {
-                            var symbolName = tradeEngine.IsEntered(db, GetTradeId());
+                            var _id = GetTradeId();
+                            var trade = db.Trades.FirstOrDefault(x =>
+                                x.Id == _id &&
+                                x.GlobalStatus == TradeGlobalStatus.ACTIVE &&
+                                x.ItemStatus == TradeItemStatus.OPEN &&
+                                x.Action == TradeAction.ENTRY
+                                );
+                            var symbolName =  trade?.SymbolName;
                             if (symbolName != null && !TradeEngine.USE_SIMULATED_EXCHANGE)
                             {
                                 //using MessageBox, non-blocking outside of UI thread
@@ -999,45 +868,6 @@ namespace AlgoTrader.Live.ViewModels
                     tradeEngine.RestartTrade_UI_synchronised(GetTradeId());
                     RemovePopupWindow();
                 },
-                #endregion
-
-                #region Start backtest (unused)
-                /*
-                () =>
-                {
-#if BACKTEST
-                    using (DataContext dbBacktest = new DataContext())
-                    {
-                        var tradeId = GetTradeId();
-                        var trade = dbBacktest.Trades.FirstOrDefault(x => x.Id == tradeId);
-                        if (trade != null)
-                        {
-                            SetRunningBacktestMenu();
-                            Backtest_execution.StartSingleBacktest(trade);
-                        }
-
-                        RemovePopupWindow();
-                    }
-#endif
-                },
-                */
-                #endregion
-
-                #region Restart trade (unused)
-                //very problematic, it will only restart the floor but as soon as the screen redraws, the floor value changes dramatically and is reset to this on the exchange
-                //also won't restart stops either dead or flip, so needs work, but it really isn't worth it
-                //the trade ID stays the same so when you remove the old trade the new one also gets removed
-                //Finally there is no warning that the trade is going to start again, so could easily be triggered accidentally
-                // - it was really only a development feature anyway.
-                //Needs a stack of work to get this operational and it will never be used live anyway on a closed order
-
-                //however, restart was used when entering a trade by price, so that feature has also been dropped (buttons removed)
-
-                //() =>
-                //{
-                //    tradeEngine.RestartTrade_UI_synchronised(GetTradeId());
-                //    RemovePopupWindow();
-                //},
                 #endregion
 
                 () => { } //etc.
@@ -1422,50 +1252,7 @@ namespace AlgoTrader.Live.ViewModels
             };
 
         }
-        //public void Init()
-        //{
 
-        //    #region unused display-only Panels
-
-        //    //stochastics
-        //    //     AddPanel(new Stochastic_Panel(1, this, indicator1, 14, CandlePosition.CLOSE, 1, Brushes.Blue, 1, Brushes.Red));
-        //    //       AddPanel(new Stochastic_Panel(5, this, indicator2, 14, CandlePosition.CLOSE, 1, Brushes.Blue, 1, Brushes.Red));
-        //    //       AddPanel(new Stochastic_Panel(15, this, indicator3, 14, CandlePosition.CLOSE, 1, Brushes.Blue, 1, Brushes.Red));
-        //    //     AddPanel(new Stochastic_Panel(60, this, indicator4, 14, CandlePosition.CLOSE, 1, Brushes.Blue, 1, Brushes.Red));
-
-        //    //macd
-        //    //AddPanel(new MACD_Panel(15, this, indicator2, 14, CandlePosition.CLOSE, 1, Brushes.Blue, 1, Brushes.Red));
-        //    //AddPanel(new MACD_Panel(60, this, indicator3, 14, CandlePosition.CLOSE, 1, Brushes.Blue, 1, Brushes.Red));
-        //    //AddPanel(new MACD_Panel(15, this, indicator3, 14, CandlePosition.CLOSE, 1, Brushes.Blue, 1, Brushes.Red));
-
-
-        //    //   AddPanel(new EMA_Panel(0, this, chartCanvas, 5, CandlePosition.HIGH, 1, Brushes.Black));
-        //    //   AddPanel(new EMA_Panel(0, this, chartCanvas, 5, CandlePosition.LOW, 1, Brushes.Black));
-        //    //     AddPanel(new TradingRange_Panel(this, chartCanvas));
-
-        //    //ribbon
-        //    //     
-
-        //    /*    AddPanel(new EMA_Panel(0, this, chartCanvas, 21, CandlePosition.CLOSE, 1, Brushes.Green));
-        //       AddPanel(new EMA_Panel(0, this, chartCanvas, 50, CandlePosition.CLOSE, 1, Brushes.Green));
-        //       AddPanel(new SMA_Panel(0, this, chartCanvas, 99, CandlePosition.CLOSE, 2, Brushes.Black));
-        //       AddPanel(new EMA_Panel(0, this, chartCanvas, 30, CandlePosition.CLOSE, 1, Brushes.Gray));
-        //       AddPanel(new EMA_Panel(0, this, chartCanvas, 35, CandlePosition.CLOSE, 1, Brushes.Gray));
-        //       AddPanel(new EMA_Panel(0, this, chartCanvas, 40, CandlePosition.CLOSE, 1, Brushes.Gray));
-        //       AddPanel(new EMA_Panel(0, this, chartCanvas, 45, CandlePosition.CLOSE, 1, Brushes.Gray));
-        //       AddPanel(new EMA_Panel(0, this, chartCanvas, 50, CandlePosition.CLOSE, 1, Brushes.Gray));
-        //       */
-
-
-        //    #endregion
-
-        //    Application.Current.Dispatcher.Invoke(() =>
-        //    {
-        //        SetTimeframeMenuState(MainObj.TimeFrame);
-        //        SetConcurrentOrdersMenuState(TradeEngine.MAX_CONCURRENT_TRADES);
-        //        MainObj.ScrollToEnd();
-        //    });
-        //}
 
         #endregion
 
@@ -1504,7 +1291,6 @@ namespace AlgoTrader.Live.ViewModels
             MainObj.visibleTradeEngine.ShowAccountBalances();
         }
 
-
         private void ToggleHeikinAshi()
         {
             Chart.ShowHeikinAshi = !Chart.ShowHeikinAshi;
@@ -1522,13 +1308,6 @@ namespace AlgoTrader.Live.ViewModels
         {
             Chart.showClosedTrades = true;
             SetProperty("ShowClosedTrades_Checked", Chart.showClosedTrades);
-            MainObj.DrawImmediate();
-        }
-
-        private void ToggleShowOnlyActiveTrade() //unused, it is confusing as it hides waiting trades
-        {
-            Chart.showOnlyActiveTrade = !Chart.showOnlyActiveTrade;
-            SetProperty("ShowOnlyActiveTrade_Checked", !Chart.showOnlyActiveTrade);
             MainObj.DrawImmediate();
         }
 
@@ -1579,33 +1358,7 @@ namespace AlgoTrader.Live.ViewModels
             }
             MainObj.DrawImmediate();
         }
-        //set a live break order on the current visible symbol
-        //there is no button to set a SMA order, although all code is in place to do that
 
-        private void RemoveUnallocatedLines(bool param)
-        {
-            MainObj.RemoveUnallocatedLines_UI();
-        }
-
-        private void ExtendLines(object param)
-        {
-            if (int.TryParse(param as string, out int result))
-            {
-                AlertDialog.ShowCallback("", "Extend trade lines to next interval?", (_) =>
-                {
-                    MainObj.ExtendLines_UI(result);
-                });
-            }
-        }
-
-        private void CleanupTrades()
-        {
-            MainObj.CleanupTrades();
-        }
-        private void CleanupLines()
-        {
-            MainObj.CleanupLines();
-        }
         private void ShowHideTP()
         {
             Chart.showTakeProfit = !Chart.showTakeProfit;
@@ -1613,146 +1366,6 @@ namespace AlgoTrader.Live.ViewModels
             MainObj.DrawImmediate();
         }
 
-        private double SetPriceNoZeros(double priceNoZeros)
-        {
-            var currentPrice = MainObj.visibleTradeEngine.currentDataItem.Close;
-            int leadingZeros = (int)Math.Floor(Math.Log10(Math.Abs(currentPrice))); //get number of zeros before first digit, will be negative for price > 0
-            int pow = (int)Math.Floor(Math.Log10(Math.Abs(priceNoZeros)));
-
-            var priceToUse = priceNoZeros;
-            if (leadingZeros < 0)
-            {
-                priceToUse = priceNoZeros * Math.Pow(10, leadingZeros - pow);
-            }
-
-            return priceToUse;
-        }
-        //Set a trade at a specified price, trade will be set as closed.
-        //for ease of data entry, only use the significant figures.
-        //so if the price is 0.00000123, enter 456 and the new price will be 0.00000456
-        //but if price < 0, just use the entered number
-        // - will not allow price to be set below current close
-        private void ShowSetOrderAtPriceDialog(object param)
-        {
-            if (MainObj.visibleTradeEngine != null && MainObj.visibleTradeEngine.currentDataItem != null)
-            {
-                int.TryParse(param as string, out int p);
-                var position = p == 0 ? TradePosition.LONG : TradePosition.SHORT;
-                //var currentPrice = MainObj.visibleTradeEngine.currentDataItem.Close;
-                //var formattedPrice = PriceFormatter.Format(currentPrice); //unused here
-                //int leadingZeros = (int)Math.Floor(Math.Log10(Math.Abs(currentPrice))); //get number of zeros before first digit, will be negative for price > 0
-
-                var ret = double.TryParse(SetOrderAtPriceDialog.Prompt(null, $"Set {(p == 0 ? "Long" : "Short")} break order", mouseMoveX, mouseMoveY), out double price);
-                if (ret)
-                {
-                    var priceToUse = SetPriceNoZeros(price);
-
-                    if (position == TradePosition.LONG
-                        ? priceToUse <= MainObj.visibleTradeEngine.currentDataItem.Close
-                        : priceToUse >= MainObj.visibleTradeEngine.currentDataItem.Close)
-                    {
-                        AlertDialog.Show($"Price entered is {(position == TradePosition.LONG ? "below" : "above")} current price", "Not possible");
-                    }
-                    else
-                    {
-                        MainObj.visibleTradeEngine.SetLineBreakOrderClosed_UI_synchronised(DateTime.Now, priceToUse, position);
-                    }
-                }
-            }
-            else
-            {
-                AlertDialog.Show("Waiting for connection", "Not possible");
-            }
-        }
-
-        private void ShowSetCeilingPriceDialog()
-        {
-            if (MainObj.visibleTradeEngine != null && MainObj.visibleTradeEngine.currentDataItem != null)
-            {
-
-                var ret = double.TryParse(SetOrderAtPriceDialog.Prompt(null, $"Set ceiling", mouseMoveX, mouseMoveY), out double price);
-                if (ret)
-                {
-                    var priceToUse = SetPriceNoZeros(price);
-
-                    if (priceToUse <= MainObj.visibleTradeEngine.currentDataItem.Close)
-                    {
-                        AlertDialog.Show("Price entered is below current price", "Not possible");
-                    }
-                    else
-                    {
-                        MainObj.visibleTradeEngine.SetTakeProfitAtPrice_UI_synchronised(DateTime.Now, priceToUse);
-                    }
-                }
-            }
-            else
-            {
-                AlertDialog.Show("Waiting for connection", "Not possible");
-            }
-        }
-
-        //private void ShowSetBreakEvenPriceDialog()
-        //{
-        //    if (MainObj.visibleTradeEngine != null && MainObj.visibleTradeEngine.currentDataItem != null)
-        //    {
-        //        var ret = double.TryParse(SetOrderAtPriceDialog.Prompt(null, $"Set break even", mouseMoveX, mouseMoveY), out double price);
-        //        if (ret)
-        //        {
-        //            var priceToUse = SetPriceNoZeros(price);
-
-        //            if (priceToUse <= MainObj.visibleTradeEngine.currentDataItem.Close)
-        //            {
-        //                AlertDialog.Show("Price entered is below current price", "Not possible");
-        //            }
-        //            else
-        //            {
-        //                MainObj.visibleTradeEngine.SetBreakEvenAtPrice_UI_synchronised(DateTime.Now, priceToUse);
-        //            }
-        //        }
-        //    }
-        //    else
-        //    {
-        //        AlertDialog.Show("Waiting for connection", "Not possible");
-        //    }
-        //}
-
-        //private void ShowSetFloorPriceDialog()
-        //{
-        //    if (MainObj.visibleTradeEngine != null && MainObj.visibleTradeEngine.currentDataItem != null)
-        //    {
-
-        //        var ret = double.TryParse(SetOrderAtPriceDialog.Prompt(null, $"Set floor", mouseMoveX, mouseMoveY), out double price);
-        //        if (ret)
-        //        {
-        //            var priceToUse = SetPriceNoZeros(price);
-
-        //            if (priceToUse >= MainObj.visibleTradeEngine.currentDataItem.Close)
-        //            {
-        //                AlertDialog.Show("Price entered is above current price", "Not possible");
-        //            }
-        //            else
-        //            {
-        //                MainObj.visibleTradeEngine.SetFloorAtPrice_UI_synchronised(DateTime.Now, priceToUse);
-        //            }
-        //        }
-        //    }
-        //    else
-        //    {
-        //        AlertDialog.Show("Waiting for connection", "Not possible");
-        //    }
-        //}
-        
-        private void ShowChangePriceDialog(_Trade trade)
-        {
-            if (MainObj.visibleTradeEngine != null && MainObj.visibleTradeEngine.currentDataItem != null)
-            {
-                var ret = double.TryParse(SetOrderAtPriceDialog.Prompt(null, $"Change price", mouseMoveX, mouseMoveY), out double price);
-                if (ret)
-                {
-                    MainObj.visibleTradeEngine.ChangePrice_UI_Synchronised(trade, price);
-                }
-            }
-        }
         private void ShowChangeTimeframeDialog(_Trade trade)
         {
             if (MainObj.visibleTradeEngine != null && MainObj.visibleTradeEngine.currentDataItem != null)
@@ -1767,21 +1380,11 @@ namespace AlgoTrader.Live.ViewModels
 
         private void Magnify(bool v)
         {
-
-            if (MainObj.IsBacktesting == true)
-            {
-                return;
-            }
             MainObj.visibleChart?.Magnify(v);
         }
 
         private void Enlarge(bool v)
         {
-
-            if (MainObj.IsBacktesting == true)
-            {
-                return;
-            }
             MainObj.visibleChart?.Enlarge(v);
         }
 
@@ -1791,34 +1394,10 @@ namespace AlgoTrader.Live.ViewModels
             MainObj.ChangeSymbol_UI(name as string);
         }
 
-        void GoToNextWaitingSymbol()
-        {
-            RemovePopupWindow();
-            MainObj.GoToNextWaitingSymbol_UI();
-        }
-
-        void GotoNextClosedSymbol()
-        {
-            RemovePopupWindow();
-            MainObj.GoToNextClosedSymbol_UI();
-        }
-
         void GoToNextRunningSymbol()
         {
             RemovePopupWindow();
             MainObj.GoToNextRunningSymbol_UI();
-        }
-
-        void GoToPrevSymbol()
-        {
-            RemovePopupWindow();
-            MainObj.GoToPrevSymbol_UI();
-        }
-
-        void GoToNextSymbol()
-        {
-            RemovePopupWindow();
-            MainObj.GoToNextSymbol_UI();
         }
 
         private void SetMenuOptions()
@@ -1837,54 +1416,7 @@ namespace AlgoTrader.Live.ViewModels
             });
         }
 
-        private void RemoveUnenteredOrders()
-        {
-            AlertDialog.ShowCallback("Remove all unentered orders from the system?", "Remove unentered orders", (_) =>
-            {
-                MainObj.RemoveWaitingTrades_UI();
-            });
-        }
 
-        private void StopAllLiveTrades()
-        {
-            bool isRunningLive = false;
-
-            using (DataContext db = new DataContext())
-            {
-                isRunningLive = TradeEngine.AnyEnteredLive(db);
-            } //so we don't have a db context floating around, these can be pooled and reused internally
-
-            if (isRunningLive)
-            {
-                //using MessageBox, non-blocking outside of UI thread
-                if (MessageBox.Show("There are one or more live trades, close all on exchange?", "!!! CLOSE LIVE TRADES !!!", MessageBoxButton.OKCancel) != MessageBoxResult.OK)
-                {
-                    return;
-                }
-            }
-            else
-            {
-                if (MessageBox.Show("Close all running trades? Non are live on exchange", "Close running trades", MessageBoxButton.OKCancel) != MessageBoxResult.OK)
-                {
-                    return;
-                }
-            }
-
-            MainObj.CloseAllTrades_UI();
-        }
-
-
-#if AUTO_ORDER
-        private void EnableLiveTradingAuto()
-        {
-            MainObj.liveTradeEnabledAuto = !MainObj.liveTradeEnabledAuto;  
-            SetProperty("EnableLiveTradingAutoHeader", MainObj.liveTradeEnabledAuto ? DISABLE_LIVE_TRADING_TEXT : ENABLE_LIVE_TRADING_TEXT);
-            SetWindowTitle();
-        }
-
-#else
-        private void EnableLiveTradingAuto() { }
-#endif
 
 
         private void ShowResultsWindow(object param)
@@ -1899,7 +1431,6 @@ namespace AlgoTrader.Live.ViewModels
         // - this depends on the trade entry mode
         private void GotoNextTrade(bool forward)
         {
-            if (MainObj.IsBacktesting == true) return;
             OnMouseUp(); //to stop drag
 
             MainObj.visibleChart.ScrollToNextVisibleTrade(forward);
@@ -2081,28 +1612,11 @@ namespace AlgoTrader.Live.ViewModels
                         RemovePopupWindow();
                     }
                     break;
-                //would have rather used F7 - F10, but F10 not working on this keyboard!
-                /*
-                case Key.D7:
-                case Key.NumPad7:
-                    ShowSetOrderAtPriceDialog();
-                    break;
-                case Key.D8:
-                case Key.NumPad8:
-                    ShowSetBreakEvenPriceDialog();
-                    break;
-                case Key.D9:
-                case Key.NumPad9:
-                    ShowSetCeilingPriceDialog();
-                    break;
-                case Key.D6:
-                case Key.NumPad6:
-                    ShowSetFloorPriceDialog();
-                    break;
-                */
+
                 case Key.N:
                     ToggleDarkMode();
                     break;
+
                 case Key.H:
                     AlgoTrader.Shared.Logging.LogConnection.WriteLine(key.ToString());
                     ToggleHeikinAshi();
@@ -2112,14 +1626,6 @@ namespace AlgoTrader.Live.ViewModels
                     AlgoTrader.Shared.Logging.LogConnection.WriteLine(key.ToString());
                     GetBalances();
                     break;
-
-                /*case Key.A:
-                    Chart.showOnlyActiveTrade = !Chart.showOnlyActiveTrade;
-                    SetProperty("ShowOnlyActiveTrade_Checked", Chart.showOnlyActiveTrade);
-                    //GoToNextWaitingSymbol();
-                    MainObj.DrawImmediate();
-                    break;
-                */
 
                 case Key.A:
                     AlgoTrader.Shared.Logging.LogConnection.WriteLine(key.ToString());
@@ -2148,14 +1654,6 @@ namespace AlgoTrader.Live.ViewModels
                     }
                     break;
 
-                case Key.Z:
-                    if (!keysDown.Contains(key))
-                    {
-#if BACKTEST
-                        Backtest_execution.StepBacktest();
-#endif
-                    }
-                    break;
                 //problem with the lines trapping mouse events, and using PreviewMouseDown to bubble the event does not help.
                 //so just show the lines when the alt key is pressed
                 case Key.LeftShift:
@@ -2169,34 +1667,12 @@ namespace AlgoTrader.Live.ViewModels
                     keysDown.Clear();
                     MainObj.visibleChart.currentLine = null;
                     _ChartLine.movingLine = null;
-
                     MainObj.StopSound();
                     break;
-
-                //case Key.S: //this only fires once for some reason????
-                //    AlgoTrader.Shared.Logging.LogConnection.WriteLine(key.ToString());
-                //    if (IsKeyDown(Key.LeftShift))
-                //    {
-                //        GoToPrevSymbol();
-                //    }
-                //    else
-                //    {
-                //        GoToNextSymbol();
-                //    }
-                //    break;
 
                 case Key.R:
                     AlgoTrader.Shared.Logging.LogConnection.WriteLine(key.ToString());
                     GoToNextRunningSymbol();
-                    break;
-
-                case Key.K:
-                    if (MainObj.BACKTEST)
-                    {
-#if BACKTEST
-                        BacktestSymbol("2");
-#endif
-                    }
                     break;
 
                 case Key.I:
@@ -2336,7 +1812,6 @@ namespace AlgoTrader.Live.ViewModels
         {
             mouseDown = false;
             MainObj.visibleChart?.MouseUp();
-            //MainObj.DrawImmediate(); //calls line draw calculation again
         }
 
         public void OnMouseUpNoDraw()
@@ -2360,16 +1835,6 @@ namespace AlgoTrader.Live.ViewModels
                 RemovePopupWindow();
             }
 
-            if (MainObj.IsBacktesting == true)
-            {
-                return;
-            }
-#if BACKTEST
-            if (MainObj.visibleTradeEngine != null && MainObj.IsBacktesting)
-            {
-                return; //this causes an exception when accessing the db in TradeEngine otherwise
-            }
-#endif
             if (popupMenuWindow == null)
             {
                 MainObj.visibleChart?.MouseMove(mouseX, mouseY, mouseDown, IsKeyDown(Key.LeftShift), IsKeyDown(Key.D), toggleDraw);
@@ -2406,145 +1871,401 @@ namespace AlgoTrader.Live.ViewModels
         public void SetWindowTitle()
         {
 
-            var executionType = MainObj.BACKTEST ? "Testnet trading " : "LIVE TRADING ";
+            var executionType = TradeEngine.USE_TESTNET ? "TESTNET TRADING" : "LIVE TRADING ";
             var orderLimit = TradeEngine.RESTRICTED_TRADE_VALUE > 0 ? $" | ${TradeEngine.RESTRICTED_TRADE_VALUE} trade limit " : "";
             var exchange = TradeEngine.EXCHANGE.GetEnumDisplayName();
             string title = $"{exchange} " + (TradeEngine.USE_SIMULATED_EXCHANGE ? "using SIMULATED EXCHANGE" : $"{executionType} | {TradeEngine.Leverage}X market leverage | {TradeEngine.DEFAULT_LEVERAGE}X fixed price break leverage | {TradeEngine.MAX_STOP_LOSS}% fixed max. loss {orderLimit}");
-
-#if BACKTEST
-            title += " | Backtest build";
-#endif
-#if AUTO_ORDER
-            tiel += " - auto order enabled";
-            if (MainObj.liveTradeEnabledAuto)
-            {
-                title += " - live auto trading ";
-            }
-#endif
-
             SetProperty("WindowTitle", title);
         }
         #endregion
 
-        #region Backtesting
-#if BACKTEST
+        #region Unused
+        /*        
+        //private void RemoveUnenteredOrders()
+        //{
+        //    AlertDialog.ShowCallback("Remove all unentered orders from the system?", "Remove unentered orders", (_) =>
+        //    {
+        //        MainObj.RemoveWaitingTrades_UI();
+        //    });
+        //}
 
+        //private void StopAllLiveTrades()
+        //{
+        //    bool isRunningLive = false;
 
-        public void SetStoppedBacktestMenu()
+        //    using (DataContext db = new DataContext())
+        //    {
+        //        isRunningLive = TradeEngine.AnyEnteredLive(db);
+        //    } //so we don't have a db context floating around, these can be pooled and reused internally
+
+        //    if (isRunningLive)
+        //    {
+        //        //using MessageBox, non-blocking outside of UI thread
+        //        if (MessageBox.Show("There are one or more live trades, close all on exchange?", "!!! CLOSE LIVE TRADES !!!", MessageBoxButton.OKCancel) != MessageBoxResult.OK)
+        //        {
+        //            return;
+        //        }
+        //    }
+        //    else
+        //    {
+        //        if (MessageBox.Show("Close all running trades? Non are live on exchange", "Close running trades", MessageBoxButton.OKCancel) != MessageBoxResult.OK)
+        //        {
+        //            return;
+        //        }
+        //    }
+
+        //    MainObj.CloseAllTrades_UI();
+        //}
+
+                void GoToNextWaitingSymbol()
         {
-            SetProperty("RunAllBacktestHeader", RUN_BACKTESTS_TEXT);
-            SetProperty("RunBatchBacktestHeader", RUN_BATCH_BACKTESTS_TEXT);
-            SetProperty("RunBacktestForSymbolHeader", RUN_BACKTESTS_FOR_SYMBOL_TEXT);
-            SetProperty("PauseBacktestHeader", PAUSE_BACKTEST_TEXT);
-            SetProperty("PauseBacktestEnabled", false);
-            SetProperty("StopBacktestEnabled", false);
+            RemovePopupWindow();
+            MainObj.GoToNextWaitingSymbol_UI();
+        }
+
+        void GotoNextClosedSymbol()
+        {
+            RemovePopupWindow();
+            MainObj.GoToNextClosedSymbol_UI();
+        }
+
+        void GoToPrevSymbol()
+        {
+            RemovePopupWindow();
+            MainObj.GoToPrevSymbol_UI();
+        }
+
+        void GoToNextSymbol()
+        {
+            RemovePopupWindow();
+            MainObj.GoToNextSymbol_UI();
         }
 
 
-        public void SetRunningBacktestMenu()
-        {
-            SetProperty("RunAllBacktestHeader", STOP_BACKTEST_TEXT);
-            SetProperty("PauseBacktestHeader", PAUSE_BACKTEST_TEXT);
-            SetProperty("PauseBacktestEnabled", true);
-            SetProperty("StopBacktestEnabled", true);
-        }
+        //private void ToggleShowOnlyActiveTrade() //unused, it is confusing as it hides waiting trades
+        //{
+        //    Chart.showOnlyActiveTrade = !Chart.showOnlyActiveTrade;
+        //    SetProperty("ShowOnlyActiveTrade_Checked", !Chart.showOnlyActiveTrade);
+        //    MainObj.DrawImmediate();
+        //}       
 
-        public void SetRunningBatchBacktestsMenu()
-        {
-            SetProperty("RunBatchBacktestAutoHeader", STOP_BATCH_BACKTESTS_TEXT);
-        }
+        //set a live break order on the current visible symbol
+        //there is no button to set a SMA order, although all code is in place to do that
+
+        //private void RemoveUnallocatedLines(bool param)
+        //{
+        //    MainObj.RemoveUnallocatedLines_UI();
+        //}
+
+        //private void ExtendLines(object param)
+        //{
+        //    if (int.TryParse(param as string, out int result))
+        //    {
+        //        AlertDialog.ShowCallback("", "Extend trade lines to next interval?", (_) =>
+        //        {
+        //            MainObj.ExtendLines_UI(result);
+        //        });
+        //    }
+        //}
 
 
-        private void BacktestSymbol(object tradeType)
+        //private double SetPriceNoZeros(double priceNoZeros)
+        //{
+        //    var currentPrice = MainObj.visibleTradeEngine.currentDataItem.Close;
+        //    int leadingZeros = (int)Math.Floor(Math.Log10(Math.Abs(currentPrice))); //get number of zeros before first digit, will be negative for price > 0
+        //    int pow = (int)Math.Floor(Math.Log10(Math.Abs(priceNoZeros)));
+
+        //    var priceToUse = priceNoZeros;
+        //    if (leadingZeros < 0)
+        //    {
+        //        priceToUse = priceNoZeros * Math.Pow(10, leadingZeros - pow);
+        //    }
+
+        //    return priceToUse;
+        //}
+
+
+        //Set a trade at a specified price, trade will be set as closed.
+        //for ease of data entry, only use the significant figures.
+        //so if the price is 0.00000123, enter 456 and the new price will be 0.00000456
+        //but if price < 0, just use the entered number
+        // - will not allow price to be set below current close
+        //private void ShowSetOrderAtPriceDialog(object param)
+        //{
+        //    if (MainObj.visibleTradeEngine != null && MainObj.visibleTradeEngine.currentDataItem != null)
+        //    {
+        //        int.TryParse(param as string, out int p);
+        //        var position = p == 0 ? TradePosition.LONG : TradePosition.SHORT;
+        //        //var currentPrice = MainObj.visibleTradeEngine.currentDataItem.Close;
+        //        //var formattedPrice = PriceFormatter.Format(currentPrice); //unused here
+        //        //int leadingZeros = (int)Math.Floor(Math.Log10(Math.Abs(currentPrice))); //get number of zeros before first digit, will be negative for price > 0
+
+        //        var ret = double.TryParse(SetOrderAtPriceDialog.Prompt(null, $"Set {(p == 0 ? "Long" : "Short")} break order", mouseMoveX, mouseMoveY), out double price);
+        //        if (ret)
+        //        {
+        //            var priceToUse = SetPriceNoZeros(price);
+
+        //            if (position == TradePosition.LONG
+        //                ? priceToUse <= MainObj.visibleTradeEngine.currentDataItem.Close
+        //                : priceToUse >= MainObj.visibleTradeEngine.currentDataItem.Close)
+        //            {
+        //                AlertDialog.Show($"Price entered is {(position == TradePosition.LONG ? "below" : "above")} current price", "Not possible");
+        //            }
+        //            else
+        //            {
+        //                MainObj.visibleTradeEngine.SetLineBreakOrderClosed_UI_synchronised(DateTime.Now, priceToUse, position);
+        //            }
+        //        }
+        //    }
+        //    else
+        //    {
+        //        AlertDialog.Show("Waiting for connection", "Not possible");
+        //    }
+        //}
+
+        //private void ShowSetCeilingPriceDialog()
+        //{
+        //    if (MainObj.visibleTradeEngine != null && MainObj.visibleTradeEngine.currentDataItem != null)
+        //    {
+
+        //        var ret = double.TryParse(SetOrderAtPriceDialog.Prompt(null, $"Set ceiling", mouseMoveX, mouseMoveY), out double price);
+        //        if (ret)
+        //        {
+        //            var priceToUse = SetPriceNoZeros(price);
+
+        //            if (priceToUse <= MainObj.visibleTradeEngine.currentDataItem.Close)
+        //            {
+        //                AlertDialog.Show("Price entered is below current price", "Not possible");
+        //            }
+        //            else
+        //            {
+        //                MainObj.visibleTradeEngine.SetTakeProfitAtPrice_UI_synchronised(DateTime.Now, priceToUse);
+        //            }
+        //        }
+        //    }
+        //    else
+        //    {
+        //        AlertDialog.Show("Waiting for connection", "Not possible");
+        //    }
+        //}
+
+        //private void ShowSetBreakEvenPriceDialog()
+        //{
+        //    if (MainObj.visibleTradeEngine != null && MainObj.visibleTradeEngine.currentDataItem != null)
+        //    {
+        //        var ret = double.TryParse(SetOrderAtPriceDialog.Prompt(null, $"Set break even", mouseMoveX, mouseMoveY), out double price);
+        //        if (ret)
+        //        {
+        //            var priceToUse = SetPriceNoZeros(price);
+
+        //            if (priceToUse <= MainObj.visibleTradeEngine.currentDataItem.Close)
+        //            {
+        //                AlertDialog.Show("Price entered is below current price", "Not possible");
+        //            }
+        //            else
+        //            {
+        //                MainObj.visibleTradeEngine.SetBreakEvenAtPrice_UI_synchronised(DateTime.Now, priceToUse);
+        //            }
+        //        }
+        //    }
+        //    else
+        //    {
+        //        AlertDialog.Show("Waiting for connection", "Not possible");
+        //    }
+        //}
+
+        //private void ShowSetFloorPriceDialog()
+        //{
+        //    if (MainObj.visibleTradeEngine != null && MainObj.visibleTradeEngine.currentDataItem != null)
+        //    {
+
+        //        var ret = double.TryParse(SetOrderAtPriceDialog.Prompt(null, $"Set floor", mouseMoveX, mouseMoveY), out double price);
+        //        if (ret)
+        //        {
+        //            var priceToUse = SetPriceNoZeros(price);
+
+        //            if (priceToUse >= MainObj.visibleTradeEngine.currentDataItem.Close)
+        //            {
+        //                AlertDialog.Show("Price entered is above current price", "Not possible");
+        //            }
+        //            else
+        //            {
+        //                MainObj.visibleTradeEngine.SetFloorAtPrice_UI_synchronised(DateTime.Now, priceToUse);
+        //            }
+        //        }
+        //    }
+        //    else
+        //    {
+        //        AlertDialog.Show("Waiting for connection", "Not possible");
+        //    }
+        //}
+
+        private void ShowChangePriceDialog(_Trade trade)
         {
-            if (MainObj.IsBacktesting) //trade is running
+            if (MainObj.visibleTradeEngine != null && MainObj.visibleTradeEngine.currentDataItem != null)
             {
-                AlertDialog.ShowCallback("Abort all backtests?", "Stop", () =>
+                var ret = double.TryParse(SetOrderAtPriceDialog.Prompt(null, $"Change price", mouseMoveX, mouseMoveY), out double price);
+                if (ret)
                 {
-                    Backtest_execution.StopBacktest();
-                    SetStoppedBacktestMenu();
-                });
-            }
-            else //trade is not running
-            {
-                SetRunningBacktestMenu();
-                Backtest_execution.StartBacktestOnSymbol();// _Trade.GetExecutionSystem(tradeType));
-            }
-        }
-        private void SetBacktestTimeframeCommand(object param)
-        {
-            int.TryParse(param as string, out int timeFrame);
-            //TradeEngine.BACKTESTING_TIMEFRAME = timeFrame;
-
-        }
-        private void RunAllBacktests(object tradeType)
-        {
-            if (MainObj.IsBacktesting) //trade is running
-            {
-                AlertDialog.ShowCallback("Abort all backtests?", "Stop", () =>
-                {
-                    Backtest_execution.StopBacktest();
-                    SetStoppedBacktestMenu();
-                });
-            }
-            else //trade is not running
-            {
-                AlertDialog.ShowCallback("Run backtests?", "Start", () =>
-                {
-                    SetRunningBacktestMenu();
-                    Backtest_execution.StartAllBacktests();// _Trade.GetExecutionSystem(tradeType));
-                });
-            }
-        }
-
-        private async void RunBatchBacktests(object param)
-        {
-            if (MainObj.IsBacktesting)
-            {
-                AlertDialog.ShowCallback("Abort batch backtest?", "Stop", () =>
-                {
-                    Backtest_execution.StopBacktest();
-                    SetStoppedBacktestMenu();
-                });
-            }
-            else
-            {
-                AlertDialog.ShowCallback("Start batch backtest (using visible timeframe interval, will skip frames if > 1 min)?", "Start", async () =>
-                {
-                    SetRunningBatchBacktestsMenu();
-                    await Backtest_execution.StartBatchBacktest();// _Trade.GetExecutionSystem(param));
-                    AlertDialog.Show("Batch backtest complete!");
-                });
-            }
-        }
-
-        private void PauseBacktest()
-        {
-            if (Backtest_execution.BacktestPaused)
-            {
-                SetProperty("PauseBacktestHeader", PAUSE_BACKTEST_TEXT);
-                Backtest_execution.ResumeBacktest();
-            }
-            else
-            {
-                SetProperty("PauseBacktestHeader", RESUME_BACKTEST_TEXT);
-                Backtest_execution.PauseBacktest();
-            }
-        }
-        private void StopBacktest()
-        {
-            if (MainObj.IsBacktesting) //trade is running
-            {
-                //AlertDialog.Show("Abort all backtest?", "Stop", () =>
-                {
-                    Backtest_execution.StopBacktest();
-                    SetStoppedBacktestMenu();
+                    MainObj.visibleTradeEngine.ChangePrice_UI_Synchronised(trade, price);
                 }
             }
         }
+                //public void Init()
+        //{
 
-#endif
+        //    #region unused display-only Panels
+
+        //    //stochastics
+        //    //     AddPanel(new Stochastic_Panel(1, this, indicator1, 14, CandlePosition.CLOSE, 1, Brushes.Blue, 1, Brushes.Red));
+        //    //       AddPanel(new Stochastic_Panel(5, this, indicator2, 14, CandlePosition.CLOSE, 1, Brushes.Blue, 1, Brushes.Red));
+        //    //       AddPanel(new Stochastic_Panel(15, this, indicator3, 14, CandlePosition.CLOSE, 1, Brushes.Blue, 1, Brushes.Red));
+        //    //     AddPanel(new Stochastic_Panel(60, this, indicator4, 14, CandlePosition.CLOSE, 1, Brushes.Blue, 1, Brushes.Red));
+
+        //    //macd
+        //    //AddPanel(new MACD_Panel(15, this, indicator2, 14, CandlePosition.CLOSE, 1, Brushes.Blue, 1, Brushes.Red));
+        //    //AddPanel(new MACD_Panel(60, this, indicator3, 14, CandlePosition.CLOSE, 1, Brushes.Blue, 1, Brushes.Red));
+        //    //AddPanel(new MACD_Panel(15, this, indicator3, 14, CandlePosition.CLOSE, 1, Brushes.Blue, 1, Brushes.Red));
+
+
+        //    //   AddPanel(new EMA_Panel(0, this, chartCanvas, 5, CandlePosition.HIGH, 1, Brushes.Black));
+        //    //   AddPanel(new EMA_Panel(0, this, chartCanvas, 5, CandlePosition.LOW, 1, Brushes.Black));
+        //    //     AddPanel(new TradingRange_Panel(this, chartCanvas));
+
+        //    //ribbon
+        //    //     
+
+        //       AddPanel(new EMA_Panel(0, this, chartCanvas, 21, CandlePosition.CLOSE, 1, Brushes.Green));
+        //       AddPanel(new EMA_Panel(0, this, chartCanvas, 50, CandlePosition.CLOSE, 1, Brushes.Green));
+        //       AddPanel(new SMA_Panel(0, this, chartCanvas, 99, CandlePosition.CLOSE, 2, Brushes.Black));
+        //       AddPanel(new EMA_Panel(0, this, chartCanvas, 30, CandlePosition.CLOSE, 1, Brushes.Gray));
+        //       AddPanel(new EMA_Panel(0, this, chartCanvas, 35, CandlePosition.CLOSE, 1, Brushes.Gray));
+        //       AddPanel(new EMA_Panel(0, this, chartCanvas, 40, CandlePosition.CLOSE, 1, Brushes.Gray));
+        //       AddPanel(new EMA_Panel(0, this, chartCanvas, 45, CandlePosition.CLOSE, 1, Brushes.Gray));
+        //       AddPanel(new EMA_Panel(0, this, chartCanvas, 50, CandlePosition.CLOSE, 1, Brushes.Gray));
+        //       
+
+
+        //    #endregion
+
+        //    Application.Current.Dispatcher.Invoke(() =>
+        //    {
+        //        SetTimeframeMenuState(MainObj.TimeFrame);
+        //        SetConcurrentOrdersMenuState(TradeEngine.MAX_CONCURRENT_TRADES);
+        //        MainObj.ScrollToEnd();
+        //    });
+        //}
+
+        ICommand concurrentOrdersCommand;
+        //when changing the menu timeframes, also remember to change the key bindings in MainWindow.xaml as well
+
+
+
+        ICommand restartAllStoppedOrders;
+        public ICommand RestartAllStoppedOrders => restartAllStoppedOrders ?? (restartAllStoppedOrders = new CommandHandler1(() => RestartStoppedOrders(), true));
+
+        public void RestartStoppedOrders()
+        {
+            AlertDialog.ShowCallback("This will start all Stopped Orders", "Start all stopped orders?", (_) =>
+            {
+                using DataContext db = new();
+                var allTrades = db.Trades.Where(x =>
+                    x.GlobalStatus == TradeGlobalStatus.STOPPED &&
+                    (x.Action == TradeAction.ORDER));
+
+
+                foreach (var trade in allTrades)
+                {
+                    var close = db.Trades.FirstOrDefault(x => x.TradeReference == trade.TradeReference && x.Action == TradeAction.CLOSE);
+                    if (close == null)
+                    {
+                        var tradeEngine = MainObj.GetTradeEngineForSymbol(trade.SymbolName);
+                        tradeEngine.RestartTrade_UI_synchronised(trade.Id);
+                    }
+                }
+            });
+        }
+
+        ICommand removeAllStoppedOrders;
+        public ICommand RemoveAllStoppedOrdersCommand => removeAllStoppedOrders ?? (removeAllStoppedOrders = new CommandHandler1(() => RemoveStoppedOrders(), true));
+
+        public void RemoveStoppedOrders()
+        {
+            AlertDialog.ShowCallback("This will remove all Stopped Orders", "Remove all stopped orders?", (_) =>
+            {
+                var tradesToRemove = new List<_Trade>();
+                using (DataContext db = new())
+                {
+                    var allTrades = db.Trades.Where(x =>
+                        x.GlobalStatus == TradeGlobalStatus.STOPPED &&
+                        (x.Action == TradeAction.ORDER));
+
+
+                    foreach (var trade in allTrades)
+                    {
+                        var close = db.Trades.FirstOrDefault(x => x.TradeReference == trade.TradeReference && x.Action == TradeAction.CLOSE);
+                        if (close == null) //we have an order which has no close associated with it
+                        {
+                            tradesToRemove.Add(trade);
+                        }
+                    }
+                }
+
+                foreach (var trade in tradesToRemove)
+                {
+                    var tradeEngine = MainObj.GetTradeEngineForSymbol(trade.SymbolName);
+                    tradeEngine.RemoveStoppedTrades_UI_Synchronised(trade);
+                }
+                MainObj.DrawCurrentDispatcher(true);
+            });
+        }
+
+
+        ICommand setStopTrailPercent;
+        public ICommand SetStopTrailPercent => setStopTrailPercent ?? (setStopTrailPercent = new CommandHandler1(() => SetStopTrailPC(), true));
+
+        public void SetStopTrailPC()
+        {
+            var ret = double.TryParse(SetOrderAtPriceDialog.Prompt("1", $"Set trailing stop percent", mouseMoveX, mouseMoveY), out double price);
+
+            if (ret)
+            {
+
+                if (price < 0.5)
+                {
+                    AlertDialog.Show("Cannot set trail this close");
+                    return;
+                }
+
+                //get any trailing stop
+                using DataContext db = new();
+                var stop = db.Trades.FirstOrDefault(x => x.Action == TradeAction.STOP && x.Stop == TradeStop.STOP_TRAIL && x.GlobalStatus == TradeGlobalStatus.ACTIVE);
+
+                if (stop == null)
+                {
+                    MainObj.visibleTradeEngine.SetStopAtPrice_UI_synchronised(DateTime.UtcNow, price, TradeStop.STOP_TRAIL);
+                }
+                else
+                {
+                    //reset action value
+                    stop.ActionValue = price / 100;
+                    Order.DoTrail(stop);
+
+                    //must update on the exchange, otherwise it will only update when the trail moves which may not happen for ages if the market is falling (long)
+                    var tradeEngine = MainObj.visibleTradeEngine as TradeEngineBitmex;
+                    if (tradeEngine != null)
+                    {
+                        tradeEngine.SendStopToExchange(stop);
+                        tradeEngine.UpdateUIList(stop);
+                    }
+                }
+
+                db.SaveChanges();
+                MainObj.DrawCurrentDispatcher(true);
+            }
+        }
+        */
+
         #endregion
     }
-
 }

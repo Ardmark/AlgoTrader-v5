@@ -130,10 +130,6 @@ namespace AlgoTrader.Shared.TradeIndicators
             int startFrame = Chart.ScrollBars;
             int numFrames = Chart.ScaleBars;
 
-            if (MainObj.IsBacktesting)
-            {
-                return;
-            }
             MovingAverage indicator1 = indicators.First();
             MovingAverage indicator2 = indicators.Last();
 

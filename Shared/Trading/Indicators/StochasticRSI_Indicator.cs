@@ -73,11 +73,6 @@ namespace AlgoTrader.Shared.TradeIndicators
             int startFrame = Chart.ScrollBars;
             int numFrames = Chart.ScaleBars;
 
-            if (MainObj.IsBacktesting)
-            {
-                return;
-            }
-
             InitDraw();
             canvas.Children.Clear();
 

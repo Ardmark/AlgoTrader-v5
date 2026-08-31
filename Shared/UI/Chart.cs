@@ -496,7 +496,13 @@ namespace AlgoTrader.Shared
                     {
                         //so this is a callback, to ensure thread safety - cannot read any of the UI lists if they are being updated
                         // - it also does not create a shallow copy of the entire lists, only a copy from a query  
+                            bool _CompareDateTime(_ChartLine f)
+                            {
+                            return
+                               (DateTime.Compare(f.StartTimeStamp, rightEdgeTimestamp) <= 0 && DateTime.Compare(f.EndTimeStamp, leftEdgeTimestamp) >= 0) ||
+                               (DateTime.Compare(f.StartTimeStamp, leftEdgeTimestamp) >= 0 && DateTime.Compare(f.EndTimeStamp, rightEdgeTimestamp) <= 0);
 
+                            }
                         if (showTrades)
                         {
                             //interesting - the objects returned are not fresh from the DB, but are references to any in-memory objects with any properties set, etc.
@@ -506,15 +512,15 @@ namespace AlgoTrader.Shared
 
                             //by comparing the trade action with one which is never assigned, they will all pass
                             //otherwise we can just block them selectively to hide the lines
-                            TradeAction allTradeActionsAllowed = showTakeProfit ? TradeAction.NULL : TradeAction.TAKE_PROFIT;
-                            visibleLines = tradeEngine.UI_Lines.Where(f =>
-                                                                            f.Trade != null &&
-                                                                            f.Trade.Action != allTradeActionsAllowed &&
-                                                                            (
-                                                                            (DateTime.Compare(f.StartTimeStamp, rightEdgeTimestamp) <= 0 && DateTime.Compare(f.EndTimeStamp, leftEdgeTimestamp) >= 0) ||
-                                                                            (DateTime.Compare(f.StartTimeStamp, leftEdgeTimestamp) >= 0 && DateTime.Compare(f.EndTimeStamp, rightEdgeTimestamp) <= 0)
-                                                                            )
-                                                                        );
+                            TradeAction tradeActionsAHidden = showTakeProfit ? TradeAction.NULL : TradeAction.TAKE_PROFIT;
+
+                            visibleLines = tradeEngine.UI_Lines.Where(f =>  f.Trade != null && f.Trade.Action != tradeActionsAHidden && _CompareDateTime(f) 
+                                                                            ||
+                                                                            f.Trade == null && _CompareDateTime(f));
+                        }
+                        else
+                        {
+                            visibleLines = tradeEngine.UI_Lines.Where(f => _CompareDateTime(f));
                         }
                         #region Hide lines if only showing selected trade (unused)
 
@@ -995,11 +1001,7 @@ namespace AlgoTrader.Shared
                                                 ? ""
                                                 : "Not synched with exchange, check trade";
 
-                                            bool closedOnExchange = entry != null && entry.ExchangeMethodScript == TradeEngine.CLOSED_ON_EXCHANGE;
-
-                                            canvas1 = closedOnExchange
-                                                ? TradeEntryMarkerClosedOnExchange(left, top, color, outline, __text).canvas
-                                                : TradeEntryMarker(left, top, color, outline, __text, !exchangeSynched).canvas;
+                                            canvas1 = TradeEntryMarker(left, top, color, outline, __text, !exchangeSynched).canvas;
                                             break;
 
                                         case TradeAction.STOP:
@@ -1501,9 +1503,6 @@ namespace AlgoTrader.Shared
                                     case TradeType.LIMIT_ORDER:
                                         extraText = $"Limit";
                                         break;
-                                    case TradeType.AUTO_ORDER:
-                                        extraText = $"Auto";
-                                        break;
                                 }
 
                                 extraText += " order\n";
@@ -1951,10 +1950,6 @@ namespace AlgoTrader.Shared
 
         internal void ScrollToEnd()
         {
-            if (MainObj.IsBacktesting == true)
-            {
-                return;
-            }
             if (TimeFrame > 0)
             {
                 ScrollBars = EndFrame / TimeFrame - ScaleBars + SCROLL_TO_END_OFFSET;
@@ -1964,10 +1959,6 @@ namespace AlgoTrader.Shared
 
         internal void ScrollToStart()
         {
-            if (MainObj.IsBacktesting == true)
-            {
-                return;
-            }
             ScrollBars = 0;
             yOffset = 0;
         }
@@ -2193,10 +2184,8 @@ namespace AlgoTrader.Shared
             var frame = GetFrameNumFromMouseX(left);
 
             var timeStamp = isSettingTrade
-                ? !MainObj.BACKTEST
                     ? DateTime.UtcNow
-                    : GetTimestampFromFrameNum((int)frame)
-                : GetTimestampFromFrameNum((int)frame);
+                    : GetTimestampFromFrameNum((int)frame);
             var price = GetTradePriceFromScreen(top);
             return (timeStamp, price);
         }

@@ -45,11 +45,6 @@ namespace AlgoTrader.Shared
         public static int INITIAL_TIMEFRAME;
         public static int DATA_RETENTION_DAYS;
         public static bool BACKUP_DB = true;
-
-        //just to define the build type at runtime
-        public static bool BACKTEST = false;
-
-        //public static bool AUTO_ORDER = false;
         public static int START_HOUR { get; set; } = 10;
         public static int END_HOUR { get; set; } = 21;
         #endregion
@@ -88,18 +83,6 @@ namespace AlgoTrader.Shared
                 }
                 return null;
             }
-        }
-        private static bool isBacktesting;
-        public static bool IsBacktesting
-        {
-            get
-            {
-                if (BACKTEST)
-                    return isBacktesting;
-                else
-                    return false;
-            }
-            set { isBacktesting = value; }
         }
         public static string TradeSummary
         {
@@ -335,23 +318,16 @@ namespace AlgoTrader.Shared
                 //will set process name to node for live build, node_working otherwise (can also use node_testing - these are just duplicated .exe files in the node executable folder)
                 #region Set process name
                 //process names are simply a DUPLICATED .exe in the node executable folder, must be a separate process for each project
-                if (BACKTEST)
-                {
-                    processName = "node_working"; //so this could be binance or bitmex testing
-                }
-                else
-                {
+
                     switch (TradeEngine.EXCHANGE)
                     {
                         case ExchangeId.BINANCE:
 
                             processName = "node_binance"; //nothing specific to binance, this is just a duplicated executable
                             break;
-                        case ExchangeId.BITMEX:
-                            processName = "node_bitmex";
-                            break;
+ 
                     }
-                }
+                
                 #endregion
 
                 #region Sound
@@ -419,11 +395,9 @@ namespace AlgoTrader.Shared
 
                     tradeEngine.chart = chart;
 
-                    if (!BACKTEST)
-                    {
                         //only enable live trading if not in backtest build, otherwise will not start live trading unless manually triggered
                         liveTradeEnabledAuto = true;
-                    }
+                    
                     #endregion
 
                 }
@@ -776,7 +750,7 @@ namespace AlgoTrader.Shared
                 using (DataContext dbInit = new DataContext())
                 {
                     //to speed up init, only intialising timeframes which are being used for active trades
-                    List<int> activeTimeframes = dbInit.Trades.Where(x => x.GlobalStatus == TradeGlobalStatus.ACTIVE && x.Type != TradeType.STUB_ORDER).Select(x => x.TimeFrame).Distinct().ToList();
+                    List<int> activeTimeframes = dbInit.Trades.Where(x => x.GlobalStatus == TradeGlobalStatus.ACTIVE).Select(x => x.TimeFrame).Distinct().ToList();
 
                     if (!activeTimeframes.Contains(INITIAL_TIMEFRAME))
                     {
@@ -954,10 +928,9 @@ namespace AlgoTrader.Shared
                 mainViewModel.SetInitialTime(timeFrame);
 
                 mainViewModel.SetLeverage((int)TradeEngine.DEFAULT_LEVERAGE);
-                if (!BACKTEST)
-                {
-                    ToggleDarkMode();
-                }
+
+                ToggleDarkMode();
+                
                 MainObj.ScrollToEnd();
                 TradeEngine tradeEngine = GetTradeEngineForSymbol(visibleChart.symbolName);
                 TradeStatusChanged(tradeEngine);
@@ -968,7 +941,7 @@ namespace AlgoTrader.Shared
 
             initComplete = true; //marks so DB can now be backed up
 
-            if (BACKUP_DB == true && BACKTEST == false && BACKUP_FOLDER != null && NUM_INCREMENTAL_BACKUPS > 0)
+            if (BACKUP_DB == true && BACKUP_FOLDER != null && NUM_INCREMENTAL_BACKUPS > 0)
             {
                 try
                 {
@@ -1453,10 +1426,6 @@ namespace AlgoTrader.Shared
 
         internal static void ScrollBy(double scrollAmount, bool forward)
         {
-            if (MainObj.IsBacktesting == true)
-            {
-                return;
-            }
             visibleChart?.ScrollBy(scrollAmount, forward);
             MainObj.DrawImmediate();
         }
@@ -1482,11 +1451,6 @@ namespace AlgoTrader.Shared
 
         internal static async void TradeStatusChanged(TradeEngine tradeEngine, bool redraw = true)
         {
-            if (isBacktesting)
-            {
-                return;
-            }
-
             List<_Trade> activeTrades = null;
             List<_Trade> waitingTrades = null;
             if (tradeEngine != null)

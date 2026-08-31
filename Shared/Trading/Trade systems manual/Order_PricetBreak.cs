@@ -12,14 +12,10 @@ namespace AlgoTrader.Shared
         static bool isTiming = false;
         public override bool CanEnterTrade_synchronised(_Trade order)
         {
-            if (!MainObj.BACKTEST)
+            if (tradeEngine.dataReady == false)
             {
-                if (tradeEngine.dataReady == false)
-                {
-                    return false;
-                }
+                return false;
             }
-
             var lines = tradeEngine.AllLinesForSymbol;
 
             //get price from line at current timestamp

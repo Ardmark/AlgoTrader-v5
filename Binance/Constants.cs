@@ -21,7 +21,6 @@ namespace AlgoTrader.Windows
             #endregion
 
             #region Connection
-            MainObj.BACKTEST = false;
             MainObj.READ_LIVE_DATA = true; //if true, will update items live. If writing to DB, this is ignored
             MainObj.WRITE_TO_DB = true;
             #endregion

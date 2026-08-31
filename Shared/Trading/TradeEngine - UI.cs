@@ -15,11 +15,13 @@ namespace AlgoTrader.Shared
 
         //there is an unused method in MainObj to kill all orders on all trade engines simultaneously,
         // this will just remove the orders on the current trade engine
+        
         internal void KillOrders_UI_Synchronised()
         {
             CancelTrade_UI_synchronised();
             MainObj.TradeStatusChanged(this);
         }
+   
         internal void MoveTrades_UI_Synchronised(bool up)
         {
             InitForDataContext(() =>
@@ -126,6 +128,7 @@ namespace AlgoTrader.Shared
                 }
             });
         }
+        
         internal void CleanupTrades_UI_Synchronised()
         {
             InitForDataContext(() =>
@@ -160,6 +163,7 @@ namespace AlgoTrader.Shared
 
             MainObj.DrawImmediate();
         }
+        
         internal void CleanupLines_UI_Synchronised()
         {
             InitForDataContext(() =>
@@ -188,25 +192,6 @@ namespace AlgoTrader.Shared
 
             MainObj.DrawImmediate();
         }
-
-
-
-        //internal void SetFloorAtPrice_UI_synchronised(DateTime timeStamp, double price)
-        //{
-        //    SetStop_UI(timeStamp, price, TradeAction.FLOOR, TradeType.NO_FLIP_ORDER);
-        //}
-
-        //internal void SetCeilingAtPrice_UI_synchronised(DateTime timeStamp, double price)
-        //{
-        //    //Set Take Profit - this assumes no chart line, so sets that ID to -1.
-        //    //If this is not done, then it will be cloned from the order and that will result in the line changing status if the TP is deleted
-        //    SetStop_UI(timeStamp, price, TradeAction.CEILING, TradeType.NO_FLIP_ORDER);
-        //}
-
-        //internal void SetBreakEvenAtPrice_UI_synchronised(DateTime timeStamp, double price)
-        //{
-        //    SetStop_UI(timeStamp, price, TradeAction.BREAK_EVEN, TradeType.NO_FLIP_ORDER);
-        //}
         
         internal void SetStopAtPrice_UI_synchronised(DateTime timeStamp, double price, TradeStop tradeStop)
         {
@@ -273,95 +258,6 @@ namespace AlgoTrader.Shared
             });
         }
 
-        internal void AddBreakToLineLocal_UI_synchronised(int chartLineId, TradePosition position, double price, bool isBacktest)
-        {
-            if (currentDataItem == null)
-            {
-                AlertDialog.Show("Waiting for connection", "Not possible");
-                return;
-            }
-
-            InitForDataContext(() =>
-            {
-                var chartLine = AllLinesForSymbol.FirstOrDefault(x => x.Id == chartLineId);
-
-                if (chartLine.Trade != null)
-                {
-                    AlertDialog.Show("Trade already set on this line");
-                    return;
-                }
-
-                Order = SetLineOrder_UI_synchronised(position, isBacktest, chartLine);
-
-                currentTradeSetReference = Order.TradeReference;
-
-                if (!isBacktest)
-                {
-                    EnterTradeOnSystem_synchronised(price, 0, TradeExchangeStatus.ENTERED_ON_EXCHANGE);
-                    Order.ActionValue = Entry.ActionValue = 0; //mark as using zero equity, to keep this off the profit / loss calculations
-                }
-
-            });
-
-            MainObj.TradeStatusChanged(this);
-        }
-
-        internal void SetMarketOrderLocal_UI_synchronised(double price, TradePosition position)
-        {
-            if (currentDataItem == null)
-            {
-                AlertDialog.Show("Waiting for connection", "Not possible");
-                return;
-            }
-
-            InitForDataContext(() =>
-            {
-                if (Order != null)
-                {
-                    AlertDialog.Show("Cannot set 2 active trades to run concurrently on same symbol", "Not possible");
-                    return;
-                }
-
-
-                //must have at least 24 hours of data, or trade can be placed before first midnight boundary so will never be visible unless it closes the following day
-                if (results.Count < 24 * 60)
-                {
-                    AlertDialog.Show("Could not set market break order, needs 24 hours data", "Insufficient data");
-                    return;
-                }
-
-                Order = new _Trade
-                {
-                    Timestamp = DateTime.UtcNow,
-                    TradeReference = _Trade.GetNewTradeId(),
-                    Type = TradeType.MARKET_ORDER,
-                    Position = position,
-                    Action = TradeAction.ORDER,
-                    Price = price,
-                    TimeFrame = TimeFrame,
-                    SymbolName = symbolName,
-                    ExchangeId = exchangeId,
-                    ItemStatus = TradeItemStatus.CLOSED,
-                    Leverage = Leverage,
-                };
-
-                SetUpdateRequest(Order);
-
-                currentTradeSetReference = Order.TradeReference;
-
-                EnterTradeOnSystem_synchronised(price, 0, TradeExchangeStatus.ENTERED_OFF_EXCHANGE);
-
-                Order.ActionValue = Entry.ActionValue = 0; //mark as using zero equity, to keep this off the profit / loss calculations
-            });
-
-            MainObj.TradeStatusChanged(this);
-        }
-
-        internal void SetLineBreakOrderClosed_UI_synchronised(DateTime timeStamp, double price, TradePosition position)
-        {
-            SetLineBreakOrder_UI_synchronised(timeStamp, price, position, true);
-        }
-
         //sets a break order on a new horizontal line at a specific price
         internal void SetLineBreakOrder_UI_synchronised(DateTime timeStamp, double price, TradePosition position, bool addClosed = false, bool isBacktest = false)
         {
@@ -382,7 +278,7 @@ namespace AlgoTrader.Shared
                     canSet = false;
                 }
 
-                if (!MainObj.BACKTEST && !canSet)
+                if (!canSet)
                 {
                     var m = position == TradePosition.LONG ? "below" : "above";
                     AlertDialog.Show($"Requested position is {m} current price ", "Order position not valid");
@@ -406,94 +302,6 @@ namespace AlgoTrader.Shared
                 SetUpdateRequest(line);
 
                 _Trade trade = SetLineOrder_UI_synchronised(position, isBacktest, line, addClosed);
-            });
-
-            MainObj.TradeStatusChanged(this);
-        }
-
-
-        internal void SetHMABreakOrder_UI_synchronised(DateTime timeStamp, double price)
-        {
-            if (hmaPriceBreakOrderIndicator == null)
-            {
-                AlertDialog.Show("No HMA indicator!", "Not possible");
-                return;
-            }
-            if (currentDataItem == null)
-            {
-                AlertDialog.Show("Waiting for connection", "Not possible");
-                return;
-            }
-
-            InitForDataContext(() =>
-            {
-                //ensure break is above current price
-                //var frame = chart.GetFrameForTimestamp(currentDataItem.Timestamp);
-                var currentPrice = currentDataItem.Close;
-                if (!MainObj.IsBacktesting)
-                {
-                    timeStamp = DateTime.UtcNow.AddMinutes(-1);
-                }
-
-                var frame = chart.GetFrameForTimestamp(timeStamp); //because a backtest trade can be at any point, although backtesting not implemented on this order type
-
-                if (currentDataItem != null)
-                {
-                    var order = hmaPriceBreakOrderIndicator.SetOrder_UI_synchronised(TimeFrame, TradeType.HMA_BREAK_ORDER, TradePosition.LONG, symbolName, false, currentDataItem.Close, frame);
-
-                    if (order != null)
-                    {
-                        currentTradeSetReference = order.TradeReference;
-                        SetUpdateRequest(order);
-                    }
-                }
-                else
-                {
-                    AlertDialog.Show($"Waiting for connection... ", "Cannot set trade");
-                }
-            });
-
-            MainObj.TradeStatusChanged(this);
-        }
-        //sets an order which will enter on (hourly) macd histogram zero level cross up
-        internal void SetMacdOrder_UI_synchronised(DateTime timeStamp)
-        {
-            if (macdPriceBreakOrderIndicator == null)
-            {
-                return;
-            }
-            if (currentDataItem == null)
-            {
-                AlertDialog.Show("Waiting for connection", "Not possible");
-                return;
-            }
-
-            InitForDataContext(() =>
-            {
-                //ensure break is above current price
-                //var frame = chart.GetFrameForTimestamp(currentDataItem.Timestamp);
-                var currentPrice = currentDataItem.Close;
-                if (!MainObj.IsBacktesting)
-                {
-                    timeStamp = DateTime.UtcNow.AddMinutes(-1);
-                }
-
-                var frame = chart.GetFrameForTimestamp(timeStamp); //because a backtest trade can be at any point, although backtesting not implemented on this order type
-
-                if (currentDataItem != null)
-                {
-                    var order = macdPriceBreakOrderIndicator.SetOrder_UI_synchronised(TimeFrame, TradeType.HMA_BREAK_ORDER, TradePosition.LONG, symbolName, false, currentDataItem.Close, frame);
-
-                    if (order != null)
-                    {
-                        currentTradeSetReference = order.TradeReference;
-                        SetUpdateRequest(order);
-                    }
-                }
-                else
-                {
-                    AlertDialog.Show($"Waiting for connection... ", "Cannot set trade");
-                }
             });
 
             MainObj.TradeStatusChanged(this);
@@ -576,85 +384,6 @@ namespace AlgoTrader.Shared
 
             });
 
-        }
-
-        internal void SetMovingAverageStop_UI_synchronised(TradeType type = TradeType.NO_FLIP_ORDER)
-        {
-
-            //get the moving average
-            double lastResult = 0;
-            var MA_Indicator = MainObj.displayPanelsForSymbol[symbolName].FirstOrDefault(x => x.GetType() == typeof(SMA_Indicator));
-            if (MA_Indicator != null)
-            {
-                //only one moving average
-                var movingAverage = MA_Indicator.movingAverages[0];
-                var results = movingAverage.GetResultsFromDictionary(TimeFrame);
-                lastResult = results[results.Count - 1];
-            }
-
-            _Trade entry = null;
-            _Trade _stop = null;
-            //no need for a synchronisation here
-            using (DataContext db = new DataContext())
-            {
-                _entry = db.Trades.FirstOrDefault(x =>
-                           x.SymbolName == symbolName &&
-                           x.GlobalStatus == TradeGlobalStatus.ACTIVE &&
-                           x.ItemStatus == TradeItemStatus.OPEN &&
-                           x.Action == TradeAction.ENTRY
-                           );
-                if (_entry != null)
-                {
-
-                    _stop = db.Trades.FirstOrDefault(x =>
-                               x.TradeReference == _entry.TradeReference &&
-                               x.GlobalStatus == TradeGlobalStatus.ACTIVE &&
-                               x.ItemStatus == TradeItemStatus.OPEN &&
-                               x.Action == TradeAction.STOP
-                               );
-                }
-            }
-
-            //can't synchronise this block as it contains SetStop_UI()
-            if (_entry != null && currentDataItem != null) //only set on a live order
-            {
-                if (_entry.Position == TradePosition.LONG ? lastResult > currentDataItem.Close : lastResult < currentDataItem.Close)
-                {
-                    AlertDialog.Show("Moving average price is wrong side of order");
-                    return;
-                }
-                //just easier to allow the loop to calculate the first actual price, than do it here...
-                var initialPrice = lastResult != 0 ? lastResult : _entry.Position == TradePosition.LONG ? currentDataItem.Close / 1.1 : currentDataItem.Close * 1.1;
-
-                if (_stop == null)
-                {
-                    SetStop_UI(DateTime.UtcNow, initialPrice, TradeAction.STOP, type, TradeStop.TAKE_PROFIT_MA_CROSS);
-                }
-                else
-                {
-                    InitForDataContext(() =>
-                    {
-                        if (Stop.Id == _stop.Id)
-                        {
-                            Stop.Price = initialPrice;
-                            Stop.Stop = TradeStop.TAKE_PROFIT_MA_CROSS;
-                            Stop.Type = type;
-                            SetStopOnExchange_Synchronised();
-                            var chartLine = AllLinesForSymbol.GetLineForTrade(Stop);
-                            if (chartLine != null)
-                            {
-                                chartLine.TradeId = null;
-                                chartLine.TradeReference = null;
-                                chartLine.Type = LineType.NONE;
-                                SetUpdateRequest(chartLine);
-                            }
-                            SetUpdateRequest(Stop);
-                        }
-                    });
-
-                }
-            }
-            MainObj.TradeStatusChanged(this);
         }
 
         internal void DeleteLine_UI_synchronised(int chartLineId)
@@ -872,7 +601,7 @@ namespace AlgoTrader.Shared
                     trade.Quantity = order.Quantity;
                     trade.Position = isWaitingStop ? order.Position == TradePosition.LONG ? TradePosition.SHORT : TradePosition.LONG : order.Position;
                     
-                    SetUpdateRequest(trade);
+                    SetUpdateRequestAdd_UI(trade);
 
                     if (trade.Action == TradeAction.STOP || trade.Action == TradeAction.TAKE_PROFIT)
                     {
@@ -1119,7 +848,6 @@ namespace AlgoTrader.Shared
             }
         }
 
-
         internal void AddStopToLine_UI(int chartLineId, TradeType tradeType)
         {
             var chartLine = UI_Lines.FirstOrDefault(x => x.Id == chartLineId);
@@ -1259,6 +987,7 @@ namespace AlgoTrader.Shared
                 MainObj.TradeStatusChanged(this);
             });
         }
+      
         internal void LineUpTrades_synchronised(List<_ChartLine> lines, TradeAction tradeAction, _Trade order, bool isEntered)
         {
             var trade = GetTradeForTradeReference(tradeAction, order.TradeReference);
@@ -1311,55 +1040,6 @@ namespace AlgoTrader.Shared
                 UpdateUIList(_line);
                 SetUpdateRequest(_line);
             }
-        }
-
-        internal void LineUpTrades_UI_Synchronised(_Trade trade, _ChartLine chartLine = null, bool synchWithExchange = true)
-        {
-
-            
-        }
-            
-        
-
-        //unused
-        internal void AdvanceTrade_UI_synchronised(int tradeId)
-        {
-            InitForDataContext(() =>
-            {
-                var trade = AllTrades.FirstOrDefault(x => x.Id == tradeId);
-                if (trade == null)
-                {
-                    AlertDialog.Show("Could not find trade");
-                    return;
-                }
-                if (Entry != null)
-                {
-                    AlertDialog.Show("Cannot advance a trade start time which has already entered");
-                    return;
-                }
-
-                //extend line
-                var line = AllLinesForSymbol.GetLineForTrade(trade);
-                if (line != null)
-                {
-                    line.StartTimeStamp = DateTime.UtcNow;
-                    line.EndTimeStamp = line.StartTimeStamp.AddDays(1);
-                    SetUpdateRequest(line);
-
-                    //var nextEarliest = GetNextInterval_UI(DateTime.UtcNow);
-                    //var nextPrice = line.EndPrice + (line.EndPrice - line.StartPrice) * nextEarliest.Subtract(line.EndTimeStamp).TotalSeconds / line.EndTimeStamp.Subtract(line.StartTimeStamp).TotalSeconds;
-                    trade.Timestamp = line.StartTimeStamp;
-                    trade.Price = line.StartPrice;
-                }
-                else
-                {
-                    trade.Timestamp = DateTime.UtcNow;
-                }
-                SetUpdateRequest(trade);
-
-            });
-
-            MainObj.TradeStatusChanged(this);
         }
 
         #endregion
@@ -1473,47 +1153,7 @@ namespace AlgoTrader.Shared
             });
         }
 
-        internal void RemoveWaitingTrades_UI_synchronised()
-        {
-            InitForDataContext(() =>
-            {
-                foreach (var order in WaitingOrders)
-                {
-                    RemoveTradeFromSystem_UI_synchronised(order, false);
-                }
-            });
-        }
-
-        internal void RemoveUnallocatedLines_UI_synchronised()
-        {
-            InitForDataContext(() =>
-            {
-                if (AllLinesForSymbol.Count > 0)
-                {
-                    var unallocated = AllLinesForSymbol.Where(x => x.Trade == null);
-                    foreach (var line in unallocated)
-                    {
-                        SetUpdateRequest(line, TradeUpdateRequest.DELETE);
-                    }
-                }
-            });
-        }
-
-        internal void ExtendLines_UI_synchronised(DateTime nextEarliest)
-        {
-            InitForDataContext(() =>
-            {
-                foreach (var line in ActiveLines)
-                {
-                    line.EndPrice = line.EndPrice + (line.EndPrice - line.StartPrice) * nextEarliest.Subtract(line.EndTimeStamp).TotalSeconds / line.EndTimeStamp.Subtract(line.StartTimeStamp).TotalSeconds;
-                    line.EndTimeStamp = nextEarliest;
-                    SetUpdateRequest(line);
-                }
-            });
-        }
-
         #endregion
-
 
         //note, this method uses the AllTrades list
         private bool RemoveTradeFromSystem_UI_synchronised(_Trade trade, bool removeLine, bool allowForceRemove = false)
@@ -1690,7 +1330,6 @@ namespace AlgoTrader.Shared
             }
         }
 
-
         #region Get results
 
         internal double lastCandleCountdown;
@@ -1861,28 +1500,6 @@ namespace AlgoTrader.Shared
             }
         }
 
-
-        //worker method to get entry outside of context synch
-        public string IsEntered(DataContext db, int id)
-        {
-            var trade = db.Trades.FirstOrDefault(x =>
-                        x.Id == id &&
-                        x.GlobalStatus == TradeGlobalStatus.ACTIVE &&
-                        x.ItemStatus == TradeItemStatus.OPEN &&
-                        x.Action == TradeAction.ENTRY
-                        );
-            return trade?.SymbolName;
-        }
-
-        public static bool AnyEnteredLive(DataContext db)
-        {
-            return db.Trades.Any(x =>
-                        x.GlobalStatus == TradeGlobalStatus.ACTIVE &&
-                        x.ItemStatus == TradeItemStatus.OPEN &&
-                        x.Action == TradeAction.ENTRY
-                        );
-        }
-
         //returns (is close, is wrong side)
         internal (bool, bool) CanSetTrade(_ChartLine orderLine, _ChartLine tradeLine, double price, TradeAction action, _Trade entry, TradePosition position)
         {
@@ -1939,6 +1556,363 @@ namespace AlgoTrader.Shared
 
         #endregion
 
+        #region Unused
+        /*
+        internal void SetMarketOrderLocal_UI_synchronised(double price, TradePosition position)
+        {
+            if (currentDataItem == null)
+            {
+                AlertDialog.Show("Waiting for connection", "Not possible");
+                return;
+            }
+
+            InitForDataContext(() =>
+            {
+                if (Order != null)
+                {
+                    AlertDialog.Show("Cannot set 2 active trades to run concurrently on same symbol", "Not possible");
+                    return;
+                }
+
+
+                //must have at least 24 hours of data, or trade can be placed before first midnight boundary so will never be visible unless it closes the following day
+                if (results.Count < 24 * 60)
+                {
+                    AlertDialog.Show("Could not set market break order, needs 24 hours data", "Insufficient data");
+                    return;
+                }
+
+                Order = new _Trade
+                {
+                    Timestamp = DateTime.UtcNow,
+                    TradeReference = _Trade.GetNewTradeId(),
+                    Type = TradeType.MARKET_ORDER,
+                    Position = position,
+                    Action = TradeAction.ORDER,
+                    Price = price,
+                    TimeFrame = TimeFrame,
+                    SymbolName = symbolName,
+                    ExchangeId = exchangeId,
+                    ItemStatus = TradeItemStatus.CLOSED,
+                    Leverage = Leverage,
+                };
+
+                SetUpdateRequest(Order);
+
+                currentTradeSetReference = Order.TradeReference;
+
+                EnterTradeOnSystem_synchronised(price, 0, TradeExchangeStatus.ENTERED_OFF_EXCHANGE);
+
+                Order.ActionValue = Entry.ActionValue = 0; //mark as using zero equity, to keep this off the profit / loss calculations
+            });
+
+            MainObj.TradeStatusChanged(this);
+        }
+
+
+        internal void SetLineBreakOrderClosed_UI_synchronised(DateTime timeStamp, double price, TradePosition position)
+        {
+            SetLineBreakOrder_UI_synchronised(timeStamp, price, position, true);
+        }
+        internal void SetHMABreakOrder_UI_synchronised(DateTime timeStamp, double price)
+        {
+            if (hmaPriceBreakOrderIndicator == null)
+            {
+                AlertDialog.Show("No HMA indicator!", "Not possible");
+                return;
+            }
+            if (currentDataItem == null)
+            {
+                AlertDialog.Show("Waiting for connection", "Not possible");
+                return;
+            }
+
+            InitForDataContext(() =>
+            {
+                //ensure break is above current price
+                //var frame = chart.GetFrameForTimestamp(currentDataItem.Timestamp);
+                var currentPrice = currentDataItem.Close;
+                if (!MainObj.IsBacktesting)
+                {
+                    timeStamp = DateTime.UtcNow.AddMinutes(-1);
+                }
+
+                var frame = chart.GetFrameForTimestamp(timeStamp); //because a backtest trade can be at any point, although backtesting not implemented on this order type
+
+                if (currentDataItem != null)
+                {
+                    var order = hmaPriceBreakOrderIndicator.SetOrder_UI_synchronised(TimeFrame, TradeType.HMA_BREAK_ORDER, TradePosition.LONG, symbolName, false, currentDataItem.Close, frame);
+
+                    if (order != null)
+                    {
+                        currentTradeSetReference = order.TradeReference;
+                        SetUpdateRequest(order);
+                    }
+                }
+                else
+                {
+                    AlertDialog.Show($"Waiting for connection... ", "Cannot set trade");
+                }
+            });
+
+            MainObj.TradeStatusChanged(this);
+        }
+       
+        //sets an order which will enter on (hourly) macd histogram zero level cross up
+        internal void SetMacdOrder_UI_synchronised(DateTime timeStamp)
+        {
+            if (macdPriceBreakOrderIndicator == null)
+            {
+                return;
+            }
+            if (currentDataItem == null)
+            {
+                AlertDialog.Show("Waiting for connection", "Not possible");
+                return;
+            }
+
+            InitForDataContext(() =>
+            {
+                //ensure break is above current price
+                //var frame = chart.GetFrameForTimestamp(currentDataItem.Timestamp);
+                var currentPrice = currentDataItem.Close;
+                if (!MainObj.IsBacktesting)
+                {
+                    timeStamp = DateTime.UtcNow.AddMinutes(-1);
+                }
+
+                var frame = chart.GetFrameForTimestamp(timeStamp); //because a backtest trade can be at any point, although backtesting not implemented on this order type
+
+                if (currentDataItem != null)
+                {
+                    var order = macdPriceBreakOrderIndicator.SetOrder_UI_synchronised(TimeFrame, TradeType.HMA_BREAK_ORDER, TradePosition.LONG, symbolName, false, currentDataItem.Close, frame);
+
+                    if (order != null)
+                    {
+                        currentTradeSetReference = order.TradeReference;
+                        SetUpdateRequest(order);
+                    }
+                }
+                else
+                {
+                    AlertDialog.Show($"Waiting for connection... ", "Cannot set trade");
+                }
+            });
+
+            MainObj.TradeStatusChanged(this);
+        }        internal void SetMovingAverageStop_UI_synchronised(TradeType type = TradeType.NO_FLIP_ORDER)
+        {
+
+            //get the moving average
+            double lastResult = 0;
+            var MA_Indicator = MainObj.displayPanelsForSymbol[symbolName].FirstOrDefault(x => x.GetType() == typeof(SMA_Indicator));
+            if (MA_Indicator != null)
+            {
+                //only one moving average
+                var movingAverage = MA_Indicator.movingAverages[0];
+                var results = movingAverage.GetResultsFromDictionary(TimeFrame);
+                lastResult = results[results.Count - 1];
+            }
+
+            _Trade entry = null;
+            _Trade _stop = null;
+            //no need for a synchronisation here
+            using (DataContext db = new DataContext())
+            {
+                _entry = db.Trades.FirstOrDefault(x =>
+                           x.SymbolName == symbolName &&
+                           x.GlobalStatus == TradeGlobalStatus.ACTIVE &&
+                           x.ItemStatus == TradeItemStatus.OPEN &&
+                           x.Action == TradeAction.ENTRY
+                           );
+                if (_entry != null)
+                {
+
+                    _stop = db.Trades.FirstOrDefault(x =>
+                               x.TradeReference == _entry.TradeReference &&
+                               x.GlobalStatus == TradeGlobalStatus.ACTIVE &&
+                               x.ItemStatus == TradeItemStatus.OPEN &&
+                               x.Action == TradeAction.STOP
+                               );
+                }
+            }
+
+            //can't synchronise this block as it contains SetStop_UI()
+            if (_entry != null && currentDataItem != null) //only set on a live order
+            {
+                if (_entry.Position == TradePosition.LONG ? lastResult > currentDataItem.Close : lastResult < currentDataItem.Close)
+                {
+                    AlertDialog.Show("Moving average price is wrong side of order");
+                    return;
+                }
+                //just easier to allow the loop to calculate the first actual price, than do it here...
+                var initialPrice = lastResult != 0 ? lastResult : _entry.Position == TradePosition.LONG ? currentDataItem.Close / 1.1 : currentDataItem.Close * 1.1;
+
+                if (_stop == null)
+                {
+                    SetStop_UI(DateTime.UtcNow, initialPrice, TradeAction.STOP, type, TradeStop.TAKE_PROFIT_MA_CROSS);
+                }
+                else
+                {
+                    InitForDataContext(() =>
+                    {
+                        if (Stop.Id == _stop.Id)
+                        {
+                            Stop.Price = initialPrice;
+                            Stop.Stop = TradeStop.TAKE_PROFIT_MA_CROSS;
+                            Stop.Type = type;
+                            SetStopOnExchange_Synchronised();
+                            var chartLine = AllLinesForSymbol.GetLineForTrade(Stop);
+                            if (chartLine != null)
+                            {
+                                chartLine.TradeId = null;
+                                chartLine.TradeReference = null;
+                                chartLine.Type = LineType.NONE;
+                                SetUpdateRequest(chartLine);
+                            }
+                            SetUpdateRequest(Stop);
+                        }
+                    });
+
+                }
+            }
+            MainObj.TradeStatusChanged(this);
+        }
+        internal void AddBreakToLineLocal_UI_synchronised(int chartLineId, TradePosition position, double price, bool isBacktest)
+        {
+            if (currentDataItem == null)
+            {
+                AlertDialog.Show("Waiting for connection", "Not possible");
+                return;
+            }
+
+            InitForDataContext(() =>
+            {
+                var chartLine = AllLinesForSymbol.FirstOrDefault(x => x.Id == chartLineId);
+
+                if (chartLine.Trade != null)
+                {
+                    AlertDialog.Show("Trade already set on this line");
+                    return;
+                }
+
+                Order = SetLineOrder_UI_synchronised(position, isBacktest, chartLine);
+
+                currentTradeSetReference = Order.TradeReference;
+
+                if (!isBacktest)
+                {
+                    EnterTradeOnSystem_synchronised(price, 0, TradeExchangeStatus.ENTERED_ON_EXCHANGE);
+                    Order.ActionValue = Entry.ActionValue = 0; //mark as using zero equity, to keep this off the profit / loss calculations
+                }
+
+            });
+
+            MainObj.TradeStatusChanged(this);
+        }
+        internal void AdvanceTrade_UI_synchronised(int tradeId)
+        {
+            InitForDataContext(() =>
+            {
+                var trade = AllTrades.FirstOrDefault(x => x.Id == tradeId);
+                if (trade == null)
+                {
+                    AlertDialog.Show("Could not find trade");
+                    return;
+                }
+                if (Entry != null)
+                {
+                    AlertDialog.Show("Cannot advance a trade start time which has already entered");
+                    return;
+                }
+
+                //extend line
+                var line = AllLinesForSymbol.GetLineForTrade(trade);
+                if (line != null)
+                {
+                    line.StartTimeStamp = DateTime.UtcNow;
+                    line.EndTimeStamp = line.StartTimeStamp.AddDays(1);
+                    SetUpdateRequest(line);
+
+                    //var nextEarliest = GetNextInterval_UI(DateTime.UtcNow);
+                    //var nextPrice = line.EndPrice + (line.EndPrice - line.StartPrice) * nextEarliest.Subtract(line.EndTimeStamp).TotalSeconds / line.EndTimeStamp.Subtract(line.StartTimeStamp).TotalSeconds;
+                    trade.Timestamp = line.StartTimeStamp;
+                    trade.Price = line.StartPrice;
+                }
+                else
+                {
+                    trade.Timestamp = DateTime.UtcNow;
+                }
+                SetUpdateRequest(trade);
+
+            });
+
+            MainObj.TradeStatusChanged(this);
+        }
+        internal void SetFloorAtPrice_UI_synchronised(DateTime timeStamp, double price)
+        {
+            SetStop_UI(timeStamp, price, TradeAction.FLOOR, TradeType.NO_FLIP_ORDER);
+        }
+
+        internal void SetCeilingAtPrice_UI_synchronised(DateTime timeStamp, double price)
+        {
+            //Set Take Profit - this assumes no chart line, so sets that ID to -1.
+            //If this is not done, then it will be cloned from the order and that will result in the line changing status if the TP is deleted
+            SetStop_UI(timeStamp, price, TradeAction.CEILING, TradeType.NO_FLIP_ORDER);
+        }
+
+        internal void SetBreakEvenAtPrice_UI_synchronised(DateTime timeStamp, double price)
+        {
+            SetStop_UI(timeStamp, price, TradeAction.BREAK_EVEN, TradeType.NO_FLIP_ORDER);
+        }
+        internal void RemoveWaitingTrades_UI_synchronised()
+        {
+            InitForDataContext(() =>
+            {
+                foreach (var order in WaitingOrders)
+                {
+                    RemoveTradeFromSystem_UI_synchronised(order, false);
+                }
+            });
+        }        
+        internal void RemoveUnallocatedLines_UI_synchronised()
+        {
+            InitForDataContext(() =>
+            {
+                if (AllLinesForSymbol.Count > 0)
+                {
+                    var unallocated = AllLinesForSymbol.Where(x => x.Trade == null);
+                    foreach (var line in unallocated)
+                    {
+                        SetUpdateRequest(line, TradeUpdateRequest.DELETE);
+                    }
+                }
+            });
+        }
+        internal void ExtendLines_UI_synchronised(DateTime nextEarliest)
+        {
+            InitForDataContext(() =>
+            {
+                foreach (var line in ActiveLines)
+                {
+                    line.EndPrice = line.EndPrice + (line.EndPrice - line.StartPrice) * nextEarliest.Subtract(line.EndTimeStamp).TotalSeconds / line.EndTimeStamp.Subtract(line.StartTimeStamp).TotalSeconds;
+                    line.EndTimeStamp = nextEarliest;
+                    SetUpdateRequest(line);
+                }
+            });
+        }
+        public static bool AnyEnteredLive(DataContext db)
+        {
+            return db.Trades.Any(x =>
+                        x.GlobalStatus == TradeGlobalStatus.ACTIVE &&
+                        x.ItemStatus == TradeItemStatus.OPEN &&
+                        x.Action == TradeAction.ENTRY
+                        );
+        }
+
+        */
+
+        #endregion
 
     }
 }

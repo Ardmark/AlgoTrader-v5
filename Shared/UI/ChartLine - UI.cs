@@ -1,8 +1,9 @@
 ﻿using AlgoTrader.Shared.Enums;
 using AlgoTrader.Shared.Windows;
-using static System.Windows.Forms.VisualStyles.VisualStyleElement.ToolTip;
-using System.Windows.Documents;
 using System.Data.Entity.Core.Common.EntitySql;
+using System.Windows.Controls;
+using System.Windows.Documents;
+using static System.Windows.Forms.VisualStyles.VisualStyleElement.ToolTip;
 
 namespace AlgoTrader.Shared
 {
@@ -73,7 +74,7 @@ namespace AlgoTrader.Shared
                     var chartLine = tradeEngine.AllLinesForSymbol.FirstOrDefault(x => x.Id == Id);
                     if (chartLine != null)
                     {
-                        void SetLineStartAndEnd()
+                        void SetLineStartAndEnd(_Trade trade = null)
                         {
                             //scaling bug will move candles and trade across if the trade is beyond the candle bounds.
                             //This is not an issue if only an empty line is drawn
@@ -110,6 +111,15 @@ namespace AlgoTrader.Shared
                                 chartLine.EndPrice = v2;
                             }
 
+                            //line up the line start with the order or entry
+                            if (trade != null)
+                            {
+                                var _gradient = (chartLine.EndPrice - chartLine.StartPrice) / (chartLine.EndTimeStamp - chartLine.StartTimeStamp).Ticks;
+                                var _timediff = (chartLine.EndTimeStamp - chartLine.StartTimeStamp).Ticks;
+                                chartLine.StartPrice -= _gradient * (chartLine.StartTimeStamp - trade.Timestamp).Ticks;
+                                chartLine.StartTimeStamp = trade.Timestamp;
+                            }
+
                             tradeEngine.SetUpdateRequest(chartLine);
 
                             //SetMinimumLength(tradeEngine.TimeFrame);
@@ -136,6 +146,7 @@ namespace AlgoTrader.Shared
                         {
                             SetLineStartAndEnd();
                             tradeEngine.UpdateUIList(chartLine);
+                            tradeEngine.SetUpdateRequest(chartLine);
                             MainObj.DrawCurrentDispatcher(true);
                         }
                         else
@@ -143,6 +154,7 @@ namespace AlgoTrader.Shared
                             var lines = tradeEngine.GetLinesForTradeReference(chartLine.Trade.TradeReference);
                             var order = tradeEngine.GetTradeForTradeReference(TradeAction.ORDER, chartLine.Trade.TradeReference);
                             var entry = tradeEngine.GetTradeForTradeReference(TradeAction.ENTRY, chartLine.Trade.TradeReference);
+                            var order_entry = entry != null ? entry : order;
 
                             if (order != null)
                             {
@@ -200,7 +212,8 @@ namespace AlgoTrader.Shared
                                                             order = tradeEngine.GetTradeForTradeReference(TradeAction.ORDER, chartLine.Trade.TradeReference);
                                                             entry = tradeEngine.GetTradeForTradeReference(TradeAction.ENTRY, chartLine.Trade.TradeReference);
                                                             SetPrice();
-                                                            SetLineStartAndEnd();
+ 
+                                                            SetLineStartAndEnd(order_entry);
                                                             tradeEngine.UpdateUIList(chartLine.Trade);
                                                             tradeEngine.UpdateUIList(chartLine);
                                                             MainObj.DrawCurrentDispatcher(true);
@@ -216,7 +229,7 @@ namespace AlgoTrader.Shared
                                     else
                                     {
                                         SetPrice();
-                                        SetLineStartAndEnd();
+                                        SetLineStartAndEnd(order_entry);
                                         tradeEngine.UpdateUIList(chartLine.Trade);
                                         tradeEngine.UpdateUIList(chartLine);
                                         MainObj.DrawCurrentDispatcher(true);

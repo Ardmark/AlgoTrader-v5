@@ -213,31 +213,6 @@ namespace AlgoTrader.Shared
             double currItemPrice = tradeEngine.currentDataItem.Close;// GetMaxValue(order.Position);
             var prevItemPrice = tradeEngine.Results.Last().GetMinValue(order.Position);
 
-            if (MainObj.IsBacktesting)
-            {
-                var frame = chart.GetFrameForTimestamp(item.Timestamp); //because a backtest trade can be at any point
-
-                if (frame >= tradeEngine.results.Count)
-                {
-                    //this would happen if a trade was set after startup but before interpolation of missed frames. However, there is also a flag in tradeEngine to block this
-                    frame = tradeEngine.Results.Count - 1;
-                }
-                if (frame < 1)
-                {
-                    return (-1, -1);
-                }
-
-                var lastItem = tradeEngine.results[frame];
-                prevItemPrice = lastItem.GetMinValue(order.Position);
-
-                //not sure about this since more changes have been made -- any problems, it is here....
-                //the transition from previous to current bar can often not be smooth, with the current bar starting above the line whilst
-                // the previous bar ended below it. Therefore, must use the previous bar low if that was lower than the current bar.
-                //prevItemPrice = order.Position == TradePosition.LONG
-                //                    ? prevItemPrice < currItemPrice ? prevItemPrice : currItemPrice
-                //                    : prevItemPrice > currItemPrice ? currItemPrice : currItemPrice;
-
-            }
             return (prevItemPrice, currItemPrice);
         }
 

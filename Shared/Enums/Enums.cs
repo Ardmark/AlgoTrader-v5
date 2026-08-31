@@ -83,14 +83,12 @@ namespace AlgoTrader.Shared.Enums
     {
         PRICE_BREAK_ORDER,  //Unused - for a break when a specific price is crossed. This is redundant as now all price breaks are done with lines
         LINE_BREAK_ORDER,   //price breaks line
-        HMA_BREAK_ORDER,    //price breaks HMA
         MARKET_ORDER,       //immediate order
-        STUB_ORDER,         //for use internally with quote asset trading (i.e. in and out of BTC, not USD(T)
-        AUTO_ORDER,         //for auto-generated order
         FLIP_ORDER,         //for stops, this is a flip order (TradeAction Action will be STOP)
         NO_FLIP_ORDER,      //for stops, this will dead exit rather than flip (TradeAction Action will be WAITING_STOP)
         STOP_WAITING,        //as above but dead stop (TradeAction Action will be WAITING_STOP)
-        LIMIT_ORDER
+        LIMIT_ORDER,
+        HMA_BREAK_ORDER,    //price breaks HMA
     }
 
     // long or short

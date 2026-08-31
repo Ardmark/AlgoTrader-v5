@@ -118,8 +118,7 @@ namespace AlgoTrader.Shared.Logging
 
         public static void WriteLineOrder(string text)
         {
-            var orderLog = MainObj.BACKTEST ? "LogOrdersBacktest.txt" : "LogOrders.txt";
-            LogBase.Write(text, orderLog);
+            LogBase.Write(text, "LogOrders.txt");
             WriteLine(text);
         }
 

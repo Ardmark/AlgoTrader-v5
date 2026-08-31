@@ -47,11 +47,6 @@ namespace AlgoTrader.Shared.TradeIndicators
             int startFrame = Chart.ScrollBars;
             int numFrames = Chart.ScaleBars;
 
-            if (MainObj.IsBacktesting)
-            {
-                return;
-            }
-
             InitDraw();
             canvas.Children.Clear();
             List<double> items_smaK = stochastic.GetResults(startFrame, numFrames, Chart.TimeFrame);
