@@ -284,7 +284,7 @@ namespace AlgoTrader.Shared.ViewModels
                     AddText(r, 1, close.SymbolName);
 
                     var orderType = "Unentered";
-                    switch (close.ExchangeStatus)
+                    switch (close.TradeExchangeStatus)
                     {
                         case TradeExchangeStatus.ENTERED_OFF_EXCHANGE:
                             orderType = "";

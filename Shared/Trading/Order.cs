@@ -163,9 +163,8 @@ namespace AlgoTrader.Shared
                     ActionValue = 0,
                     TimeFrame = TimeFrame,
                     SymbolName = symbolName,
-                    ExchangeId = exchangeId,
                     ExecutionSystem = TradeExecutionSystem.NORMAL,
-                    ExchangeStatus = TradeExchangeStatus.ENTERED_OFF_EXCHANGE
+                    TradeExchangeStatus = TradeExchangeStatus.ENTERED_OFF_EXCHANGE
                 };
 
             }
@@ -181,26 +180,15 @@ namespace AlgoTrader.Shared
         #endregion
 
         #region Enter trade
-        public virtual bool CanEnterTrade_synchronised(_Trade order)
-        {
-            return false;
-        }
+        public virtual bool CanEnterTrade_synchronised(_Trade order) { return false; }
 
         //anything which needs to be done outside of the stop or take profit handlers
         internal virtual bool ExecuteEntry_synchronised(bool itemAdded)
         {
             //may not be a stop auto-added, could be a floor instead, so test for spike here
             return TestForMoveToBE_synchronised(itemAdded);
-
         }
 
-        #endregion
-
-        #region Terminate trade
-        public virtual bool TerminateTrade_synchronised(_Trade trade)
-        {
-            return false;
-        }
         #endregion
 
         #region Utility methods
@@ -215,7 +203,6 @@ namespace AlgoTrader.Shared
 
             return (prevItemPrice, currItemPrice);
         }
-
 
         public static double GetBreakEvenPrice(_Trade trade, double? percent = null)
         {
@@ -233,35 +220,9 @@ namespace AlgoTrader.Shared
                 : price < thresholdPrice;
         }
 
-
-
         #endregion
 
         #region Stops
-
-        /*
- * Set floor
- * This will NOT set a trailing floor, as it sets the action value to zero
- * */
-
-        //do not call to update an existing stop or floor!
-        private _Trade SetFloorStop_synchronised(DateTime timeStamp, double price, TradeAction action)
-        {
-            int currentFrame = tradeEngine.currentFrame;
-            var trade = tradeEngine.Order.Clone();
-            trade.Action = action;
-            trade.Timestamp = timeStamp;
-            trade.Price = price;
-            trade.ActionValue = 0;
-            trade.ItemId = null; //or it will be the order ItemId
-            trade.ExchangeStatus = TradeExchangeStatus.ENTERING_ON_EXCHANGE;
-            trade.Quantity = 0; //this will be calculated in the next step
-            tradeEngine.SetUpdateRequest(trade);
-            tradeEngine.SetStopOnExchange_Synchronised();
-            return trade;
-        }
-
-
 
         public static void DoTrail(_Trade stop)
         {
@@ -294,7 +255,7 @@ namespace AlgoTrader.Shared
             {
                 return (false, false);
             }
-            if (stop.ExchangeMethodScript != null && stop.ExchangeMethodScript != TradeEngine.EXCHANGE_NOT_SYNCHED)
+            if (stop.TradeExecutionStatus != TradeExecutionStatus.OK && stop.TradeExecutionStatus != TradeExecutionStatus.EXCHANGE_NOT_SYNCHED)
             {
                 return (false, false); //do nothing with it at this point
             }
@@ -431,40 +392,57 @@ namespace AlgoTrader.Shared
         #endregion
 
 
-        #region Spike and take profit at %
 
 
         internal bool TestForMoveToBE_synchronised(bool itemAdded)
         {
             return false; //this is not unused as trailing stops are too risky. Spike is also disabled here may need to re-enable that later
 
-            _Trade activeOrder = tradeEngine.Order;
-            _Trade entry = tradeEngine.Entry;
+            #region Init
+            _Trade SetFloorStop_synchronised(DateTime timeStamp, double price, TradeAction action)
+            {
+                int currentFrame = tradeEngine.currentFrame;
+                var trade = tradeEngine.Order.Clone();
+                trade.Action = action;
+                trade.Timestamp = timeStamp;
+                trade.Price = price;
+                trade.ActionValue = 0;
+                trade.ItemId = null; //or it will be the order ItemId
+                trade.TradeExchangeStatus = TradeExchangeStatus.ENTERING_ON_EXCHANGE;
+                trade.Quantity = 0; //this will be calculated in the next step
+                tradeEngine.SetUpdateRequest(trade);
+                tradeEngine.SetStopOnExchange_Synchronised();
+                return trade;
+            }
 
-            if (entry == null)
+            if (tradeEngine.Entry == null)
             {
                 return false;
             }
 
-            bool redrawRequired = false;
-
-           // var floor = tradeEngine.Floor;
+            var entry = tradeEngine.Entry;
+            var activeOrder = tradeEngine.Order;
+            var redrawRequired = false;
             var stop = tradeEngine.Stop;
             _Trade breakEven = null;// tradeEngine.BreakEven;
             var takeProfit = tradeEngine.TakeProfit;
-
-            int currentFrame = tradeEngine.currentFrame;
+            var currentFrame = tradeEngine.currentFrame;
             var currTimestamp = tradeEngine.currentDataItem.Timestamp;
             var currClose = tradeEngine.currentDataItem.Close;
+
+            #endregion
+
+            //////////////////////////////////////////////////////////////////////////////////
+            ///CHANGES MADE TO SPIKE AND TRAILING STOP, DO NOT RE-ENABLE WITHOUT TESTING FIRST
+            //////////////////////////////////////////////////////////////////////////////////
+            ///
+            #region Trailing stop (unimplemented)
 
             //if any stop or floor is below the break even position, do nothing.
             //otherwise, set a trailing stop if that is below the lowest stop or floor
             //So the stop will trail down but won't override a lower stop (i.e. it won't be added), but when it is the lowest stop it will be added.
             //But if there is a stop in a profit position, it won't be added, so replacing a trailing stop with any other stop will remove it.
 
-            //////////////////////////////////////////////////////////////////////////////////
-            ///CHANGES MADE TO SPIKE AND TRAILING STOP, DO NOT RE-ENABLE WITHOUT TESTING FIRST
-            //////////////////////////////////////////////////////////////////////////////////
 
             //if (TradeEngine.AUTO_SET_TRAILING_STOP) //use this as the trail value for now
             //{
@@ -533,39 +511,36 @@ namespace AlgoTrader.Shared
             //            tradeEngine.SetUpdateRequest(stop);
             //        }
             //    }
+            #endregion
 
-
-                #region Auto-set MA stop (unused but keep)
-                //if (stop == null)
-                //{
-                //    stop = SetFloorStop_synchronised(currTimestamp, takeProfitPrice, TradeAction.STOP);
-                //    stop.Stop = TradeStop.TAKE_PROFIT_MA_CROSS;
-                //}
-                //else
-                //{
-                //    //if stop set below b/e, move it - but don't move if above!!
-                //    if (activeOrder.Position == TradePosition.LONG ? stop.Price < breakEvenPrice : stop.Price > breakEvenPrice)
-                //    {
-                //        var chartLine = tradeEngine.ActiveLines.GetLineForTrade(stop);
-                //        if (chartLine != null)
-                //        {
-                //            chartLine.TradeId = null;
-                //            chartLine.TradeReference = null;
-
-                //            chartLine.Type = LineType.NONE;
-                //            tradeEngine.SetUpdateRequest(chartLine);
-                //        }
-                //        stop.Price = takeProfitPrice;
-                //        stop.Stop = TradeStop.TAKE_PROFIT_MA_CROSS;
-                //        tradeEngine.SetUpdateRequest(stop);
-                //    }
-                //} 
-                #endregion
-
-                
+            #region Auto-set MA stop (unused but keep)
+            //if (stop == null)
+            //{
+            //    stop = SetFloorStop_synchronised(currTimestamp, takeProfitPrice, TradeAction.STOP);
+            //    stop.Stop = TradeStop.TAKE_PROFIT_MA_CROSS;
             //}
+            //else
+            //{
+            //    //if stop set below b/e, move it - but don't move if above!!
+            //    if (activeOrder.Position == TradePosition.LONG ? stop.Price < breakEvenPrice : stop.Price > breakEvenPrice)
+            //    {
+            //        var chartLine = tradeEngine.ActiveLines.GetLineForTrade(stop);
+            //        if (chartLine != null)
+            //        {
+            //            chartLine.TradeId = null;
+            //            chartLine.TradeReference = null;
 
-            #region if enabled, move to break even when some bars are clear
+            //            chartLine.Type = LineType.NONE;
+            //            tradeEngine.SetUpdateRequest(chartLine);
+            //        }
+            //        stop.Price = takeProfitPrice;
+            //        stop.Stop = TradeStop.TAKE_PROFIT_MA_CROSS;
+            //        tradeEngine.SetUpdateRequest(stop);
+            //    }
+            //} 
+            #endregion
+
+            #region Move to break even when some bars are clear
 
             if (TradeEngine.NUM_BARS_FOR_FLOOR > 0)
             {
@@ -679,7 +654,7 @@ namespace AlgoTrader.Shared
             }
             #endregion
 
-            #region if enabled, move to break even when profit reaches certain level
+            #region Move to break even when profit reaches certain level
 
             /*
             if (TradeEngine.BREAK_EVEN_PERCENT > 0)
@@ -704,9 +679,8 @@ namespace AlgoTrader.Shared
             */
             #endregion
 
-            /*
             #region Spike
-
+            /*
 
             if (TradeEngine.SPIKE_TRIGGER_PERCENT > 0)
             {
@@ -778,67 +752,13 @@ namespace AlgoTrader.Shared
                     }
                 }
                 // }
-            }
+            } 
+            
+             */
             #endregion
-            */
+
             return redrawRequired;
         }
-
-        #endregion
-
-        #region Weight (not implemented)
-
-        //will return false if the total elapsed time since the last entry is less than a certain amount
-        //this is a simple scheme to limit the total number of stop orders which can be placed in a minute
-        // - also applies to TP orders, since those might also be auto-assigned at some point
-        //and remember that a stop or TP may take 2 orders anyway
-        /*
-        public bool CanStopBePlaced_synchronised(_Trade stop)
-        {
-            if (!MainObj.TradeRunningLocally(stop))
-            {
-                if (!CheckForLiveStopTPEntryOK_synchronised())
-                {
-                    return false;
-                }
-            }
-            return true;
-        }
-
-
-        public bool CheckForLiveStopTPEntryOK_synchronised()
-        {
-
-            if (!tradeEngine.dataReady)
-            {
-                LogTrades.WriteLine(string.Format("{0} not entered LIVE at {1} as candle data still pending.", symbolName, DateTime.UtcNow));
-                return false;
-            }
-            
-            ////may be using a non-static exchangeInfo now, so this would have to be pulled each time anyway
-            //if (TradeEngine.exchangeInfo == null)
-            //{
-            //    LogTrades.WriteLine(string.Format("{0} not entered at {1} as exchangeInfo not yet received.", symbolName, DateTime.UtcNow));
-            //    return false;
-            //}
-            ////only allow one pending request entry, and if this is happening then obviously nothing else can
-            //if (pendingLiveEntryTrade != null)
-            //{
-            //    return false;
-            //}
-            //var _trade = db.Trades.Where(x => x.Id == trade.Id).FirstOrDefault();
-            //if (_trade != null && _trade.ExchangeRequestIntent != ExchangeRequest.COMPLETED)
-            //{
-            //    LogTrades.WriteLine($"Order rejected as exchange intent was {_trade.ExchangeRequestIntent}");
-            //    return false;
-            //}
-            
-            return true;
-        }
-        */
-        #endregion
-
-
     }
 }
 

@@ -29,13 +29,6 @@ namespace AlgoTrader.Shared
 
         #endregion
 
-        #region Script names
-        //script names - rather than enums - because these are stored in the db as strings so are easier to use when debugging
-        internal const string NEW_ORDER_SCRIPT = "New Order";
-        internal const string CLOSE_ORDER_SCRIPT = "Close Order";
-        internal const string EXCHANGE_NOT_SYNCHED = "Exchange not synched"; //this is just used if the exchange returns no open trades, it is just for drawing
-        internal const string UPDATE_LIVE_STATE_SCRIPT = "Update live state";
-        #endregion
 
         public virtual void StartEntry_Synchronised() { }
         public virtual void StartClose_Synchronised() { }
@@ -51,7 +44,7 @@ namespace AlgoTrader.Shared
                 trade.GlobalStatus = TradeGlobalStatus.STOPPED;
                 if (!interrupted)
                 {
-                    trade.ExchangeMethodScript = null;
+                    trade.TradeExecutionStatus = TradeExecutionStatus.OK;
                     trade.ItemStatus = TradeItemStatus.CLOSED;
                     trade.GlobalStatus = TradeGlobalStatus.STOPPED;
                 }
@@ -59,19 +52,19 @@ namespace AlgoTrader.Shared
             }
             if (Entry != null)
             {
-                Entry.ExchangeMethodScript = null;
+                Entry.TradeExecutionStatus = TradeExecutionStatus.OK;
                 Entry.ItemStatus = TradeItemStatus.CLOSED;
                 Entry.GlobalStatus = TradeGlobalStatus.STOPPED;
             }
             if (Order != null)
             {
-                Order.ExchangeMethodScript = null;
+                Order.TradeExecutionStatus = TradeExecutionStatus.OK;
                 Order.ItemStatus = TradeItemStatus.CLOSED;
                 Order.GlobalStatus = TradeGlobalStatus.STOPPED;
             }
             if (Stop != null)
             {
-                Stop.ExchangeMethodScript = null;
+                Stop.TradeExecutionStatus = TradeExecutionStatus.OK;
                 Stop.ItemStatus = TradeItemStatus.CLOSED;
                 Stop.GlobalStatus = TradeGlobalStatus.STOPPED;
             }
@@ -98,17 +91,17 @@ namespace AlgoTrader.Shared
             //immediate market orders placed through UI will not have set ActiveTrades (Bitmex) yet, so clear these first
             if (Order != null)
             {
-                Order.ExchangeMethodScript = null;
+                Order.TradeExecutionStatus = TradeExecutionStatus.OK;
                 SetUpdateRequest(Order);
             }
             if (Entry != null)
             {
-                Entry.ExchangeMethodScript = null;
+                Entry.TradeExecutionStatus = TradeExecutionStatus.OK;
                 SetUpdateRequest(Entry);
             }
             foreach (var trade in ActiveTrades)
             {
-                trade.ExchangeMethodScript = null;
+                trade.TradeExecutionStatus = TradeExecutionStatus.OK;
                 SetUpdateRequest(trade);
             }
 

@@ -166,7 +166,7 @@ namespace AlgoTrader.Shared
                             x.Action == TradeAction.ORDER &&
                             x.GlobalStatus == TradeGlobalStatus.ACTIVE &&
                             x.ItemStatus == TradeItemStatus.OPEN &&
-                            x.ExchangeMethodScript == null).ToList();
+                            x.TradeExecutionStatus == TradeExecutionStatus.OK).ToList();
             }
             set
             {
@@ -837,7 +837,7 @@ namespace AlgoTrader.Shared
                                 hasFailedToClose = false;
                                 Entry.GlobalStatus = Order.GlobalStatus = Close.GlobalStatus = TradeGlobalStatus.STOPPED;
                                 Entry.ItemStatus = Order.ItemStatus = Close.ItemStatus = TradeItemStatus.CLOSED;
-                                Entry.ExchangeMethodScript = Order.ExchangeMethodScript = Close.ExchangeMethodScript = EXCHANGE_NOT_SYNCHED;
+                                Entry.TradeExecutionStatus = Order.TradeExecutionStatus = Close.TradeExecutionStatus = TradeExecutionStatus.EXCHANGE_NOT_SYNCHED;
                                 SetUpdateRequest(Entry);
                                 SetUpdateRequest(Order);
                                 SetUpdateRequest(Close);
@@ -855,7 +855,7 @@ namespace AlgoTrader.Shared
                     #region Entry
                     if (Entry != null)
                     {
-                        if (Entry.ExchangeMethodScript == null)
+                        if (Entry.TradeExecutionStatus == TradeExecutionStatus.OK)
                         {
                             if (currentTradeIndicator.ExecuteEntry_synchronised(itemAdded))
                             {
@@ -877,7 +877,7 @@ namespace AlgoTrader.Shared
                         {
                             //don't want to update the Entry timestamp if not synched, which it has to do or it will check for timeout each loop
                             // - so there is a separate field for this, easier than adding another one to the Trade object
-                            if (Entry.ExchangeMethodScript != EXCHANGE_NOT_SYNCHED && Entry.ExchangeMethodScript != UPDATE_LIVE_STATE_SCRIPT)
+                            if (Entry.TradeExecutionStatus != TradeExecutionStatus.EXCHANGE_NOT_SYNCHED && Entry.TradeExecutionStatus != TradeExecutionStatus.UPDATE_LIVE_STATE)
                             {
 
                                 if (CheckForTimeout_Synchronised(Entry))
@@ -885,7 +885,7 @@ namespace AlgoTrader.Shared
                                     //an interrupted entry won't be closed, since there is no way to tell whether this has entered on the exchange (at time of writing)
                                     //leave the script name in place. 
 
-                                    Entry.ExchangeMethodScript = TradeEngine.EXCHANGE_NOT_SYNCHED;
+                                    Entry.TradeExecutionStatus = TradeExecutionStatus.EXCHANGE_NOT_SYNCHED;
                                     SetUpdateRequest(Entry);
                                     //won't kill the order, just mark it as not synched. It may still be running and will then get re-synched automatically anyway.
                                     redrawRequired = true;
@@ -952,7 +952,7 @@ namespace AlgoTrader.Shared
                     #region Take Profit
 
                     //just a simplified version of the stop logic, no need for a separate order object to do this
-                    if (TakeProfit != null && TakeProfit.ExchangeMethodScript == null)
+                    if (TakeProfit != null && TakeProfit.TradeExecutionStatus == null)
                     {
                         var line = ActiveLines.GetLineForTrade(TakeProfit);
                         if (line != null) //just in casse
@@ -1014,7 +1014,7 @@ namespace AlgoTrader.Shared
                     //but only the single Stop object gets its price updated, so get any flip stops and update those
                     if (Stop != null)
                     {
-                        if (Stop.ExchangeMethodScript == null || Stop.ExchangeMethodScript == EXCHANGE_NOT_SYNCHED)
+                        if (Stop.TradeExecutionStatus == TradeExecutionStatus.OK || Stop.TradeExecutionStatus == TradeExecutionStatus.EXCHANGE_NOT_SYNCHED)
                         {
                             //indicator may terminate trade on other stop conditions, e.g. ema crossover
                             (bool stopExecuted, bool updateStop) = currentTradeIndicator.ExecuteStop_synchronised(itemAdded);
@@ -1122,12 +1122,12 @@ namespace AlgoTrader.Shared
                                     trade.Timestamp = currentDataItem.Timestamp;
                                     SetUpdateRequest(trade);
                                 }
-                                if (trade.ExchangeMethodScript != null)
+                                if (trade.TradeExecutionStatus != TradeExecutionStatus.OK)
                                 {
                                     if (CheckForTimeout_Synchronised(trade))
                                     {
                                         redrawRequired = true;
-                                        trade.ExchangeMethodScript = null;
+                                        trade.TradeExecutionStatus = TradeExecutionStatus.OK;
                                         MainObj.exchangeConnector.RestartConnection();
                                     }
                                 }
@@ -1152,7 +1152,7 @@ namespace AlgoTrader.Shared
                             //order has failed to enter, so don't want to keep retrying especially with market orders as this will just show endless dialogs
                             order.ItemStatus = TradeItemStatus.CLOSED;
                             order.GlobalStatus = TradeGlobalStatus.STOPPED;
-                            order.ExchangeMethodScript = null;
+                            order.TradeExecutionStatus = TradeExecutionStatus.OK;
                             SetUpdateRequest(order);
                             redrawRequired = true;
                         }
@@ -1208,7 +1208,7 @@ namespace AlgoTrader.Shared
                 //limit max. number of trades per 24 hour period
                 var earliest = DateTime.UtcNow.AddDays(-1);
                 var totTrades = DataContext.Trades.Where(x =>
-                    x.ExchangeStatus == TradeExchangeStatus.ENTERED_ON_EXCHANGE &&
+                    x.TradeExchangeStatus == TradeExchangeStatus.ENTERED_ON_EXCHANGE &&
                     x.Action == TradeAction.ENTRY &&
                     DateTime.Compare(x.Timestamp, earliest) > 0).Count();
 
@@ -1264,8 +1264,6 @@ namespace AlgoTrader.Shared
                         }
                         Order = trade;
 
-                        Order.ExchangeMethodScript = NEW_ORDER_SCRIPT;
-
                         Order.ItemStatus = TradeItemStatus.CLOSED;
                         SetUpdateRequest(trade);
 
@@ -1273,7 +1271,7 @@ namespace AlgoTrader.Shared
                         Entry.ItemId = _Trade.GetNewTradeId(); //set the client-assigned Id (could wait for the binance-assigned one instead) but this way, can query status even if no confirmation yet received
                         Entry.Action = TradeAction.ENTRY;
                         Entry.Price = (double)price;
-                        Entry.ExchangeStatus = TradeExchangeStatus.ENTERED_OFF_EXCHANGE; //only set live when it actually returns from exchange
+                        Entry.TradeExchangeStatus = TradeExchangeStatus.ENTERED_OFF_EXCHANGE; //only set live when it actually returns from exchange
                         Entry.Timestamp = entryTimeStamp = GetTimeStamp();
                         Entry.Id = 0; //so it will get added
 
@@ -1283,7 +1281,6 @@ namespace AlgoTrader.Shared
 
                         ResetLiveUpdateTimer();
 
-                        LogTrades.WriteLine("Starting entry...");
                         StartEntry_Synchronised();
 
                         if (Entry != null)
@@ -1348,7 +1345,7 @@ namespace AlgoTrader.Shared
 
                     SetUpdateRequest(Close);
 
-                    LogTrades.WriteLineOrder(string.Format("{0} {1}% closed at {2}", Close.SymbolName, Close.Result, DateTime.UtcNow));
+                    LogTrades.WriteLineOrder(string.Format("Result: {0} {1:F2}%", Close.SymbolName, Close.Result));
 
                 }
             }
@@ -1358,7 +1355,7 @@ namespace AlgoTrader.Shared
             {
                 t.GlobalStatus = TradeGlobalStatus.STOPPED;
                 t.ItemStatus = TradeItemStatus.CLOSED;
-                t.ExchangeMethodScript = null;
+                t.TradeExecutionStatus = TradeExecutionStatus.OK;
                 SetUpdateRequest(t); //update everything (except close if that has just been created, it won't be in the list)
             }
 
@@ -1397,8 +1394,6 @@ namespace AlgoTrader.Shared
                 LogTrades.WriteSpacer();
                 LogTrades.WriteLine($"Closing {Entry.SymbolName} {Entry.TradeReference} at {DateTime.UtcNow}");
 
-                Order.ExchangeMethodScript = CLOSE_ORDER_SCRIPT;
-                Entry.ExchangeMethodScript = CLOSE_ORDER_SCRIPT;
                 entryTimeStamp = DateTime.UtcNow;
 
                 SetUpdateRequest(Order);

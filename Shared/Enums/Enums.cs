@@ -76,6 +76,13 @@ namespace AlgoTrader.Shared.Enums
         ENTERING_ON_EXCHANGE,
         NO_WARNING
     }
+
+    public enum TradeExecutionStatus
+    {
+        OK,
+        EXCHANGE_NOT_SYNCHED,
+        UPDATE_LIVE_STATE
+    }
     // trade type - manual market break or auto-generated, etc.
     //NOTE - not implementing MARKET as that could be set as order type by mistake, resulting in an immediate entry
     // - similarily, LIMIT could be set without realising it, so limit orders will only be part of break orders, if ever implemented

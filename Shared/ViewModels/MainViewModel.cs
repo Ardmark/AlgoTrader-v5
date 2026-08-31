@@ -688,7 +688,7 @@ namespace AlgoTrader.Live.ViewModels
 
                         if (trade != null)
                         {
-                            if ((trade.ItemStatus == TradeItemStatus.OPEN || trade.GlobalStatus == TradeGlobalStatus.ACTIVE) && trade.ExchangeStatus == TradeExchangeStatus.ENTERED_ON_EXCHANGE)
+                            if ((trade.ItemStatus == TradeItemStatus.OPEN || trade.GlobalStatus == TradeGlobalStatus.ACTIVE) && trade.TradeExchangeStatus == TradeExchangeStatus.ENTERED_ON_EXCHANGE)
                             {
                                 MessageBox.Show("This is a live trade, cannot be deleted", "Remove live Trade", MessageBoxButton.OK, MessageBoxImage.Stop);
                             }

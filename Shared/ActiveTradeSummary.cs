@@ -163,8 +163,8 @@ namespace AlgoTrader.Shared
                             if (currentSymbol != null)
                             {
 
-                                var s = trade.ExchangeStatus == TradeExchangeStatus.ENTERED_ON_EXCHANGE ? " " : "Test ";
-                                s += trade.ExchangeMethodScript == null ? "" : "INTERRUPTED";
+                                var s = trade.TradeExchangeStatus == TradeExchangeStatus.ENTERED_ON_EXCHANGE ? " " : "Test ";
+                                s += trade.TradeExecutionStatus == TradeExecutionStatus.OK ? "" : "INTERRUPTED";
 
                                 //sb.Append(string.Concat(Pad12(trade.SymbolName)));
 
@@ -214,10 +214,10 @@ namespace AlgoTrader.Shared
                     sb.Append(SPACER);
                  
                     #region waiting trades
-                    //e.g. Waiting: Binance ALGOBTC  
+
                     sb.Append("Waiting trades:\n");
 
-                    foreach (var trade in waitingTrades.OrderBy(x => x.ExchangeId).ThenBy(x => x.SymbolName))
+                    foreach (var trade in waitingTrades.OrderBy(x => x.SymbolName))
                     {
                         var pos = trade.Position == TradePosition.LONG ? "long" : "short";
                         sb.Append(string.Concat(
@@ -238,7 +238,7 @@ namespace AlgoTrader.Shared
                     //this does not really line up so omit it
                     foreach (var close in closedOrders)
                     {
-                        var s = close.ExchangeStatus == TradeExchangeStatus.ENTERED_ON_EXCHANGE ? "" : "Test closed:  ";
+                        var s = close.TradeExchangeStatus == TradeExchangeStatus.ENTERED_ON_EXCHANGE ? "" : "Test closed:  ";
                         var entry = db.Trades.Where(x => x.TradeReference == close.TradeReference && x.Action == TradeAction.ENTRY).FirstOrDefault();
                         var order = db.Trades.Where(x => x.TradeReference == close.TradeReference && x.Action == TradeAction.ORDER).FirstOrDefault();
 

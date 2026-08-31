@@ -148,7 +148,7 @@ namespace AlgoTrader.Shared
                             }
                         }
                         if (
-                            _trade.ExchangeStatus == TradeExchangeStatus.NEVER_ENTERED ||
+                            _trade.TradeExchangeStatus == TradeExchangeStatus.NEVER_ENTERED ||
                             (_trade.Action != TradeAction.ORDER && _trade.Action != TradeAction.ENTRY && _trade.Action != TradeAction.CLOSE)
                             )
                         {
@@ -232,7 +232,6 @@ namespace AlgoTrader.Shared
                         Price = price,
                         TimeFrame = Chart.TimeFrame,
                         SymbolName = symbolName,
-                        ExchangeId = exchangeId,
                     };
 
                     SetUpdateRequest(order);
@@ -328,7 +327,7 @@ namespace AlgoTrader.Shared
                     var trades = AllTrades.Where(x => x.TradeReference == trade.TradeReference);
                     foreach (var t in trades)
                     {
-                        t.ExchangeMethodScript = null;// "Exchange not synched";
+                        t.TradeExecutionStatus = TradeExecutionStatus.OK;
                         SetUpdateRequest(t);
                         tradeEngine.UpdateUIList(t);
                     }
@@ -347,7 +346,7 @@ namespace AlgoTrader.Shared
                     AlertDialog.Show("Could not find trade.");
                     return;
                 }
-                if ((trade.ItemStatus == TradeItemStatus.OPEN || trade.GlobalStatus == TradeGlobalStatus.ACTIVE) && trade.ExchangeStatus == TradeExchangeStatus.ENTERED_ON_EXCHANGE)
+                if ((trade.ItemStatus == TradeItemStatus.OPEN || trade.GlobalStatus == TradeGlobalStatus.ACTIVE) && trade.TradeExchangeStatus == TradeExchangeStatus.ENTERED_ON_EXCHANGE)
                 {
                     AlertDialog.Show("Cannot delete a live trade!");
                     return;
@@ -373,7 +372,7 @@ namespace AlgoTrader.Shared
                     return;
                 }
 
-                if ((trade.ItemStatus == TradeItemStatus.OPEN || trade.GlobalStatus == TradeGlobalStatus.ACTIVE) && trade.ExchangeStatus == TradeExchangeStatus.ENTERED_ON_EXCHANGE)
+                if ((trade.ItemStatus == TradeItemStatus.OPEN || trade.GlobalStatus == TradeGlobalStatus.ACTIVE) && trade.TradeExchangeStatus == TradeExchangeStatus.ENTERED_ON_EXCHANGE)
                 {
                     AlertDialog.Show("Cannot delete a live trade!");
                     return;
@@ -871,7 +870,7 @@ namespace AlgoTrader.Shared
                 return;
             }
 
-            var timeStamp = order.ExchangeStatus == TradeExchangeStatus.ENTERED_ON_EXCHANGE ? DateTime.Now : order.Timestamp;
+            var timeStamp = order.TradeExchangeStatus == TradeExchangeStatus.ENTERED_ON_EXCHANGE ? DateTime.Now : order.Timestamp;
             (var price, var isWithinLine) = chartLine.GetPriceAtTime(timeStamp, true);
 
             TradeAction tradeAction;
@@ -1076,7 +1075,7 @@ namespace AlgoTrader.Shared
                     {
                         if (order.GlobalStatus == TradeGlobalStatus.ACTIVE)
                         {
-                            if (order.ExchangeMethodScript != null)
+                            if (order.TradeExecutionStatus != TradeExecutionStatus.OK)
                             {
                                 var s = USE_SIMULATED_EXCHANGE ? "Simulated exchange in use so trade must be force-removed (shift click) as it may not timeout" : " Please wait for timeout, then check Exchange and remove trade..";
                                 AlertDialog.Show($"Order for {order.SymbolName} has a pending Exchange Method, so this may be an interrupted trade. {s}.");
@@ -1110,13 +1109,13 @@ namespace AlgoTrader.Shared
                             #region Force-close interrupted trade
                             //this would happen if a trade has been interrupted, in which case everything is closed so there will be no active trades or order to close
                             //but the trade still needs to be closed on the system or it cannot be deleted
-                            if (order.ExchangeMethodScript != null)
+                            if (order.TradeExecutionStatus != TradeExecutionStatus.OK)
                             {
                                 var trades = GetTradesForTradeReference(order.TradeReference);
 
                                 foreach (var trade in trades)
                                 {
-                                    trade.ExchangeMethodScript = null;//or will continue to show as interrupted
+                                    trade.TradeExecutionStatus = TradeExecutionStatus.OK;//or will continue to show as interrupted
                                     SetUpdateRequest(trade);
 
                                     if (trade.Action == TradeAction.CLOSE) //or will show at the bottom
@@ -1177,15 +1176,6 @@ namespace AlgoTrader.Shared
                     }
                     break;
                    
-
-                    //dump the lot
-                    if (entry != null && entry.ExchangeMethodScript != null)
-                    {
-                        AlertDialog.Show($"{entry.SymbolName} was an interrupted trade. Check status on Exchange!");
-                    }
-                    break;
-
-
                 //for stops and take profits, these can be removed while trade is live
                 case TradeAction.STOP:
                 case TradeAction.WAITING_STOP:
@@ -1278,7 +1268,7 @@ namespace AlgoTrader.Shared
             {
                 trade.GlobalStatus = TradeGlobalStatus.STOPPED;
                 trade.ItemStatus = TradeItemStatus.CLOSED;
-                trade.ExchangeStatus = TradeExchangeStatus.NEVER_ENTERED; //keep for reference
+                trade.TradeExchangeStatus = TradeExchangeStatus.NEVER_ENTERED; //keep for reference
                 SetUpdateRequest(trade, removeTrades ? TradeUpdateRequest.DELETE : TradeUpdateRequest.UPDATE);
             }
 

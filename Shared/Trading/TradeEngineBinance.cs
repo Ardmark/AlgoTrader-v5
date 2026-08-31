@@ -800,21 +800,21 @@ namespace AlgoTrader.Shared
                     var result = binanceAPI.CancelOpenOrdersAsync(symbolName).Result;
                 }
                 catch { }
-
-                (_, var balance) = GetTotalEquity();
-                if (balance <= 0)
+                LogTrades.WriteLine("Getting equity...");
+                (var freeBalance, var totalEquity) = GetTotalEquity();
+                if (freeBalance <= 0)
                 {
-                    LogTrades.WriteLine($"Could not get balance for {symbolName}, exiting StartEntryOrClose_Synchronised");
+                    LogTrades.WriteLine($"Could not get free balance for {symbolName}, exiting StartEntryOrClose_Synchronised");
                     KillEntryOrCloseOrder();
                     return;
                 }
-                Entry.Balance = balance;
+                Entry.Balance = freeBalance;
+                Entry.Equity = totalEquity;
 
-                balance = RESTRICTED_TRADE_VALUE > 0 ? RESTRICTED_TRADE_VALUE : balance * 0.95; //this will just be a 95% order for now
+                var balanceToTrade = RESTRICTED_TRADE_VALUE > 0 ? RESTRICTED_TRADE_VALUE : freeBalance * 0.95; //this will just be a 95% order for now
 
-                LogTrades.WriteLine($"Trade amount is {balance} for new order");
+                LogTrades.WriteLine($"Trade amount is {balanceToTrade} for new order");
 
-                //save balance (previously saved equity as well, which would be total for all symbols)
                 Entry.TradeReference = Order.TradeReference;//shared with all trades in this group
                 SetUpdateRequest(Entry);
 
@@ -870,7 +870,7 @@ namespace AlgoTrader.Shared
                 //It may be necessary if you want to sell a specific amount, not the full amount returned by the exchange
                 // when the buy order executed??
 
-                var tradeAmount = GetCorrectPrecisionForTrade(balance / lastQuoteValue);
+                var tradeAmount = GetCorrectPrecisionForTrade(balanceToTrade / lastQuoteValue);
 
                 #region Calculate Leverage
                 //var lotSize = GetLotSize();
@@ -909,12 +909,10 @@ namespace AlgoTrader.Shared
 
                 #endregion
 
-                Order.ExchangeStatus = Entry.ExchangeStatus = TradeExchangeStatus.ENTERING_ON_EXCHANGE;
+                Order.TradeExchangeStatus = Entry.TradeExchangeStatus = TradeExchangeStatus.ENTERING_ON_EXCHANGE;
                 Entry.ItemId = _Trade.GetNewTradeId();
-                LogTrades.WriteLine("Getting equity...");
-                (_, Entry.Equity) = GetTotalEquity();
-                LogTrades.WriteLine($"Equity returned as ${Entry.Equity}");
-                LogTrades.WriteLine("Sending order to exchange...");
+
+                LogTrades.WriteLine($"Placing buy order of {tradeAmount}, adjusted for step size, at {DateTime.Now}...");
                 var orderEntry = SendOrder(tradeAmount, Side.BUY, Entry.ItemId);
 
                 if (orderEntry != null)
@@ -968,7 +966,7 @@ namespace AlgoTrader.Shared
                         LogTrades.WriteLine("Using existing stop.");
                         Stop = stop;
                         Stop.Price = stopPrice;
-                        Stop.ExchangeStatus = TradeExchangeStatus.ENTERING_ON_EXCHANGE; //or will not be entered by base method
+                        Stop.TradeExchangeStatus = TradeExchangeStatus.ENTERING_ON_EXCHANGE; //or will not be entered by base method
                         Stop.Quantity = Entry.Quantity;
                     }
                     else
@@ -991,7 +989,7 @@ namespace AlgoTrader.Shared
                         Stop.Action = TradeAction.STOP;
                         Stop.Quantity = Entry.Quantity;
                         Stop.ItemId = null; //need a new ID for this as it is a new order.
-                        Stop.ExchangeStatus = TradeExchangeStatus.ENTERING_ON_EXCHANGE;
+                        Stop.TradeExchangeStatus = TradeExchangeStatus.ENTERING_ON_EXCHANGE;
 
                         AddLineToTrade_synchronised(Stop, DateTime.UtcNow.AddMinutes(-1));
                     }
@@ -1001,7 +999,7 @@ namespace AlgoTrader.Shared
                     SetUpdateRequest(Stop);
 
                     //cannot have any synched objects after this as synchronisation will exit before this method completes
-                    LogTrades.WriteLine("Getting exchange conversion rate");
+                    LogTrades.WriteLine("Getting exchange conversion rate...");
                     var gbp = await GetConversionRate(Entry.ItemId);
                     LogTrades.WriteLine($"Conversion rate received of {gbp.ToString("F2")}, Entry complete!");
                 }
@@ -1093,7 +1091,7 @@ namespace AlgoTrader.Shared
                     {
                         Close.Quantity = GetCorrectPrecisionForTrade(amountToSell);
 
-                        LogTrades.WriteLine($"Placing sell order of {Close.Quantity}, adjusted for step size, at {DateTime.Now}");
+                        LogTrades.WriteLine($"Placing sell order of {Close.Quantity}, adjusted for step size, at {DateTime.Now}...");
                         SetUpdateRequest(Close);
 
                         var dataClose = SendOrder(Close.Quantity, Side.SELL, Close.ItemId);
@@ -1121,7 +1119,6 @@ namespace AlgoTrader.Shared
                                 CloseTradeOnSystem_synchronised(dataClose.Price);
 
                                 EndEntryOrCloseScript();
-                                LogTrades.WriteSpacer();
 
                                 //this will cause synchronisation to exit before this awaitable method completes,
                                 // so CANNOT have any synched objects accessed after this (like Close, etc.)
@@ -1141,7 +1138,7 @@ namespace AlgoTrader.Shared
 
                         tradeStatusChanged = true;
 
-                        LogTrades.WriteLine("Getting exchange conversion rate");
+                        LogTrades.WriteLine("Getting exchange conversion rate...");
                         var gbp = await GetConversionRate(entryItemId);
                         LogTrades.WriteLine($"Conversion rate received of {gbp:F2}, Trade close complete!");
                         ShowAccountBalances(); //will log balance
@@ -1178,7 +1175,7 @@ namespace AlgoTrader.Shared
 
                 //get the EF tracked trade - if this is a live entry, will be using a different data context to the one the parameter is running on
 
-                Order.ExchangeStatus = orderType;
+                Order.TradeExchangeStatus = orderType;
 
                 SetUpdateRequest(Order);
 
@@ -1195,7 +1192,7 @@ namespace AlgoTrader.Shared
 
                 Entry.Price = Order.Price = (double)price;
                 Entry.Quantity = Order.Quantity = quantity; //set both the entry and order quantity, as either may be used when closing, etc.
-                Entry.ExchangeStatus = orderType;
+                Entry.TradeExchangeStatus = orderType;
                 SetUpdateRequest(Entry);
 
                 Order.ItemStatus = TradeItemStatus.CLOSED; //close the order, this is now an active trade
@@ -1260,7 +1257,7 @@ namespace AlgoTrader.Shared
                         //flip side if this is a waiting stop
                         trade.Quantity = Order.Quantity;
                         trade.Position = Order.Position == TradePosition.LONG ? TradePosition.SHORT : TradePosition.LONG;
-                        trade.ExchangeStatus = TradeExchangeStatus.NO_WARNING;
+                        trade.TradeExchangeStatus = TradeExchangeStatus.NO_WARNING;
                         SetUpdateRequest(trade);
                     }
 
@@ -1359,7 +1356,7 @@ namespace AlgoTrader.Shared
             if (
                 USE_SIMULATED_EXCHANGE ||
                 Entry == null ||
-                Entry.ExchangeStatus != TradeExchangeStatus.ENTERED_ON_EXCHANGE ||
+                Entry.TradeExchangeStatus != TradeExchangeStatus.ENTERED_ON_EXCHANGE ||
                 Stop == null ||
                 Stop.Action == TradeAction.WAITING_STOP
                 )
@@ -1377,10 +1374,10 @@ namespace AlgoTrader.Shared
                 return;
             }
 
-            if (Stop.ExchangeStatus == TradeExchangeStatus.ENTERED_OFF_EXCHANGE && Stop.Type != TradeType.STOP_WAITING)
+            if (Stop.TradeExchangeStatus == TradeExchangeStatus.ENTERED_OFF_EXCHANGE && Stop.Type != TradeType.STOP_WAITING)
             {
-                LogTrades.WriteLine($"Did not set Stop on exchange, exchange status was {Stop.ExchangeStatus} - you need to add a new stop!");
-                Stop.ExchangeStatus = TradeExchangeStatus.NO_WARNING;
+                LogTrades.WriteLine($"Did not set Stop on exchange, exchange status was {Stop.TradeExchangeStatus} - you need to add a new stop!");
+                Stop.TradeExchangeStatus = TradeExchangeStatus.NO_WARNING;
                 SetUpdateRequest(Stop);
                 return;
             }
@@ -1433,18 +1430,18 @@ namespace AlgoTrader.Shared
                 LogTrades.WriteLine($"Stop quantity was zero, Stop not yet set, setting Stop...");
             }
 
-            if (Stop.ExchangeStatus == TradeExchangeStatus.ENTERING_ON_EXCHANGE)
+            if (Stop.TradeExchangeStatus == TradeExchangeStatus.ENTERING_ON_EXCHANGE)
             {
                 //trade is entering, run synchronously and allow enclosing InitForDataContext() to save changes
-                Stop.ExchangeMethodScript = TakeProfit.ExchangeMethodScript = EXCHANGE_NOT_SYNCHED;
+                Stop.TradeExecutionStatus = TakeProfit.TradeExecutionStatus = TradeExecutionStatus.EXCHANGE_NOT_SYNCHED;
                 SetUpdateRequest(Stop);
                 SetUpdateRequest(TakeProfit);
 
                 if (SendOCOToExchange(false)) //not updating, so will not remove OCO first
                 {
                     LogConnection.WriteLine("OCO order accepted.");
-                    Stop.ExchangeStatus = TakeProfit.ExchangeStatus = TradeExchangeStatus.ENTERED_ON_EXCHANGE;
-                    Stop.ExchangeMethodScript = TakeProfit.ExchangeMethodScript = null;
+                    Stop.TradeExchangeStatus = TakeProfit.TradeExchangeStatus = TradeExchangeStatus.ENTERED_ON_EXCHANGE;
+                    Stop.TradeExecutionStatus = TakeProfit.TradeExecutionStatus = TradeExecutionStatus.OK;
                 }
                 else
                 {
@@ -1461,7 +1458,7 @@ namespace AlgoTrader.Shared
                     Stop.Result = Stop.Price;
                     TakeProfit.Result = TakeProfit.Price;
 
-                    Stop.ExchangeMethodScript = TakeProfit.ExchangeMethodScript = EXCHANGE_NOT_SYNCHED;
+                    Stop.TradeExecutionStatus = TakeProfit.TradeExecutionStatus = TradeExecutionStatus.EXCHANGE_NOT_SYNCHED;
                     SetUpdateRequest(Stop);
                     SetUpdateRequest(TakeProfit);
 
@@ -1474,8 +1471,8 @@ namespace AlgoTrader.Shared
                     if (SendOCOToExchange(true))
                     {
                         LogConnection.WriteLine("OCO order accepted.");
-                        Stop.ExchangeStatus = TakeProfit.ExchangeStatus = TradeExchangeStatus.ENTERED_ON_EXCHANGE;
-                        Stop.ExchangeMethodScript = TakeProfit.ExchangeMethodScript = null;
+                        Stop.TradeExchangeStatus = TakeProfit.TradeExchangeStatus = TradeExchangeStatus.ENTERED_ON_EXCHANGE;
+                        Stop.TradeExecutionStatus = TakeProfit.TradeExecutionStatus = TradeExecutionStatus.OK;
                         SetUpdateRequest(Stop);
                         SetUpdateRequest(TakeProfit);
                     }
@@ -1568,11 +1565,11 @@ namespace AlgoTrader.Shared
 
             InitForDataContext(() =>
             {
-                if (Entry != null && Entry.ExchangeMethodScript == null && Entry.ExchangeStatus == TradeExchangeStatus.ENTERED_ON_EXCHANGE)
+                if (Entry != null && Entry.TradeExecutionStatus == TradeExecutionStatus.OK && Entry.TradeExchangeStatus == TradeExchangeStatus.ENTERED_ON_EXCHANGE)
                 {
                     //this is tricky with Binance, because there is no live running trade - only account balances
                     //so if there is a base asset balance, the trade is still running. Otherwise, close it entirely.
-                    Entry.ExchangeMethodScript = UPDATE_LIVE_STATE_SCRIPT;
+                    Entry.TradeExecutionStatus = TradeExecutionStatus.UPDATE_LIVE_STATE;
 
                     if (IsTradeClosed())
                     {
@@ -1586,14 +1583,14 @@ namespace AlgoTrader.Shared
                     else
                     {
                         //in the event there is a pending entry or stop operation on the exchange, do not do anything. This is unlikely but it would mess things up.
-                        if (Stop != null && Stop.ExchangeStatus == TradeExchangeStatus.ENTERED_ON_EXCHANGE && Stop.ExchangeMethodScript != EXCHANGE_NOT_SYNCHED)
+                        if (Stop != null && Stop.TradeExchangeStatus == TradeExchangeStatus.ENTERED_ON_EXCHANGE && Stop.TradeExecutionStatus != TradeExecutionStatus.EXCHANGE_NOT_SYNCHED)
                         {
                             var orders = GetOpenOrders();
     
                             if (orders != null && !orders.Any(x => x.ClientOrderId == Stop.ItemId))
                             {
                                 //mark the stop as not synchronised
-                                Stop.ExchangeMethodScript = EXCHANGE_NOT_SYNCHED;
+                                Stop.TradeExecutionStatus = TradeExecutionStatus.EXCHANGE_NOT_SYNCHED;
                                 SetUpdateRequest(Stop);
                                 LogTrades.WriteLine("No locked balance on exchange, assume stop cancelled, check exchange!!");
                             }

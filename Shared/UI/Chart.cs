@@ -758,7 +758,7 @@ namespace AlgoTrader.Shared
                             }
 
                             var lossProfit = stopPC < 0 ? "loss" : stopPC == 0 ? "" : "profit";
-                            text += $" {stopPC:0.00}%";
+                            text += $"{stopPC:0.00}%";
                             var gapText = TradeEngine.ENTRY_LINE_PRICE_GAP_PC > 0
                                 ? " inc.any gap(s) of { TradeEngine.ENTRY_LINE_PRICE_GAP_PC}%"
                                 : string.Empty;
@@ -766,19 +766,19 @@ namespace AlgoTrader.Shared
                             
                             if (showLoss)
                             {
-                                double lev = 0;
-                                if (oppOrder)
-                                {
-                                    lev = TradeEngine.CalculateLeverageFromStop(Math.Abs(stopPC), order.Position);
-                                }
-                                else
-                                {
-                                    lev = hasEntered
-                                        ? order.Leverage
-                                        : TradeEngine.CalculateLeverageFromStop(Math.Abs(stopPC), order.Position);
-                                }
+                                //double lev = 0;
+                                //if (oppOrder)
+                                //{
+                                //    lev = TradeEngine.CalculateLeverageFromStop(Math.Abs(stopPC), order.Position);
+                                //}
+                                //else
+                                //{
+                                //    lev = hasEntered
+                                //        ? order.Leverage
+                                //        : TradeEngine.CalculateLeverageFromStop(Math.Abs(stopPC), order.Position);
+                                //}
 
-                                var t1 = lev.ToString("F1");
+                                //var t1 = lev.ToString("F1");
                                 
                                 //if (lev == TradeEngineBitmex.DEFAULT_LEVERAGE)
                                 //{
@@ -794,7 +794,7 @@ namespace AlgoTrader.Shared
                                 //    t3 = " (over target)";
                                 //}
 
-                                text += $" {t1}X";//   {lossProfit} {t2}% {t3}\n";
+                                //text += $" {t1}X";//   {lossProfit} {t2}% {t3}\n";
                             }
 
                             return text;
@@ -844,7 +844,7 @@ namespace AlgoTrader.Shared
                                     (orderPriceNow, _) = _orderLine.GetPriceAtTime(DateTime.UtcNow, true);
                                 }
                             }
-                            bool exchangeSynched = entry == null || entry.ExchangeMethodScript != TradeEngine.EXCHANGE_NOT_SYNCHED ;
+                            bool exchangeSynched = entry == null || entry.TradeExecutionStatus != TradeExecutionStatus.EXCHANGE_NOT_SYNCHED ;
 
                             if (order != null)
                             {
@@ -1019,14 +1019,12 @@ namespace AlgoTrader.Shared
                                             //    }
                                             //}
 
-                                            var unsynched = trade.ExchangeMethodScript == TradeEngine.EXCHANGE_NOT_SYNCHED;
+                                            var unsynched = trade.TradeExecutionStatus == TradeExecutionStatus.EXCHANGE_NOT_SYNCHED;
 
 
-                                            string text = string.Empty;
+                                            string text = "stop ";
                                             if (trade.GlobalStatus == TradeGlobalStatus.ACTIVE)
                                             {
-
-                                                text = string.Empty;// trade.Quantity.ToString();// string.Empty;
                                                 if (unsynched)
                                                 {
                                                     text = "UNSYNCHED - CHECK EXCHANGE " + text;
@@ -1034,6 +1032,7 @@ namespace AlgoTrader.Shared
 
                                                 switch (trade.Type)
                                                 {
+ 
                                                     case TradeType.NO_FLIP_ORDER:
                                                         text += " stop ";
                                                         break;
@@ -1085,8 +1084,6 @@ namespace AlgoTrader.Shared
                                                         break;
                                                 }
         
-
-
                                                 switch (trade.Stop)
                                                 {
                                                     case TradeStop.STOP_TRAIL:
@@ -1117,7 +1114,7 @@ namespace AlgoTrader.Shared
 
                                         case TradeAction.TAKE_PROFIT:
 
-                                            text = trade.Quantity.ToString() + " take profit ";
+                                            text =  "take profit ";
                                             switch (trade.Type)
                                             {
                                                 //case TradeType.NO_FLIP_ORDER:
@@ -1464,11 +1461,8 @@ namespace AlgoTrader.Shared
                             var system = TradeEngine.USE_SIMULATED_EXCHANGE == false ? "On exchange trade\n" : "Exchange simulated trade\n";
 
                             var quantity = Math.Abs(activeOrder.Quantity);
-                            var amt = activeOrder.ExchangeId == ExchangeId.BITMEX
-                                ? "$" + (activeOrder.Leverage > 0 ? Math.Round((quantity / activeOrder.Leverage), 0).ToString() : (quantity.ToString()))
-                                : $"{quantity} {activeOrder.SymbolName}";
+                            var amt = $"{quantity} {activeOrder.SymbolName}\n";
 
-                            amt += activeOrder.ExchangeId == ExchangeId.BITMEX ? $" (${quantity})\n" : "\n";
                             var entry = visibleOrActiveOrders.FirstOrDefault(x => x.Action == TradeAction.ENTRY && x.TradeReference == activeOrder.TradeReference);
                             if (entry != null)
                             {
