@@ -32,9 +32,10 @@ namespace AlgoTrader.Windows
 
             #region Trading
             TradeEngine.FEE = 0.15; //percent, total for 2 trades
-            TradeEngine.DEFAULT_LEVERAGE = 3;
-            //TradeEngineBitmex.MIN_LEVERAGE_SHORT = 1;
-            //TradeEngineBitmex.MIN_LEVERAGE_LONG = 1.333;
+            TradeEngine.DEFAULT_LEVERAGE = 5;
+            TradeEngine.USE_FIXED_LEVERAGE = false; //if true, will use the default leverage for all trades, otherwise will calculate leverage from stop
+            TradeEngine.MIN_LEVERAGE_SHORT = 1;
+            TradeEngine.MIN_LEVERAGE_LONG = 1.333;
 
             TradeEngine.MAX_STOP_LOSS = 6; //leverage will scale to always target this as a stop loss when auto-setting a stop from the buttons (if there is no stop)
             TradeEngine.STOP_MIN_VALUE = new Dictionary<double, double>

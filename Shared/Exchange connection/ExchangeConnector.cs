@@ -83,17 +83,5 @@ namespace AlgoTrader.Shared.ExchangeConnection
             }
             return ret;
         }
-
-
-        //unused, just to stop compile errors until the OnDataReceivedForTrade_synchronised(...) method in TradeEngineBinance.cs is removed.
-        internal void AddRequest(ExchangeRequest exchangeCommand, EventHandler<ExchangeEventArgs> eventHandler, params (dynamic, dynamic)[] data)
-        {
-            //try
-            //{
-            //    exchangeDataProcessor.AddRequest(exchangeCommand, eventHandler, data);
-            //}
-            //catch { }
-        }
-
     }
 }

@@ -6,10 +6,14 @@ namespace AlgoTrader.Shared
 {
     public class _Trade
     {
+        //Id - database primary key, auto-incremented
+        //TradeReference - shared with all trades in a trade set
+        //ItemId - unique to this trade, sent to exchange
         [Key]
         [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
         public int Id { get; set; }
         public string TradeReference { get; set; } //shared GUID for all trades in this order group (order, entry, stop etc.)
+        public string ItemId { get; set; } //unique id for this trade, as opposed to the TradeReference which is shared across all trades used in this order.Note: Binance will allow re-use of an Id providing no orders are open and using that Id, but it is better to assign a unique Id each time anyway
         public string SymbolName { get; set; } //the specific name of the trade type, i.e. 'Crossover market', 'Stochastic crossing' etc.
         public TradeItemStatus ItemStatus { get; set; }
         public TradeGlobalStatus GlobalStatus { get; set; }
@@ -17,17 +21,15 @@ namespace AlgoTrader.Shared
         public TradeAction Action { get; set; }
         public TradeStop Stop { get; set; }
         public TradeExchangeStatus TradeExchangeStatus { get; set; } //entered on or off exchange
-        public TradeExecutionStatus TradeExecutionStatus { get; set; }
+        public TradeExecutionStatus TradeExecutionStatus { get; set; } //status of trade, OK, not synched with the exchange, or interrupted
         public DateTime Timestamp { get; set; }
         public double ActionValue { get; set; } //trail value
         public int TimeFrame { get; set; }
         public double Leverage { get; set; } = 1;
-        public TradeExecutionSystem ExecutionSystem { get; set; } //manual or auto
         public TradePosition Position { get; set; } //long or short
         public double Quantity { get; set; } //note, decimal has only 2 decimal places in db, so will truncate anything < 0.01 to zero
         public double Price { get; set; } //whatever the price is at the time of the trade, this will likely not be the minute close or open value
         public double Result { get; set; }
-        public string ItemId { get; set; } //unique id for this trade, as opposed to the TradeReference which is shared across all trades used in this order.Note: Binance will allow re-use of an Id providing no orders are open and using that Id, but it is better to assign a unique Id each time anyway
         public string OrderListId { get; set; } //OCO's are sent as an order list and need to be cancelled with that Id, the individual Id's are not saved in the exchange order so cannot cancel orders individually
         public double LiquidationPrice { get; set; }
         public double Balance { get; set; }
@@ -62,7 +64,6 @@ namespace AlgoTrader.Shared
                 Position = Position,
                 Action = Action,
                 Stop = Stop,
-                ExecutionSystem = ExecutionSystem,
                 Timestamp = Timestamp,
                 ActionValue = ActionValue,
                 TimeFrame = TimeFrame,
@@ -89,7 +90,6 @@ namespace AlgoTrader.Shared
             trade.Position = Position;
             trade.Action = Action;
             trade.Stop = Stop;
-            trade.ExecutionSystem = ExecutionSystem;
             trade.Timestamp = Timestamp;
             trade.ActionValue = ActionValue;
             trade.TimeFrame = TimeFrame;

@@ -1,6 +1,4 @@
 ﻿using AlgoTrader.Shared.Enums;
-using AlgoTrader.Shared.Logging;
-
 
 namespace AlgoTrader.Shared
 {
@@ -9,30 +7,24 @@ namespace AlgoTrader.Shared
         #region Constants
 
         public static ExchangeId EXCHANGE;
-
-
-        // public static double MAX_LOSS_PC = 0;
+        public const double TIMEOUT_SECONDS = 15; //timeout for exchange data
+        public const double CHECK_EXCHANGE_INTERVAL_SECONDS = 15;
 
         #endregion
 
         #region Fields
 
-        //because the stop and take profit is a double exchange request, need to block this once it starts
-        // - can't read from db to get exchange intent, as the system sets that first on a trade, then queries for entry
-        // - and EF will return the object just changed, rather than pull the original data from the db if queried for that
-        //NOTE - these are unused, this check must be done when running the exchange sequence, rather than in the UI loop, as the trade
-        // may not be added or removed from the active order
-        public _Trade pendingLiveEntryStop = null;
-        public _Trade pendingLiveEntryTP = null;
-
-        public const double TIMEOUT_SECONDS = 15; //timeout for exchange data
+        System.Timers.Timer timer = null;
+        protected bool isManualSynch = false;
 
         #endregion
 
-
-        public virtual void StartEntry_Synchronised() { }
-        public virtual void StartClose_Synchronised() { }
-
+        #region Abstract methods
+        protected abstract void StartEntry_Synchronised();
+        protected abstract void StartClose_Synchronised();
+        internal abstract void ShowAccountBalances();
+        protected abstract void UpdateLiveState();
+        #endregion
 
         protected virtual void KillEntryOrCloseOrder(bool interrupted = false)
         {
@@ -85,7 +77,6 @@ namespace AlgoTrader.Shared
             //DequeueOrder_synchronised();
         }
 
-        //ditto
         protected virtual void EndEntryOrCloseScript()
         {
             //immediate market orders placed through UI will not have set ActiveTrades (Bitmex) yet, so clear these first
@@ -108,24 +99,18 @@ namespace AlgoTrader.Shared
             //DequeueOrder_synchronised();
         }
 
-        protected bool isManualSynch = false;
-        protected double previousStopPrice = 0;
-        public virtual void SetStopOnExchange_Synchronised()
+        internal virtual void SetStopOnExchange_Synchronised()
         {
             ResetLiveUpdateTimer();
             Stop.Timestamp = DateTime.UtcNow;
             SetUpdateRequest(Stop); //to prevent timeout from triggering
         }
+        
         protected virtual bool RemoveStopFromExchange_Synchronised() { return false; }
-
-        //get account balances - this is for display only, it is not part of trade placement
-        internal virtual void ShowAccountBalances() { }
 
         #region Update live state from exchange 
 
-        System.Timers.Timer timer = null;
-        public const double CHECK_EXCHANGE_INTERVAL_SECONDS = 15;
-        public void InitLiveUpdateTimer()
+        internal void InitLiveUpdateTimer()
         {
             //return; //because live state update uses InitForDataContext and this does not always work in an asynch loop
             if (timer == null)
@@ -150,12 +135,12 @@ namespace AlgoTrader.Shared
             }
         }
 
-        public void Timer_Elapsed(object sender, System.Timers.ElapsedEventArgs e)
+        protected void Timer_Elapsed(object sender, System.Timers.ElapsedEventArgs e)
         {
             UpdateLiveState();
         }
 
-        public void ResetLiveUpdateTimer()
+        protected void ResetLiveUpdateTimer()
         {
             if (timer != null)
             {
@@ -165,10 +150,7 @@ namespace AlgoTrader.Shared
             }
             InitLiveUpdateTimer();
         }
+        
         #endregion
-
-        protected virtual void UpdateLiveState() { }
-
-
     }
 }

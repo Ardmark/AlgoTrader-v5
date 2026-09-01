@@ -65,7 +65,7 @@
     <Compile Include="$(MSBuildThisFileDirectory)interfaces\IMainViewModel.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)MainObj - UI.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)MainObj.cs" />
-    <Compile Include="$(MSBuildThisFileDirectory)Trading\TradeEngineBinance.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Trading\TradeEngine\TradeEngineBinance.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)ViewModels\MainViewModel.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Moving averages\RMA.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Moving averages\EMA.cs" />
@@ -92,9 +92,9 @@
     <Compile Include="$(MSBuildThisFileDirectory)Trading\Trade systems manual\Order_PriceBreakHMA.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Trading\Trade systems manual\Order_PriceBreakMACD.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Trading\Trade systems manual\Order_PricetBreak.cs" />
-    <Compile Include="$(MSBuildThisFileDirectory)Trading\TradeEngine - Exchange trade.cs" />
-    <Compile Include="$(MSBuildThisFileDirectory)Trading\TradeEngine - UI.cs" />
-    <Compile Include="$(MSBuildThisFileDirectory)Trading\TradeEngine.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Trading\TradeEngine\TradeEngine - Exchange trade.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Trading\TradeEngine\TradeEngine - UI.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Trading\TradeEngine\TradeEngine.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)ActiveTradeSummary.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)UI\Candle.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)UI\Chart.cs" />
@@ -160,5 +160,8 @@
     <None Include="$(MSBuildThisFileDirectory)helpers\Directory.Build.props" />
     <None Include="$(MSBuildThisFileDirectory)KEY MAPPINGS" />
     <None Include="$(MSBuildThisFileDirectory)Windows defender blocks live release.txt" />
+  </ItemGroup>
+  <ItemGroup>
+    <Folder Include="$(MSBuildThisFileDirectory)Trading\TradeEngine\" />
   </ItemGroup>
 </Project>

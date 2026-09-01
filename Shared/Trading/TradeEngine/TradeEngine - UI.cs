@@ -1,6 +1,4 @@
 ﻿using AlgoTrader.Shared.Enums;
-using AlgoTrader.Shared.Logging;
-using AlgoTrader.Shared.TradeIndicators;
 using AlgoTrader.Shared.Windows;
 
 namespace AlgoTrader.Shared

@@ -2,41 +2,7 @@
 
 namespace AlgoTrader.Shared.Enums
 {
-    /*
-     * Naming convention:
-     * the rest API method name, all caps, split with an underscore
-     * */
-
     #region Trade execution
-    //ExchangeRequest - this wraps the various types of request which can be sent via API methods
-    //UNUSED
-    public enum ExchangeRequest
-    {
-        [Display(Name = "ExchangeInfo")]
-        EXCHANGE_INFO,
-        [Display(Name = "Account")]
-        ACCOUNT,
-        [Display(Name = "QuotePrice")]
-        QUOTE_PRICE,
-        [Display(Name = "QueryOrder")]
-        QUERY_ORDER,
-        [Display(Name = "AllOrders")]
-        ALL_ORDERS,
-        [Display(Name = "OpenOrders")]
-        OPEN_ORDERS, 
-        [Display(Name = "MyTrades")]
-        MY_TRADES,
-        [Display(Name = "CancelOrder")]
-        CANCEL_ORDER,
-        [Display(Name = "NewOrder")]
-        NEW_ORDER,
-        [Display(Name = "NewOCO")]
-        NEW_OCO,
-    }
-
-
-
-   
 
     public enum CandlePosition
     {
@@ -50,8 +16,6 @@ namespace AlgoTrader.Shared.Enums
     {
         [Display(Name = "Binance")]
         BINANCE = 1,
-        [Display(Name = "Bitmex")]
-        BITMEX
     }
 
     //Order frequency - used to ensure only a certain number of trades can run each 24 hours, and whether a trade can run live or not
@@ -83,6 +47,7 @@ namespace AlgoTrader.Shared.Enums
         EXCHANGE_NOT_SYNCHED,
         UPDATE_LIVE_STATE
     }
+
     // trade type - manual market break or auto-generated, etc.
     //NOTE - not implementing MARKET as that could be set as order type by mistake, resulting in an immediate entry
     // - similarily, LIMIT could be set without realising it, so limit orders will only be part of break orders, if ever implemented
@@ -111,11 +76,8 @@ namespace AlgoTrader.Shared.Enums
         ORDER,
         ENTRY,
         CLOSE,
-        STOP,           //line-attached
-        //FLOOR,          //additional stop, not line attached
-        //CEILING,        //additional take profit, not line attached
+        STOP, 
         TAKE_PROFIT,
-        //BREAK_EVEN,
         WAITING_STOP,
         NULL //just a convenient way to hide take profits!
     }
@@ -138,7 +100,7 @@ namespace AlgoTrader.Shared.Enums
     public enum TradeExecutionSystem
     {
         NORMAL,
-        EXCHANGE_UNSYNCHED      //for floor or stop, this is set until exchange returns trade as set
+        EXCHANGE_UNSYNCHED      //for stop, this is set until exchange returns trade as set
     }
 
     //stop type, used only with TradeAction == STOP, although the default will be present on all orders obviously
@@ -149,7 +111,6 @@ namespace AlgoTrader.Shared.Enums
         STOP_TRAIL,             // - a trailing stop
         STOP_TRAIL_SPIKE,       // - for a spike event
         FLOOR_SET_TO_PREV_BAR   // - marks the entry as having set a floor at a previous bar
-        //TAKE_PROFIT_PERCENT,         //this is for a Floor which is auto-set at some percent between entry and current high
     }
 
     public enum TradeUpdateRequest

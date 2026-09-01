@@ -258,7 +258,6 @@ namespace AlgoTrader.Shared
                                         }
                                     }
 
-
                                     //line up other trades and lines to the order
                                     tradeEngine.LineUpTrades_synchronised(lines, TradeAction.STOP, order, entry != null);
                                     tradeEngine.LineUpTrades_synchronised(lines, TradeAction.TAKE_PROFIT, order, entry != null);

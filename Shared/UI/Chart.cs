@@ -1108,7 +1108,7 @@ namespace AlgoTrader.Shared
                                             }
                                             //adjust slightly away from current price, for clarity
                                             var _col = trade.Type == TradeType.FLIP_ORDER ? flipColor : color;
-                                            liveTrailMarker = TradeStopMarker(trade.Position, left + currentTimeOffset, top, trade.Type == TradeType.STOP_WAITING ? Brushes.White : unsynched ? EXCHANGE_NOT_SYNCHED_COLOR : _col, outline, text, trade.Type == TradeType.FLIP_ORDER, trade.ExecutionSystem == TradeExecutionSystem.EXCHANGE_UNSYNCHED);
+                                            liveTrailMarker = TradeStopMarker(trade.Position, left + currentTimeOffset, top, trade.Type == TradeType.STOP_WAITING ? Brushes.White : unsynched ? EXCHANGE_NOT_SYNCHED_COLOR : _col, outline, text, trade.Type == TradeType.FLIP_ORDER, trade.TradeExecutionStatus == TradeExecutionStatus.EXCHANGE_NOT_SYNCHED);
                                             canvas1 = liveTrailMarker.canvas;
                                             break;
 
@@ -1451,13 +1451,13 @@ namespace AlgoTrader.Shared
                     if (!showTakeProfit) hideAllButSelected += "\nTake Profit trades hidden";
                     if (!showLiquidations) hideAllButSelected += "\nLiquidation levels hidden";
                     var sn = symbolName + (MainObj.invertChart ? " INVERTED\n" : "\n");
-                    var leverage = TradeEngine.EXCHANGE == ExchangeId.BITMEX ? $"{(int)TradeEngine.Leverage}x " : "";
+                    var leverage = $"{(int)TradeEngine.Leverage}x ";
 
                     if (activeOrder != null)
                     {
                         if (activeOrder.ItemStatus == TradeItemStatus.CLOSED)
                         {
-                            leverage = TradeEngine.EXCHANGE == ExchangeId.BITMEX ? $"{activeOrder.Leverage} X\n" : "\n";
+                            leverage = $"{activeOrder.Leverage} X\n";
                             var system = TradeEngine.USE_SIMULATED_EXCHANGE == false ? "On exchange trade\n" : "Exchange simulated trade\n";
 
                             var quantity = Math.Abs(activeOrder.Quantity);

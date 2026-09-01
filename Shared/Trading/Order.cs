@@ -163,7 +163,6 @@ namespace AlgoTrader.Shared
                     ActionValue = 0,
                     TimeFrame = TimeFrame,
                     SymbolName = symbolName,
-                    ExecutionSystem = TradeExecutionSystem.NORMAL,
                     TradeExchangeStatus = TradeExchangeStatus.ENTERED_OFF_EXCHANGE
                 };
 

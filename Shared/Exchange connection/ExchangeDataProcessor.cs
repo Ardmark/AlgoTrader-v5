@@ -33,10 +33,6 @@ namespace AlgoTrader.Shared.ExchangeConnection
 
         protected abstract void CaptureOutput(object sender, DataReceivedEventArgs e);
 
-        internal virtual void AddRequest(ExchangeRequest exchangeCommand, EventHandler<ExchangeEventArgs> eventHandler, params (dynamic, dynamic)[] data)
-        {
-        }
-
         public ExchangeDataProcessor(ExchangeId exchangeId)
         {
             this.exchangeId = exchangeId;

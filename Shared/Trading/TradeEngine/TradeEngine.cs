@@ -2,7 +2,6 @@ using AlgoTrader.Shared.Enums;
 using AlgoTrader.Shared.Logging;
 using AlgoTrader.Shared.MovingAverages;
 using System.Data.Entity;
-using System.Diagnostics;
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Threading;
@@ -16,25 +15,7 @@ namespace AlgoTrader.Shared
     }
     public abstract partial class TradeEngine : DisplayPanel
     {
-
-        public static double Leverage = 1;
-        public static bool showBalancesDialog = false; //Binance can't really set the balance on a specific trade as it is obtained asynchronously, this is just to only show the dialog when manually requested
-
         #region Trade engine parameters
-
-        /*
-         * To get concurrent result, run as backtest project, do one full backtest and just switch between ENTER_CONCURRENT_TRADES_AS_TESTS value, no need to do a backtest each time,
-         *  this just works from whatever results are currently available
-         *  
-         * Issue with backtests: backtests are done per-symbol, so cannot account for concurrency of trades. They are all marked as entered on exchange (OrderType)
-         * Therefore, must filter out in the results based on ENTER_CONCURRENT_TRADES_AS_TESTS.
-         * Results (view model) will show either ONLY non-concurrent trades, or ALL trades regardless of concurrency. The backtest results will just show every trade as LIVE regardless.
-
-         * Results window will only show live total in live project, regardless of ENTER_CONCURRENT_TRADES_AS_TESTS
-         * To get all totalled, including concurrent trades, must get result in the backtest project, and have ENTER_CONCURRENT_TRADES_AS_TESTS set to true
-         * 
-         * */
-
 
          //start hour
         //need to offset for bst
@@ -65,7 +46,10 @@ namespace AlgoTrader.Shared
         public static string TESTNET_SECRET { get; set; }
         public static bool USE_TESTNET { get; set; } = true;
         public static double FEE { get; set; }
-        public static float DEFAULT_LEVERAGE { get; set; } = 2;
+        public static bool USE_FIXED_LEVERAGE { get; set; } = true;
+        public static double DEFAULT_LEVERAGE { get; set; } = 5;
+        public static double MIN_LEVERAGE_SHORT { get; set; } = 1;
+        public static double MIN_LEVERAGE_LONG { get; set; } = 1.333;
 
         //stops
         public static double STOPLINE_MIN_VALUE { get; set; } = 0.5; //Do not set to zero. As above, but for moving stop lines. Closer for easier debugging, etc.
@@ -76,7 +60,8 @@ namespace AlgoTrader.Shared
             {
                 return stop;
             }
-            return 0;
+            LogTrades.WriteLine("Could not get default stop for Timeframe, using 0.5%");
+            return 0.5; //just to be safe
         }
         public static int NUM_BARS_FOR_FLOOR { get; set; } = 0; // when this many bars clear (higher lows) will set floor
         public static double MOVE_STOPS_AMT { get; set; } = 0.1;
@@ -111,6 +96,8 @@ namespace AlgoTrader.Shared
         #endregion
 
         #region Fields
+        public static double Leverage = 1;
+        public static bool showBalancesDialog = false; //Binance can't really set the balance on a specific trade as it is obtained asynchronously, this is just to only show the dialog when manually requested
 
         public List<_SymbolDataItem> results = [];
         List<_SymbolDataItem> framesetResults = [];
@@ -121,24 +108,22 @@ namespace AlgoTrader.Shared
         public string currentTradeSetReference = null;
         public bool hasSpiked; //easier than saving as a persistant property
         protected bool connectionInitialised = false;
-        #endregion
+        protected DateTime entryTimeStamp = DateTime.UtcNow;
+        bool hasFailedToClose = false;
 
-        #region Order object fields
+        //Order object fields
         public Order_PriceBreak priceBreakOrderIndicator;
         public Order_PriceBreakMACD macdPriceBreakOrderIndicator;
         public Order_PriceBreakHMA hmaPriceBreakOrderIndicator;
-        //public Order_Auto autoOrderIndicator;
         public HMA hma_100, ema_63, ema_27, ema_20, ema_10, ema_5; //unused but will throw compiler errors from other classes if not defined
         public const int emaOffset = 10;
-        #endregion
-
-        #region Context synchronisation
+        
         //lock is just a keyword which implements Monitor.Enter,
         //and the locked object is just to lock entry to the method, it is not locked in itself
         //intellisense does not like locking the list
         public readonly object synchLock = new object(); //lock for all exchange-related processing
         public readonly object listUpdateLock = new object(); //lock for list update, so UI cannot access list whilst it is being changed (avoids exception)        
-
+        
         //Trade fields
         public _Trade _order, _orderOrStub;
         private _Trade _entry, _entryOrStub, _stop, _ceiling, _floor, _breakEven, _takeProfit, _close;
@@ -153,6 +138,7 @@ namespace AlgoTrader.Shared
         //UI drawing lists
         internal List<_Trade> UI_Trades = [];
         internal List<_ChartLine> UI_Lines = []; //just the lines, no trades included, for drawing (disposed data context)
+        #endregion
 
         #region Properties
         //gets all waiting orders for this symbol
@@ -267,34 +253,7 @@ namespace AlgoTrader.Shared
                 _order = value;
             }
         }
-        //public _Trade OrderOrStub
-        //{
-        //    get
-        //    {
-        //        if (_orderOrStub != null)  return _orderOrStub;
-
-        //        _orderOrStub = AllTrades.FirstOrDefault(x =>
-        //                            x.Action == TradeAction.ORDER &&
-        //                            x.GlobalStatus == TradeGlobalStatus.ACTIVE &&
-        //                            x.ItemStatus == TradeItemStatus.CLOSED &&
-        //                            x.StubCallbackTradeReference != null
-        //                            );
-
-        //        if (_orderOrStub != null) return _orderOrStub;
-
-        //        _orderOrStub = AllTrades.FirstOrDefault(x =>
-        //                           x.Action == TradeAction.ORDER &&
-        //                           x.GlobalStatus == TradeGlobalStatus.ACTIVE &&
-        //                           x.ItemStatus == TradeItemStatus.CLOSED
-        //                           );
-
-        //        return _orderOrStub;
-        //    }
-        //    set
-        //    {
-        //        _orderOrStub = value;
-        //    }
-        //}
+       
         public _Trade Entry
         {
             get
@@ -311,29 +270,6 @@ namespace AlgoTrader.Shared
             }
         }
 
-        //public _Trade EntryOrStub
-        //{
-        //    get
-        //    {
-        //        if (_entryOrStub != null) return _entryOrStub;
-
-        //        _entryOrStub = ActiveTrades.FirstOrDefault(x =>
-        //                            x.Action == TradeAction.ENTRY &&
-        //                            x.ItemStatus == TradeItemStatus.OPEN &&
-        //                            x.StubCallbackTradeReference != null);
-        //        if (_entryOrStub != null) return _entryOrStub;
-
-        //        _entryOrStub = ActiveTrades.FirstOrDefault(x =>
-        //            x.Action == TradeAction.ENTRY &&
-        //            x.ItemStatus == TradeItemStatus.OPEN);
-        //        return _entryOrStub;
-        //    }
-        //    set
-        //    {
-        //        _entryOrStub = value;
-        //    }
-        //}
-
         public _Trade Stop
         {
             get
@@ -349,51 +285,7 @@ namespace AlgoTrader.Shared
                 _stop = value;
             }
         }
-        //public _Trade Floor
-        //{
-        //    get
-        //    {
-        //        return _floor != null
-        //            ? _floor
-        //            : _floor = ActiveTrades.FirstOrDefault(x =>
-        //                            x.Action == TradeAction.FLOOR &&
-        //                            x.ItemStatus == TradeItemStatus.OPEN);
-        //    }
-        //    set
-        //    {
-        //        _floor = value;
-        //    }
-        //}
-        //public _Trade BreakEven
-        //{
-        //    get
-        //    {
-        //        return _breakEven != null
-        //            ? _breakEven
-        //            : _breakEven = ActiveTrades.FirstOrDefault(x =>
-        //                            x.Action == TradeAction.BREAK_EVEN &&
-        //                            x.ItemStatus == TradeItemStatus.OPEN);
-        //    }
-        //    set
-        //    {
-        //        _floor = value;
-        //    }
-        //}
-        //public _Trade Ceiling
-        //{
-        //    get
-        //    {
-        //        return _ceiling != null
-        //            ? _ceiling
-        //            : _ceiling = ActiveTrades.FirstOrDefault(x =>
-        //                            x.Action == TradeAction.CEILING &&
-        //                            x.ItemStatus == TradeItemStatus.OPEN);
-        //    }
-        //    set
-        //    {
-        //        _ceiling = value;
-        //    }
-        //}
+ 
         public _Trade TakeProfit
         {
             get
@@ -409,6 +301,7 @@ namespace AlgoTrader.Shared
                 _takeProfit = value;
             }
         }
+  
         public _Trade Close
         {
             get
@@ -438,21 +331,6 @@ namespace AlgoTrader.Shared
         {
             var _reference = reference ?? currentTradeSetReference;
             return AllLinesForSymbol.Where(x => x.TradeReference == _reference).ToList();
-        }
-
-        internal _Trade GetTradeForTradeReference(TradeAction action, string reference = null)
-        {
-            var _reference = reference ?? currentTradeSetReference;
-            return AllTrades.FirstOrDefault(x =>
-                        x.Action == action &&
-                        x.TradeReference == _reference);
-        }
-
-        protected virtual double GetCorrectPrecisionForPrice(double balanceToTrade) { return balanceToTrade; }
-
-        internal bool IsActiveTrade(_Trade trade)
-        {
-            return (Order != null && Order.TradeReference == trade.TradeReference);
         }
 
         #endregion
@@ -511,6 +389,7 @@ namespace AlgoTrader.Shared
         }
         #endregion
 
+        #region Context synmchronisation
         public void InitForDataContext(Action callback)
         {
             lock (synchLock)
@@ -567,7 +446,6 @@ namespace AlgoTrader.Shared
             // Debug.WriteLine($"InitForDataContext ending {Thread.CurrentThread.ManagedThreadId}");
         }
 
-        #region Set update request
         //set the update request status. This is only called from within a valid DataContext loop (InitForDataContext)
         public void SetUpdateRequest(_Trade trade, TradeUpdateRequest updateRequest = TradeUpdateRequest.UPDATE)
         {
@@ -643,8 +521,6 @@ namespace AlgoTrader.Shared
             }
             return trade.Id;
         }
-        #endregion
-
         #endregion
 
         #region Init
@@ -757,33 +633,7 @@ namespace AlgoTrader.Shared
         #endregion
 
         #region Execute trade
-
-        //public virtual void RunTrade_exchangeSpecific()
-        //{
-        //    return;
-        //}
-
-        public void ExtendLineToCurrentTime_synchronised(_Trade trade)
-        {
-            var line = ActiveLines.GetLineForTrade(trade);
-            if (line != null)
-            {
-                if (line.EndTimeStamp < DateTime.UtcNow)
-                {
-                    (var price, _) = line.GetPriceAtTime(DateTime.UtcNow, true);
-                    line.EndTimeStamp = DateTime.UtcNow;
-                    line.EndPrice = price;
-                    SetUpdateRequest(line);
-                }
-            }
-        }
-
-        bool hasFailedToClose = false;
-
         public abstract void SynchStopsWithExchange_synchronised();
-
-
-        protected DateTime entryTimeStamp = DateTime.UtcNow;
 
         //return param is only for backtesting
         public bool RunTrade_synchronised(int currentFrame, bool itemAdded)
@@ -1182,10 +1032,7 @@ namespace AlgoTrader.Shared
             return ret;
 
         }
-
-        #endregion
-
-        #region Enter trade
+ 
 
         /*
          * Test for trade entry based on trade type, line break etc.
@@ -1295,12 +1142,7 @@ namespace AlgoTrader.Shared
             return (false, false);
         }
 
-
-
         protected abstract void EnterTradeOnSystem_synchronised(double price, double quantity, TradeExchangeStatus orderType);
-        #endregion
-
-        #region Close trade
 
         internal void CloseTradeOnSystem_synchronised(double price)
         {
@@ -1370,7 +1212,7 @@ namespace AlgoTrader.Shared
 
             Order = null;
 
-            Leverage = TradeEngine.DEFAULT_LEVERAGE; //always set this as a default since it is an integer and 1 will be no use for a long anyway.
+            Leverage = DEFAULT_LEVERAGE; //always set this as a default since it is an integer and 1 will be no use for a long anyway.
             MainObj.SetLeverageMenuState((int)Leverage); //NOTE, calling Application.Current.Dispatcher.Invoke() within this thread causes a lock condition
             
         }
@@ -1492,7 +1334,21 @@ namespace AlgoTrader.Shared
 
         public virtual void Test() { }
 
-        #region Get price data
+        internal _Trade GetTradeForTradeReference(TradeAction action, string reference = null)
+        {
+            var _reference = reference ?? currentTradeSetReference;
+            return AllTrades.FirstOrDefault(x =>
+                        x.Action == action &&
+                        x.TradeReference == _reference);
+        }
+
+        protected virtual double GetCorrectPrecisionForPrice(double balanceToTrade) { return balanceToTrade; }
+
+        internal bool IsActiveTrade(_Trade trade)
+        {
+            return (Order != null && Order.TradeReference == trade.TradeReference);
+        }
+
         public virtual double GetValueForSymbol(string baseAsset, string quoteAsset)
         {
             return GetValueForSymbol(baseAsset + quoteAsset);
@@ -1508,9 +1364,22 @@ namespace AlgoTrader.Shared
            
             return currentDataItem.Close;
         }
-        #endregion
 
-
+        public void ExtendLineToCurrentTime_synchronised(_Trade trade)
+        {
+            var line = ActiveLines.GetLineForTrade(trade);
+            if (line != null)
+            {
+                if (line.EndTimeStamp < DateTime.UtcNow)
+                {
+                    (var price, _) = line.GetPriceAtTime(DateTime.UtcNow, true);
+                    line.EndTimeStamp = DateTime.UtcNow;
+                    line.EndPrice = price;
+                    SetUpdateRequest(line);
+                }
+            }
+        }
+        
         public double takerFee = 0; //retain this, so no need to get it when the trade closes (can assume it is still the same)
 
         internal void AddLineToTrade_synchronised(_Trade trade, DateTime timeStamp)
@@ -1530,6 +1399,7 @@ namespace AlgoTrader.Shared
             currentTradeSetReference = trade.TradeReference;
             SetUpdateRequest(line);
         }
+        
         public virtual double AdjustResultForFees(double result) { return result - FEE; }// - 0.2;  } //default of 0.1% * 2, bitmex does it properly
 
         protected void AdjustStopPriceToMinimum_Synchronised(_Trade entry, _Trade _floorStop, double minVal)
@@ -1552,7 +1422,7 @@ namespace AlgoTrader.Shared
 
                     var prevPrice = stopPrice;
 
-                    _floorStop.Price = MainObj.GetFloorPrice(Entry.Price, minVal, _floorStop.Position);
+                    _floorStop.Price = MainObj.GetStopPriceFromPercent(Entry.Price, minVal, _floorStop.Position);
 
                     _floorStop.Timestamp = GetTimeStamp();
                     SetUpdateRequest(_floorStop);
@@ -1583,8 +1453,6 @@ namespace AlgoTrader.Shared
             return ret;
         }
 
-
-
         internal DateTime GetTimeStamp()
         {
             return DateTime.UtcNow; //because currentdataitem is always at 59 secs so cannot be used for timeouts, etc.
@@ -1612,6 +1480,11 @@ namespace AlgoTrader.Shared
         }
 
         #region Leverage 
+
+        //this uses a maximum stop loss to calculate the leverage, so that the maximum loss is always the same regardless of the stop position
+        // but it clamps it to the existing leverage value so you don't go above that, only below
+        // the existing leverage value therefore can be set before the order enters, then it will
+        // scale down from that if the stop is too far away
         public static double CalculateLeverageFromStop(double stopPC, TradePosition position)
         {
             //var minLeverage = position == TradePosition.LONG ? MIN_LEVERAGE_LONG : MIN_LEVERAGE_SHORT;
@@ -1639,8 +1512,8 @@ namespace AlgoTrader.Shared
             //stop = 3, leverageScale = 3 * 3 / 9 = 1, leverage = 3 / 1 = 3
             //stop = 6, leverageScale = 6 * 3 / 9 = 2, leverage = 3 / 2 = 1.5
             //stop = 9, leverageScale = 9 * 3 / 9 = 3, leverage = 3 / 3 = 1
-            var leverageScale = stopPC * DEFAULT_LEVERAGE / MAX_STOP_LOSS;
-            var leverage = Math.Min(DEFAULT_LEVERAGE / leverageScale, DEFAULT_LEVERAGE);
+            var leverageScale = stopPC * Leverage / MAX_STOP_LOSS;
+            var leverage = Math.Min(Leverage / leverageScale, Leverage);
 
 
 
@@ -1766,8 +1639,6 @@ namespace AlgoTrader.Shared
                 ? currentDataItem.Close
                 : trade.Position == TradePosition.LONG ? currentDataItem.Low : currentDataItem.High;
         }
-
-
 
 
         #endregion
