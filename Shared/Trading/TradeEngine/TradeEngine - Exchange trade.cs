@@ -60,20 +60,7 @@ namespace AlgoTrader.Shared
                 Stop.ItemStatus = TradeItemStatus.CLOSED;
                 Stop.GlobalStatus = TradeGlobalStatus.STOPPED;
             }
-            //if (Floor != null)
-            //{
-            //    Floor.ExchangeMethodScript = null;
-            //    Floor.ExchangeMethodIndex = 0;
-            //    Floor.ItemStatus = TradeItemStatus.CLOSED;
-            //    Floor.GlobalStatus = TradeGlobalStatus.STOPPED;
-            //}
-            //if (Ceiling != null)
-            //{
-            //    Ceiling.ExchangeMethodScript = null;
-            //    Ceiling.ExchangeMethodIndex = 0;
-            //    Ceiling.ItemStatus = TradeItemStatus.CLOSED;
-            //    Ceiling.GlobalStatus = TradeGlobalStatus.STOPPED;
-            //}
+
             //DequeueOrder_synchronised();
         }
 
@@ -95,8 +82,6 @@ namespace AlgoTrader.Shared
                 trade.TradeExecutionStatus = TradeExecutionStatus.OK;
                 SetUpdateRequest(trade);
             }
-
-            //DequeueOrder_synchronised();
         }
 
         internal virtual void SetStopOnExchange_Synchronised()

@@ -66,7 +66,9 @@ namespace AlgoTrader.Shared.Enums
     // long or short
     public enum TradePosition
     {
+        [Display(Name = "Long")]
         LONG,
+        [Display(Name = "Short")]   
         SHORT
     }
 

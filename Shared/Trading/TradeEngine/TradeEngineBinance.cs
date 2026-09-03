@@ -2,7 +2,9 @@
 using AlgoTrader.Shared.Logging;
 using Newtonsoft.Json;
 using OpenExchangeRates;
+using System.Diagnostics;
 using System.Text.Json.Nodes;
+using System.Windows.Interop;
 using static AlgoTrader.Shared.BinanceAPI;
 using static AlgoTrader.Shared.ExchangeConnection.ExchangeDataProcessorBinance;
 
@@ -12,6 +14,7 @@ namespace AlgoTrader.Shared
     {
         public override async void Test()
         {
+            CalculateLeverageFromStop(GetValueForTimeframe(STOP_MIN_VALUE), TradePosition.LONG);
             return;
             bool openOrdersCancelled = false;
             try
@@ -665,255 +668,242 @@ namespace AlgoTrader.Shared
         #region Enter and close trades
 
         protected override async void StartEntry_Synchronised()
-        {                   
-            void _KillOrder(string msg, bool interrupted = false)
+        {
+            //while we can get the price from the exchange, any stops will be set from that then next update the candle value will be used.
+            //This could result in a stop being updated on the exchange unnecessarily if the values differ
+
+            if (!USE_TESTNET && !dataReady) return;
+
+            //if this has just restarted, will try to enter any trades immediately but the price won't be available from the websocket yet.
+            //so use the REST api instead
+            var lastQuoteValue = GetLastPrice();
+            if (lastQuoteValue == 0)
             {
-                WriteDeliniatedMessage(msg);
-                KillEntryOrCloseOrder(interrupted);
+                LogTrades.WriteLine("Could not get symbol price");
+                KillEntryOrCloseOrder();
+                return;
             }
+            var diff = Math.Abs(MainObj.GetPriceDiff(Order.Price, lastQuoteValue, Order.Position) * 100);
+
+            LogTrades.WriteLine($"Price diff. between entry and current price is {diff}%");
             
-            if (Entry != null)
-            {            
-                //while we can get the price from the exchange, any stops will be set from that then next update the candle value will be used.
-                //This could result in a stop being updated on the exchange unnecessarily if the values differ
+            //determine if this is within an acceptable range
+            if (diff > (USE_TESTNET ? 1000 : MAX_ENTRY_DIFF_PERCENT))
+            {
+                LogTrades.WriteLineOrder("Did not enter trade as price difference between Order and current price was too great");
+                return;
+            }
 
-                if (!USE_TESTNET && !dataReady) return;
+            UpdateGetExchangeInfo();
 
-                UpdateGetExchangeInfo();
-
-                //make sure there are no orphaned stops 
-                bool openOrdersCancelled = false;
-                try
+            //make sure there are no orphaned stops 
+            bool openOrdersCancelled = false;
+            try
+            {
+                var openOrders = GetOpenOrders();
+                if (openOrders.Count == 0)
                 {
-                    var openOrders = GetOpenOrders();
-                    if (openOrders.Count == 0)
+                    openOrdersCancelled = true;
+                }
+                else
+                {
+                    //if there are no orders to cancel then this will throw an exception with 'unknown order sent' hence need to check for open orders first
+                    //generally when null is returned the operation has failed so assume null is a fail to cancel the orders for some reason without exception or error
+                    var v = DeserializeToList(binanceAPI.CancelOpenOrdersAsync(symbolName).Result.AsArray());
+                    if (v != null)
                     {
-                        openOrdersCancelled = true;
-                    }
-                    else
-                    {
-                        //if there are no orders to cancel then this will throw an exception with 'unknown order sent' hence need to check for open orders first
-                        //generally when null is returned the operation has failed so assume null is a fail to cancel the orders for some reason without exception or error
-                        var v = DeserializeToList(binanceAPI.CancelOpenOrdersAsync(symbolName).Result.AsArray());
-                        if (v != null)
+                        if (v.Count != 0)
                         {
-                            if (v.Count != 0)
+                            //if any order does not have cancelled status, then assume stops not removed
+                            if (!v.Any(x => x.Status != null && x.Status != "CANCELED"))
                             {
-                                //if any order does not have cancelled status, then assume stops not removed
-                                if (!v.Any(x => x.Status != null && x.Status != "CANCELED"))
-                                {
-                                    openOrdersCancelled = true;
-                                }
+                                openOrdersCancelled = true;
                             }
                         }
                     }
                 }
-                catch (Exception ex)
+            }
+            catch (Exception ex)
+            {
+                LogTrades.WriteLine($"Failed to deserialize CancelAllOpenOrders(...): {ex}");
+            }
+            if (openOrdersCancelled == false)
+            {
+                LogTrades.WriteLine("Failed to cancel open orders (OCO), exiting new trade");
+                KillEntryOrCloseOrder();
+                return;
+            }
+
+            //Execute the trade
+            Order.ItemStatus = TradeItemStatus.CLOSED;
+            SetUpdateRequest(Order);
+
+            ResetLiveUpdateTimer();
+
+            LogTrades.WriteLine($"Starting new {Order.Position} order:");
+
+            LogTrades.WriteLine("Getting equity...");
+            (var freeBalance, var totalEquity) = GetTotalEquity();
+            if (freeBalance <= 0)
+            {
+                LogTrades.WriteLine($"Could not get free balance for {symbolName}, exiting StartEntryOrClose_Synchronised");
+                KillEntryOrCloseOrder();
+                return;
+            }
+
+            //generate the entry
+            Entry = Order.Clone(); //item status will be open
+            Entry.ItemId = _Trade.GetNewTradeId(); //set the client-assigned Id (could wait for the binance-assigned one instead) but this way, can query status even if no confirmation yet received
+            Entry.Action = TradeAction.ENTRY;
+            Entry.Price = lastQuoteValue;
+            Entry.TradeExchangeStatus = TradeExchangeStatus.ENTERED_OFF_EXCHANGE; //only set live when it actually returns from exchange
+            Entry.Timestamp = GetTimeStamp();
+            Entry.Id = 0; //so it will get added
+            Entry.Balance = freeBalance;
+            Entry.Equity = totalEquity;
+            Entry.TradeReference = Order.TradeReference;//shared with all trades in this group
+            SetUpdateRequest(Entry);
+
+            var balanceToTrade = RESTRICTED_TRADE_VALUE > 0 ? RESTRICTED_TRADE_VALUE : freeBalance * 0.95; //this will just be a 95% order for now
+            var tradeAmount = GetCorrectPrecisionForTrade(balanceToTrade / lastQuoteValue);
+            LogTrades.WriteLine($"Trade amount is {tradeAmount} for new order");
+
+            //the problem here is the stops are only calculated AFTER the trade has entered, including any reversal trades.
+            //So that needs to be done first
+
+            //TakeProfit = trades.FirstOrDefault(x => x.Action == TradeAction.TAKE_PROFIT);
+            //Stop = trades.FirstOrDefault(x => x.Action == TradeAction.STOP);
+
+            //need the closest of the current stop or opposing trade. If neither found, use the minimum stop value
+            double stopPercent = GetValueForTimeframe(STOP_MIN_VALUE);
+            double stopPrice = 0;
+            if (Stop != null)
+            {
+                stopPrice = Stop.Price;
+
+                var stopLine = AllLinesForSymbol.FirstOrDefault(x => x.TradeId == Stop.Id);
+                if (stopLine != null)
                 {
-                    LogTrades.WriteLine($"Failed to deserialize CancelAllOpenOrders(...): {ex}");
+                    (stopPrice, _) = stopLine.GetPriceAtTime(DateTime.UtcNow, true);
+                    stopPercent = MainObj.GetPriceDiffPercent(currentDataItem, stopPrice, Order.Position) * 100;
                 }
-                if (openOrdersCancelled == false)
+            }
+
+            //if there is no stop, take the opposing order as one instead
+            else
+            {
+                //THIS IS RETURNING AN OPPOSITE ORDER IN TESTING AFTER FLIP
+                //ALSO WHEN YOU CLOSE THE FLIPPED ORDER, IT JUST FLIPS AGAIN
+
+                 var _oppOrder = GetOppositeOrder(Order.Position);
+                if (_oppOrder != null)
                 {
-                    LogTrades.WriteLine("Failed to cancel open orders (OCO), exiting new trade");
-                    KillEntryOrCloseOrder();
-                    return;
+                    var orderLine = AllLinesForSymbol.FirstOrDefault(x => x.TradeId == _oppOrder.Id);
+                    if (orderLine != null)
+                    {
+                        LogTrades.WriteLine("Taking opposite order as stop");
+                        (var oppOrderPrice, _) = orderLine.GetPriceAtTime(DateTime.UtcNow, true);
+                        stopPercent = MainObj.GetPriceDiffPercent(currentDataItem, oppOrderPrice, Order.Position) * 100;
+                    }
                 }
+            }
 
-                //Execute the trade
-                var p = Entry.Position == TradePosition.LONG ? "long" : "short";
-                LogTrades.WriteLine($"Starting new {p} order:");
-                entryTimeStamp = DateTime.UtcNow;
 
-                LogTrades.WriteLine("Deleting any residual stops...");
-                //this throws an exception, "unknown order sent"
-                try
+            #region Calculate Leverage
+
+            //if a stop line is present, the leverage will be calculated from that, base on the range of stop values and leverages
+            // for the timeframe. If no stop line is present, the leverage will be whatever is currently set in the UI
+            Leverage = Stop != null ? CalculateLeverageFromStop(stopPercent, Entry.Position) : Leverage;
+
+            //save the calculated leverage, even if we are not using it
+            Order.Leverage = Entry.Leverage = Leverage;
+
+            #endregion
+
+            Order.TradeExchangeStatus = Entry.TradeExchangeStatus = TradeExchangeStatus.ENTERING_ON_EXCHANGE;
+
+            LogTrades.WriteLine($"Placing buy order of {tradeAmount}, adjusted for step size, at {DateTime.Now}...");
+            var orderEntry = SendOrder(tradeAmount, Side.BUY, Entry.ItemId);
+
+            if (orderEntry != null)
+            {
+                var orderValid = true;
+                var orderError = string.Empty;
+                if (!string.IsNullOrEmpty(orderEntry.Status) && orderEntry.Status != "FILLED")
                 {
-                    var result = binanceAPI.CancelOpenOrdersAsync(symbolName).Result;
+                    //Possible values are:
+                    //  NEW
+                    //  PARTIALLY_FILLED
+                    //  FILLED
+                    //  CANCELED
+                    //  REJECTED
+                    //  EXPIRED
+                    //  EXPIRED_IN_MATCH
+
+                    orderValid = false;
+                    orderError += $"Order was not filled, status was {orderEntry.Status}\n";
+
+                    if (orderEntry.AveragePrice == 0)
+                    {
+                        orderValid = false;
+                        orderError += "Order returned zero average price\n";
+                    }
+                    if (orderEntry.ExecutedQty == 0)
+                    {
+                        orderValid = false;
+                        orderError += "Order returned zero executed quantity\n";
+                    }
+
+                    if (!orderValid)
+                    {
+                        LogTrades.WriteLine(orderError);
+                        KillEntryOrCloseOrder(true);
+                        return;
+                    }
                 }
-                catch { }
-                LogTrades.WriteLine("Getting equity...");
-                (var freeBalance, var totalEquity) = GetTotalEquity();
-                if (freeBalance <= 0)
-                {
-                    LogTrades.WriteLine($"Could not get free balance for {symbolName}, exiting StartEntryOrClose_Synchronised");
-                    KillEntryOrCloseOrder();
-                    return;
-                }
-                Entry.Balance = freeBalance;
-                Entry.Equity = totalEquity;
+                LogTrades.WriteLineOrder($"{Entry.Position} order FILLED for {Entry.SymbolName} at {DateTime.UtcNow}");
 
-                var balanceToTrade = RESTRICTED_TRADE_VALUE > 0 ? RESTRICTED_TRADE_VALUE : freeBalance * 0.95; //this will just be a 95% order for now
+                //at this point, trade is entered live
+                EnterTradeOnSystem_synchronised(orderEntry.AveragePrice, orderEntry.ExecutedQty, TradeExchangeStatus.ENTERED_ON_EXCHANGE);
 
-                LogTrades.WriteLine($"Trade amount is {balanceToTrade} for new order");
+                EndEntryOrCloseScript();
 
-                Entry.TradeReference = Order.TradeReference;//shared with all trades in this group
-                SetUpdateRequest(Entry);
-
-                //if this has just restarted, will try to enter any trades immediately but the price won't be available from the websocket yet.
-                //so use the REST api instead
-                var lastQuoteValue = GetLastPrice();
-                if (lastQuoteValue == 0)
-                {
-                    _KillOrder("Could not get symbol price");
-                    return;
-                }
-
-                //the problem here is the stops are only calculated AFTER the trade has entered, including any reversal trades.
-                //So that needs to be done first
-
-                var trades = AllTrades.Where(x => x.TradeReference == Order.TradeReference);
-
-                //Ceiling = trades.FirstOrDefault(x => x.Action == TradeAction.CEILING);
-                TakeProfit = trades.FirstOrDefault(x => x.Action == TradeAction.TAKE_PROFIT);
-                Stop = trades.FirstOrDefault(x => x.Action == TradeAction.STOP);
-
-                //need the closest of the current stop or opposing trade. If neither found, use the default stop value
-                double stopPercent = GetDefaultStop();
-                double stopPrice = 0;
+                //set stop
+                //Stop has already been pulled from AllTrades
                 if (Stop != null)
                 {
-                    stopPrice = Stop.Price;
+                    LogTrades.WriteLine("Using existing stop.");
+                    Stop.Price = Stop.Result = stopPrice; //this is the line price at this time, if a line is present, otherwise the stop price is used
+                }
+                else
+                {
+                    LogTrades.WriteLine($"Setting stop at {stopPercent}%");
 
-                    var stopLine = AllLinesForSymbol.FirstOrDefault(x => x.TradeId == Stop.Id);
-                    if (stopLine != null)
-                    {
-                        (stopPrice, _) = stopLine.GetPriceAtTime(DateTime.UtcNow, true);
-                        stopPercent = MainObj.GetPriceDiffPercent(currentDataItem, stopPrice, Order.Position) * 100;
-                    }
+                    Stop = Entry.Clone();
+                    //although precision is set when OCO is sent to exchange, it helps to keep the number of decimal places down anyway.
+                    var _stopPrice = GetCorrectPrecisionForPrice(MainObj.GetStopPriceFromPercent(Entry.Price, stopPercent, Order.Position));
+                    Stop.Price = Stop.Result = _stopPrice;
+                    Stop.Action = TradeAction.STOP;
+                    Stop.ItemId = null; //need a new ID for this as it is a new order.
+                    AddLineToTrade_synchronised(Stop, DateTime.UtcNow.AddMinutes(-1));
                 }
 
-                //if there is no stop, take the opposing order as one instead
-                else 
-                {
-                    var _oppOrder = GetOppositeOrder(Order.Position);
-                    if (_oppOrder != null)
-                    {
-                        var orderLine = AllLinesForSymbol.FirstOrDefault(x => x.TradeId == _oppOrder.Id);
-                        if (orderLine != null)
-                        {
-                            LogTrades.WriteLine("Taking opposite order as stop");
-                            (var oppOrderPrice, _) = orderLine.GetPriceAtTime(DateTime.UtcNow, true);
-                            stopPercent = MainObj.GetPriceDiffPercent(currentDataItem, oppOrderPrice, Order.Position) * 100;
-                        }
-                    }
-                }         
+                Stop.Quantity = Entry.Quantity;
+                Stop.TradeExchangeStatus = TradeExchangeStatus.ENTERING_ON_EXCHANGE;
 
-                var tradeAmount = GetCorrectPrecisionForTrade(balanceToTrade / lastQuoteValue);
+                LogTrades.WriteLine("Sending stop to exchange");
+                SetStopOnExchange_Synchronised();
+                SetUpdateRequest(Stop);
 
-                #region Calculate Leverage
-
-                var leverage = CalculateLeverageFromStop(stopPercent, Entry.Position);
-
-                if (
-                   (Entry.Position == TradePosition.LONG && leverage < MIN_LEVERAGE_LONG) ||
-                   (Entry.Position == TradePosition.SHORT && leverage < MIN_LEVERAGE_SHORT))
-                {
-                    var s = Entry.Position == TradePosition.LONG ? "long" : "short";
-                    _KillOrder($"Leverage of {leverage} was too small to make {s} trade worthwhile, exiting");
-                    SetUpdateRequest(Entry, TradeUpdateRequest.FORCE_DELETE);
-                    return;
-                }
-
-                Leverage = leverage;
-
-                //save the calculated leverage, even if we are not using it
-                Order.Leverage = Entry.Leverage = Leverage;
-
-                //the correct order quantity is determined by leverage
-                //if (!SetLeverageOnExchange(symbolName, Leverage))
-                //{
-                //    _KillOrder("Failed to set leverage");
-                //    return;
-                //}
-
-                #endregion
-
-                Order.TradeExchangeStatus = Entry.TradeExchangeStatus = TradeExchangeStatus.ENTERING_ON_EXCHANGE;
-                Entry.ItemId = _Trade.GetNewTradeId();
-
-                LogTrades.WriteLine($"Placing buy order of {tradeAmount}, adjusted for step size, at {DateTime.Now}...");
-                var orderEntry = SendOrder(tradeAmount, Side.BUY, Entry.ItemId);
-
-                if (orderEntry != null)
-                {
-                    var orderValid = true;
-                    var orderError = string.Empty;
-                    if (!string.IsNullOrEmpty(orderEntry.Status) && orderEntry.Status != "FILLED")
-                    {
-                        //Possible values are:
-                        //  NEW
-                        //  PARTIALLY_FILLED
-                        //  FILLED
-                        //  CANCELED
-                        //  REJECTED
-                        //  EXPIRED
-                        //  EXPIRED_IN_MATCH
-
-                        orderValid = false;
-                        orderError += $"Order was not filled, status was {orderEntry.Status}\n";
-
-                        if (orderEntry.AveragePrice == 0)
-                        {
-                            orderValid = false;
-                            orderError += "Order returned zero average price\n";
-                        }
-                        if (orderEntry.ExecutedQty == 0)
-                        {
-                            orderValid = false;
-                            orderError += "Order returned zero executed quantity\n";
-                        }
-
-                        if (!orderValid)
-                        {
-                            _KillOrder(orderError, true);
-                            return;
-                        }
-                    }
-                    var pos = Entry.Position == TradePosition.LONG ? "Long" : "Short";
-                    LogTrades.WriteLineOrder($"{pos} order FILLED for {Entry.SymbolName} at {DateTime.UtcNow}");
-
-                    //at this point, trade is entered live
-                    EnterTradeOnSystem_synchronised(orderEntry.AveragePrice, orderEntry.ExecutedQty, TradeExchangeStatus.ENTERED_ON_EXCHANGE);
-
-                    EndEntryOrCloseScript();
-
-                    //set stop
-                    //Stop has already been pulled from AllTrades
-                    if (Stop != null)
-                    {
-                        LogTrades.WriteLine("Using existing stop.");
-                        Stop.Price = Stop.Result = stopPrice; //this is the line price at this time, if a line is present, otherwise the stop price is used
-                    }
-                    else
-                    {
-                        LogTrades.WriteLine($"Setting stop at {stopPercent}%");
-
-                        Stop = Entry.Clone();
-                        //although precision is set when OCO is sent to exchange, it helps to keep the number of decimal places down anyway.
-                        var price = GetCorrectPrecisionForPrice(MainObj.GetStopPriceFromPercent(Entry.Price, stopPercent, Order.Position));
-                        Stop.Price = Stop.Result = price;
-                        Stop.Action = TradeAction.STOP;
-                        Stop.ItemId = null; //need a new ID for this as it is a new order.
-                        AddLineToTrade_synchronised(Stop, DateTime.UtcNow.AddMinutes(-1));
-                    }
-                        
-                    Stop.Quantity = Entry.Quantity;
-                    Stop.TradeExchangeStatus = TradeExchangeStatus.ENTERING_ON_EXCHANGE;
-
-                    LogTrades.WriteLine("Sending stop to exchange");
-                    SetStopOnExchange_Synchronised();
-                    SetUpdateRequest(Stop);
-
-                    //cannot have any synched objects after this as synchronisation will exit before this method completes
-                    LogTrades.WriteLine("Getting exchange conversion rate...");
-                    var gbp = await GetConversionRate(Entry.ItemId);
-                    LogTrades.WriteLine($"Conversion rate received of {gbp.ToString("F2")}, Entry complete!");
-                }
-
-
-                //No more access to Entry, Close etc. after call to async GetConversionRate()!!!
-                MainObj.DrawCurrentDispatcher();
+                //cannot have any synched objects after this as synchronisation will exit before this method completes
+                LogTrades.WriteLine("Getting exchange conversion rate...");
+                var gbp = await GetConversionRate(Entry.ItemId);
+                LogTrades.WriteLine($"Conversion rate received of {gbp.ToString("F2")}, Entry complete!");
             }
+
+            //No more access to Entry, Close etc. after call to async GetConversionRate()!!!
+            MainObj.DrawCurrentDispatcher();
+
 
         }
         
@@ -930,7 +920,6 @@ namespace AlgoTrader.Shared
             if (Entry != null)
             {
 
-                entryTimeStamp = DateTime.UtcNow;
                 if (Close == null)
                 {
                     LogTrades.WriteLine($"No Close set in CLOSE_ORDER_SCRIPT for {symbolName}, cannot close trade, exiting OnExchangeDataReceived");
@@ -1015,6 +1004,7 @@ namespace AlgoTrader.Shared
                         //status could be 'PARTIALLY_FILLED' (limit orders only??)
 
                         var entryItemId = Entry.ItemId; //save this since close on system will set Entry = null
+                        var closeItemId = Close.ItemId; //need this later for conversion rate
                         switch (dataClose.Status)
                         {
                             case "FILLED":
@@ -1025,10 +1015,94 @@ namespace AlgoTrader.Shared
                                 CloseTradeOnSystem_synchronised(dataClose.Price);
 
                                 EndEntryOrCloseScript();
+//testing
+ Stop = AllTrades.FirstOrDefault(t => t.Action == TradeAction.STOP);
+ Stop.Type = TradeType.FLIP_ORDER;
 
-                                //this will cause synchronisation to exit before this awaitable method completes,
-                                // so CANNOT have any synched objects accessed after this (like Close, etc.)
-                                await GetConversionRate(Close.ItemId);
+                                if (Stop != null && Stop.Type == TradeType.FLIP_ORDER)
+                                {
+
+                                    #region Flip trade
+
+                                    var flipOrder = Stop;// AllTrades.FirstOrDefault(t => t.Type == TradeType.FLIP_ORDER && t.TradeReference == Stop.TradeReference);
+                                    if (flipOrder != null)
+                                    {
+                                        //get the current price and the stop price
+                                        var position = flipOrder.Position == TradePosition.LONG ? TradePosition.SHORT : TradePosition.LONG;
+
+                                        var nextStop = AllTrades.FirstOrDefault(t => t.Type == TradeType.STOP_WAITING && t.TradeReference == Stop.TradeReference);
+                                        double stopPercent = GetValueForTimeframe(STOP_MIN_VALUE);
+                                        double stopPrice1 = 0;
+
+                                        //Calculate stop value
+                                        //next stop can be a floor or stop, so get the correct value and set leverage from that
+                                        if (nextStop != null)
+                                        {
+                                            switch (nextStop.Action)
+                                            {
+                                                case TradeAction.STOP:
+                                                case TradeAction.WAITING_STOP:
+                                                    var stopLine = AllLinesForSymbol.FirstOrDefault(x => x.TradeId == nextStop.Id);
+                                                    if (stopLine != null)
+                                                    {
+                                                        (stopPrice1, _) = stopLine.GetPriceAtTime(DateTime.UtcNow, true);
+                                                        stopPercent = MainObj.GetPriceDiffPercent(currentDataItem, stopPrice1, position) * 100;
+                                                    }
+                                                    else
+                                                    {
+                                                        //in case the waiting stop does not have a line
+                                                        stopPercent = MainObj.GetPriceDiffPercent(currentDataItem, nextStop.Price, position) * 100;
+                                                    }
+                                                    break;
+                                            }
+                                        }
+                                        else
+                                        {
+                                            //although precision is set when OCO is sent to exchange, it helps to keep the number of decimal places down anyway.
+                                            stopPrice1 = GetCorrectPrecisionForPrice(MainObj.GetStopPriceFromPercent(Entry.Price, stopPercent, Entry.Position));
+                                        }
+
+
+                                        //get new trade reference for this order
+                                        var newReference = _Trade.GetNewTradeId();
+
+                                        var line = AllLinesForSymbol.FirstOrDefault(x => x.TradeId == flipOrder.Id);
+
+                                        //update the line trade reference (tradeId will still be valid)
+                                        if (line != null)
+                                        {
+                                            line.TradeReference = newReference;
+                                            SetUpdateRequest(line);
+                                        }
+
+                                        //create a new order from the stop, so the Id is still valid for the line
+                                        Order = flipOrder;
+
+                                        Order.Timestamp = DateTime.UtcNow;
+                                        Order.TradeReference = newReference;
+                                        Order.Type = TradeType.MARKET_ORDER;
+                                        Order.Position = position;
+                                        Order.Action = TradeAction.ORDER;
+                                        Order.GlobalStatus = TradeGlobalStatus.ACTIVE;
+                                        Order.ItemStatus = TradeItemStatus.OPEN;
+                                        SetUpdateRequest(Order);
+
+                                        Stop = nextStop;
+
+                                        Entry = null;
+                                        Close = null;
+                                        TakeProfit = null;
+
+                                        LogTrades.WriteLineOrder($"Flipping order if possible...");
+
+                                        StartEntry_Synchronised();
+
+                                        //Entry will now be created, Stop added with OCO TakeProfit, exchange rate determined.
+
+                                        #endregion
+
+                                    }
+                                }
 
                                 break;
 
@@ -1044,11 +1118,16 @@ namespace AlgoTrader.Shared
 
                         tradeStatusChanged = true;
 
-                        LogTrades.WriteLine("Getting exchange conversion rate...");
-                        var gbp = await GetConversionRate(entryItemId);
-                        LogTrades.WriteLine($"Conversion rate received of {gbp:F2}, Trade close complete!");
                         ShowAccountBalances(); //will log balance
-                    }
+                        
+                       
+                        //this will cause synchronisation to exit BEFORE this awaitable method completes,
+                        // so CANNOT have any synched objects accessed after this (like Close, etc.)
+                        LogTrades.WriteLine("Getting exchange conversion rate...");
+                        await GetConversionRate(entryItemId);
+                        await GetConversionRate(closeItemId);
+                        LogTrades.WriteLine($"Conversion rate(s) received, Trade close complete!");
+                   }
                     else
                     {
                         LogTrades.WriteLine($"Quote asset balance was zero so could not close trade for {symbolName}"); //this can happen multiple times if unsyncronised with server
@@ -1058,6 +1137,7 @@ namespace AlgoTrader.Shared
                 MainObj.DrawCurrentDispatcher();
             }
         }
+
 
         protected override void EnterTradeOnSystem_synchronised(double price, double quantity, TradeExchangeStatus orderType)
         {
@@ -1477,7 +1557,6 @@ namespace AlgoTrader.Shared
                 
             });
         }
-
         #endregion
 
         #region Conversion rate

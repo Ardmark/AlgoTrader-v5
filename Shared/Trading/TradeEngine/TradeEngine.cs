@@ -47,21 +47,25 @@ namespace AlgoTrader.Shared
         public static bool USE_TESTNET { get; set; } = true;
         public static double FEE { get; set; }
         public static bool USE_FIXED_LEVERAGE { get; set; } = true;
-        public static double DEFAULT_LEVERAGE { get; set; } = 5;
-        public static double MIN_LEVERAGE_SHORT { get; set; } = 1;
-        public static double MIN_LEVERAGE_LONG { get; set; } = 1.333;
+        public static double MIN_ALLOWED_LEVERAGE_SHORT { get; set; } = 1;
+        public static double MIN_ALLOWED_LEVERAGE_LONG { get; set; } = 1.333;
+        public static double MAX_ALLOWED_LEVERAGE { get; set; } = 10;
 
         //stops
-        public static double STOPLINE_MIN_VALUE { get; set; } = 0.5; //Do not set to zero. As above, but for moving stop lines. Closer for easier debugging, etc.
+        public static double STOPLINE_MIN_VALUE { get; set; } = 0.2; //Do not set to zero. Lines set closer than this to order will trigger warning
         public static Dictionary<double, double> STOP_MIN_VALUE { get; set; }
-        public double GetDefaultStop()
+        public static Dictionary<double, double> STOP_MAX_VALUE { get; set; }
+        public static double DEFAULT_LEVERAGE { get; set; }
+        public static Dictionary<double, double> MIN_LEVERAGE { get; set; }
+        public static Dictionary<double, double> MAX_LEVERAGE { get; set; }
+        public double GetValueForTimeframe(Dictionary<double,double> values)
         {
-            if (STOP_MIN_VALUE.TryGetValue(TimeFrame, out double stop))
+            if (values.TryGetValue(TimeFrame, out double value))
             {
-                return stop;
+                return value;
             }
-            LogTrades.WriteLine("Could not get default stop for Timeframe, using 0.5%");
-            return 0.5; //just to be safe
+            LogTrades.WriteLine("Could not get default value for Timeframe, using 0.5%");
+            return 1; //just to be safe
         }
         public static int NUM_BARS_FOR_FLOOR { get; set; } = 0; // when this many bars clear (higher lows) will set floor
         public static double MOVE_STOPS_AMT { get; set; } = 0.1;
@@ -87,7 +91,7 @@ namespace AlgoTrader.Shared
         public static double RESTRICTED_TRADE_VALUE { get; set; } = 0;
         public static double MAX_ENTRY_DIFF_PERCENT { get; set; } = 0; //in Order.cs so must be shared: maximum allowable difference for an order or flip to happen; more than this, the trade won't enter
         public static double ENTRY_LINE_PRICE_GAP_PC { get; set; } = 0; //this percent will be used to offset line for trade entry
-        public static double STOP_LINE_PRICE_GAP_PC { get; set; } = 0; //this percent will be used to offset line for trade exit
+        public static double STOP_LINE_PRICE_GAP_PC { get; set; } = 0; //this percent will be used to offset line for trade
 
         public static bool AUTO_EXTEND_LINES { get; set; } = true;
 
@@ -108,7 +112,6 @@ namespace AlgoTrader.Shared
         public string currentTradeSetReference = null;
         public bool hasSpiked; //easier than saving as a persistant property
         protected bool connectionInitialised = false;
-        protected DateTime entryTimeStamp = DateTime.UtcNow;
         bool hasFailedToClose = false;
 
         //Order object fields
@@ -398,10 +401,7 @@ namespace AlgoTrader.Shared
                 //Debug.WriteLine($"InitForDataContext starting {Thread.CurrentThread.ManagedThreadId}");
                 try
                 {
-                    if (callback != null)
-                    {
-                        callback();
-                    }
+                    callback?.Invoke();
                 }
                 finally
                 {
@@ -433,9 +433,7 @@ namespace AlgoTrader.Shared
                     //have had some inexplainable behaviour, where ActiveLines is still a list at start of method, but of zero length,
                     //this is with BTCUSDT in a QTB trade, possibly because the properties were referenced in a different process?
                     //seems that you need to null out the underlying fields??
-                    _activeLines = _allLinesForSymbol = null;
-                    _activeTrades = _allTrades = _waitingOrders = null;
-                    _entry = _entryOrStub = _stop = _ceiling = _floor = _takeProfit = _close = _order = _orderOrStub = _breakEven = null;
+                    ResetForDataContext();
                     dbUpdateRequired = false;
                     DataContext.Dispose();
                     DataContext = null; //must not hold reference to using parameter
@@ -444,6 +442,13 @@ namespace AlgoTrader.Shared
 
 
             // Debug.WriteLine($"InitForDataContext ending {Thread.CurrentThread.ManagedThreadId}");
+        }
+
+        public void ResetForDataContext()
+        {
+            _activeLines = _allLinesForSymbol = null;
+            _activeTrades = _allTrades = _waitingOrders = null;
+            _entry = _entryOrStub = _stop = _ceiling = _floor = _takeProfit = _close = _order = _orderOrStub = _breakEven = null;
         }
 
         //set the update request status. This is only called from within a valid DataContext loop (InitForDataContext)
@@ -1094,7 +1099,7 @@ namespace AlgoTrader.Shared
                     case OrderFrequency.OK_TO_ENTER_LIVE:
                         LogTrades.WriteSpacer();
 
-                        var price = currentDataItem.Close;
+                        var price = trade.Price; //trade may be an active order or a market order entry  currentDataItem.Close;
                         //issue with price of 0, this should not happen here, or matter if trade is live, but this is just to check
                         if (price == 0)
                         {
@@ -1111,22 +1116,7 @@ namespace AlgoTrader.Shared
                         }
                         Order = trade;
 
-                        Order.ItemStatus = TradeItemStatus.CLOSED;
-                        SetUpdateRequest(trade);
 
-                        Entry = Order.Clone(); //item status will be open
-                        Entry.ItemId = _Trade.GetNewTradeId(); //set the client-assigned Id (could wait for the binance-assigned one instead) but this way, can query status even if no confirmation yet received
-                        Entry.Action = TradeAction.ENTRY;
-                        Entry.Price = (double)price;
-                        Entry.TradeExchangeStatus = TradeExchangeStatus.ENTERED_OFF_EXCHANGE; //only set live when it actually returns from exchange
-                        Entry.Timestamp = entryTimeStamp = GetTimeStamp();
-                        Entry.Id = 0; //so it will get added
-
-                        entryTimeStamp = DateTime.UtcNow;
-
-                        SetUpdateRequest(Entry);
-
-                        ResetLiveUpdateTimer();
 
                         StartEntry_Synchronised();
 
@@ -1235,8 +1225,6 @@ namespace AlgoTrader.Shared
                 var s = USE_SIMULATED_EXCHANGE ? "SIMULATED EXCHANGE" : "LIVE EXCHANGE";
                 LogTrades.WriteSpacer();
                 LogTrades.WriteLine($"Closing {Entry.SymbolName} {Entry.TradeReference} at {DateTime.UtcNow}");
-
-                entryTimeStamp = DateTime.UtcNow;
 
                 SetUpdateRequest(Order);
                 SetUpdateRequest(Entry);
@@ -1414,7 +1402,7 @@ namespace AlgoTrader.Shared
                 }
 
                 //ensure floor is not too close to entry price
-                var high = GetHigh(Entry);
+                var high = GetHigh(entry);
                 var v = MainObj.GetPriceDiff(high, stopPrice, _floorStop.Position) * 100; //the position may be different from Entry position, if this is a flip stop waiting
                 if (v < minVal)
                 {
@@ -1422,7 +1410,7 @@ namespace AlgoTrader.Shared
 
                     var prevPrice = stopPrice;
 
-                    _floorStop.Price = MainObj.GetStopPriceFromPercent(Entry.Price, minVal, _floorStop.Position);
+                    _floorStop.Price = MainObj.GetStopPriceFromPercent(entry.Price, minVal, _floorStop.Position);
 
                     _floorStop.Timestamp = GetTimeStamp();
                     SetUpdateRequest(_floorStop);
@@ -1430,9 +1418,6 @@ namespace AlgoTrader.Shared
                     if (line != null)
                     {
                         var priceDiff = _floorStop.Price - prevPrice;
-
-                        //var startPriceDiff = _floorStop.Price - line.StartPrice;
-                        //var endPriceDiff = _floorStop.Price -line.EndPrice;
 
                         line.StartPrice += priceDiff;
                         line.EndPrice += priceDiff;
@@ -1485,37 +1470,28 @@ namespace AlgoTrader.Shared
         // but it clamps it to the existing leverage value so you don't go above that, only below
         // the existing leverage value therefore can be set before the order enters, then it will
         // scale down from that if the stop is too far away
-        public static double CalculateLeverageFromStop(double stopPC, TradePosition position)
+        public double CalculateLeverageFromStop(double stopPC, TradePosition position)
         {
-            //var minLeverage = position == TradePosition.LONG ? MIN_LEVERAGE_LONG : MIN_LEVERAGE_SHORT;
+            var minStop = GetValueForTimeframe(STOP_MIN_VALUE);
+            var maxStop = GetValueForTimeframe(STOP_MAX_VALUE);
+            var minLev = GetValueForTimeframe(MIN_LEVERAGE);
+            var maxLev = GetValueForTimeframe(MAX_LEVERAGE);
             stopPC = Math.Abs(stopPC); //to be safe
-            if (stopPC == 0)
+            stopPC += STOP_LINE_PRICE_GAP_PC; //if a gap is set, add this in
+
+            var stopDiff = maxStop - minStop;
+            var levDiff = maxLev - minLev; 
+
+            //could do this all on one line but this is easier to follow
+            if (levDiff == 0)
             {
-                LogTrades.WriteLine($"No stop to calculate leverage from, using default leverage of {DEFAULT_LEVERAGE}");
-                return DEFAULT_LEVERAGE;
+                return maxLev; //no range, so just return the max (or min) value
             }
+            var stopScale = stopDiff / levDiff; //how much the stop changes per unit of leverage change
+            var levReduction = (stopPC - minStop) / stopScale; //how much the leverage should be reduced from the max. value
+            var leverage = maxLev - levReduction; //the leverage to use for this stop value
 
-            stopPC += STOP_LINE_PRICE_GAP_PC; //because this will be added in when it stops out, if it is a stop line (just use it anyway)
-
-            //var leverage = MAX_STOP_LOSS / stopPC; //this is the default leverage here
-
-            //if leverage is outside of min and max range, clamp it
-            //leverage = Math.Max(Math.Min(leverage, MAX_LEVERAGE), minLeverage);
-
-
-            //clamp max loss to a limit by limiting leverage, but keep leverage to the minimum value
-            //don't want every loss (initially set) to be the same large default, it is very bothersome
-            //but also don't want a trade to accidentally set a huge initial loss of, say, 3 * 8 = 24% + spread + fees
-            //e.g. DEFAULT_LEVERAGE = 3, MAX_STOP_LOSS = 9
-            //stop = 1, leverageScale = 1 * 3 / 9 = 0.333, leverage = 3 / 0.333 = 9
-            //stop = 2, leverageScale = 2 * 3 / 9 = 0.667, leverage = 3 / 0.667 = 4.5
-            //stop = 3, leverageScale = 3 * 3 / 9 = 1, leverage = 3 / 1 = 3
-            //stop = 6, leverageScale = 6 * 3 / 9 = 2, leverage = 3 / 2 = 1.5
-            //stop = 9, leverageScale = 9 * 3 / 9 = 3, leverage = 3 / 3 = 1
-            var leverageScale = stopPC * Leverage / MAX_STOP_LOSS;
-            var leverage = Math.Min(Leverage / leverageScale, Leverage);
-
-
+            return Math.Clamp(leverage, position == TradePosition.LONG ? MIN_ALLOWED_LEVERAGE_LONG : MIN_ALLOWED_LEVERAGE_SHORT, MAX_ALLOWED_LEVERAGE); 
 
             //This algorithm attempts to set the leverage so the maximum allowed loss is always the same.
             //For small initial stops, the leverage may be outside of the max. allowed leverage, so that will clamp the leverage and reduce the
@@ -1527,8 +1503,26 @@ namespace AlgoTrader.Shared
             //With short positions, 1X is fine as the sell will purchase the underlying asset at a higher level of equity than it was sold for
             //e.g. Long - market rises by 10%, XBT sold for $100, XBT bought for $110, but BTC value has gone up by 10% anyway
             //Short - market falls by 10%, XBT sold for $100, XBT bought for $110, so more XBT purchased than was originally sold
+            //var leverage = MAX_STOP_LOSS / stopPC; //this is the default leverage here
 
-            return leverage;
+            //if leverage is outside of min and max range, clamp it
+            //leverage = Math.Max(Math.Min(leverage, MAX_LEVERAGE), minLeverage);
+
+            //clamp max loss to a limit by limiting leverage, but keep leverage to the minimum value
+            //don't want every loss (initially set) to be the same large default, it is very bothersome
+            //but also don't want a trade to accidentally set a huge initial loss of, say, 3 * 8 = 24% + spread + fees
+            //e.g. DEFAULT_LEVERAGE = 3, MAX_STOP_LOSS = 9
+            //stop = 1, leverageScale = 1 * 3 / 9 = 0.333, leverage = 3 / 0.333 = 9
+            //stop = 2, leverageScale = 2 * 3 / 9 = 0.667, leverage = 3 / 0.667 = 4.5
+            //stop = 3, leverageScale = 3 * 3 / 9 = 1, leverage = 3 / 1 = 3
+            //stop = 6, leverageScale = 6 * 3 / 9 = 2, leverage = 3 / 2 = 1.5
+            //stop = 9, leverageScale = 9 * 3 / 9 = 3, leverage = 3 / 3 = 1            
+            
+            //var minLeverage = position == TradePosition.LONG ? MIN_LEVERAGE_LONG : MIN_LEVERAGE_SHORT;
+
+            //var leverageScale = stopPC * Leverage / MAX_STOP_LOSS;
+            //var leverage = Math.Min(Leverage / leverageScale, Leverage);
+
 
             #region Auto-calculate leverage (unused)
             /*

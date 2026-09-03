@@ -161,7 +161,4 @@
     <None Include="$(MSBuildThisFileDirectory)KEY MAPPINGS" />
     <None Include="$(MSBuildThisFileDirectory)Windows defender blocks live release.txt" />
   </ItemGroup>
-  <ItemGroup>
-    <Folder Include="$(MSBuildThisFileDirectory)Trading\TradeEngine\" />
-  </ItemGroup>
 </Project>

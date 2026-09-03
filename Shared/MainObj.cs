@@ -927,12 +927,12 @@ namespace AlgoTrader.Shared
                 mainViewModel.SetTimeframeMenuState(TimeFrame);
                 mainViewModel.SetInitialTime(timeFrame);
 
+                TradeEngine tradeEngine = GetTradeEngineForSymbol(visibleChart.symbolName);
                 mainViewModel.SetLeverage((int)TradeEngine.DEFAULT_LEVERAGE);
 
                 ToggleDarkMode();
                 
                 MainObj.ScrollToEnd();
-                TradeEngine tradeEngine = GetTradeEngineForSymbol(visibleChart.symbolName);
                 TradeStatusChanged(tradeEngine);
                 ActiveTradeSummary.Init();
             });
