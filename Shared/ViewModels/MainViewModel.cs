@@ -565,10 +565,11 @@ namespace AlgoTrader.Live.ViewModels
                 },
                 #endregion
 
+                //this can be removed
                 #region Add flip stop to line
                 () =>
                 {
-                    tradeEngine.AddStopToLine_UI(GetChartLineId(), TradeType.FLIP_ORDER);
+                    //tradeEngine.AddStopToLine_UI(GetChartLineId(), TradeType.FLIP_ORDER);
                     RemovePopupWindow();
                 },
                 #endregion
@@ -576,7 +577,7 @@ namespace AlgoTrader.Live.ViewModels
                 #region Add dead stop to line
                 () =>
                 {
-                    tradeEngine.AddStopToLine_UI(GetChartLineId(), TradeType.NO_FLIP_ORDER);
+                    tradeEngine.AddStopToLine_UI(GetChartLineId());//, TradeType.NO_FLIP_ORDER);
                     RemovePopupWindow();
                 },
                 #endregion
@@ -584,7 +585,7 @@ namespace AlgoTrader.Live.ViewModels
                 #region Add waiting dead stop to line
                 () =>
                 {
-                    tradeEngine.AddStopToLine_UI(GetChartLineId(), TradeType.STOP_WAITING);
+                tradeEngine.AddStopToLine_UI(GetChartLineId());//, TradeType.STOP_WAITING);
                     RemovePopupWindow();
                 },
                 #endregion
@@ -592,7 +593,7 @@ namespace AlgoTrader.Live.ViewModels
                 #region Add take profit to line
                 () =>
                 {
-                    tradeEngine.AddTakeProfitToLine_UI(GetChartLineId(), TradeType.NO_FLIP_ORDER);
+                    tradeEngine.AddTakeProfitToLine_UI(GetChartLineId()); //, TradeType.NO_FLIP_ORDER);
                     RemovePopupWindow();
                 },
                 #endregion
@@ -725,7 +726,7 @@ namespace AlgoTrader.Live.ViewModels
                             return;
                         }
 
-                        using (DataContext db = new DataContext())
+                        using (DataContext db = new())
                         {
                             var _id = GetTradeId();
                             var trade = db.Trades.FirstOrDefault(x =>

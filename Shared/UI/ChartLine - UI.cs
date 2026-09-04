@@ -163,26 +163,27 @@ namespace AlgoTrader.Shared
                                 bool isClose = true;
                                 bool isWrongSide = true;
 
-                                if (tradeEngine.currentDataItem != null)
-                                {
-                                    if (Trade.Type != TradeType.STOP_WAITING)
-                                    {
+                                // will allow changes before system fully connects
+                                //if (tradeEngine.currentDataItem != null)
+                                //{
+                                //    if (Trade.Type != TradeType.STOP_WAITING)
+                                //    {
                                         (isClose, isWrongSide) = tradeEngine.CanSetTrade(orderLine, this, Trade.Price, Trade.Action, entry, order.Position);
-                                    }
-                                    else
-                                    {
-                                        var flipOrder = tradeEngine.ActiveTrades.FirstOrDefault(x => x.Action == TradeAction.STOP && x.Type == TradeType.FLIP_ORDER);
-                                        if (flipOrder != null)
-                                        {
-                                            //var flipOrderLine = lines.FirstOrDefault(x => x.TradeId == chartLine.Trade.Id);
-                                            var flipLine = lines.FirstOrDefault(x => x.TradeId == flipOrder.Id);
-                                            var position = flipOrder.Position == TradePosition.SHORT ? TradePosition.LONG : TradePosition.SHORT;
-                                            if (flipLine != null)
-                                            {
-                                                (isClose, isWrongSide) = tradeEngine.CanSetTrade(flipLine, this, flipOrder.Price, chartLine.Trade.Action, entry, position);
-                                            }
-                                        }
-                                    }
+                                    //}
+                                    //else
+                                    //{
+                                    //    var flipOrder = tradeEngine.ActiveTrades.FirstOrDefault(x => x.Action == TradeAction.STOP && x.Type == TradeType.FLIP_ORDER);
+                                    //    if (flipOrder != null)
+                                    //    {
+                                    //        //var flipOrderLine = lines.FirstOrDefault(x => x.TradeId == chartLine.Trade.Id);
+                                    //        var flipLine = lines.FirstOrDefault(x => x.TradeId == flipOrder.Id);
+                                    //        var position = flipOrder.Position == TradePosition.SHORT ? TradePosition.LONG : TradePosition.SHORT;
+                                    //        if (flipLine != null)
+                                    //        {
+                                    //            (isClose, isWrongSide) = tradeEngine.CanSetTrade(flipLine, this, flipOrder.Price, chartLine.Trade.Action, entry, position);
+                                    //        }
+                                    //    }
+                                    //}
 
                                     if (isClose)
                                     {
@@ -235,7 +236,7 @@ namespace AlgoTrader.Shared
                                         MainObj.DrawCurrentDispatcher(true);
                                         return;
                                     }
-                                }
+                                //}
 
                                 void SetPrice()
                                 {

@@ -21,7 +21,7 @@ namespace AlgoTrader.Shared
 
         #region Abstract methods
         protected abstract void StartEntry_Synchronised();
-        protected abstract void StartClose_Synchronised();
+        protected abstract void StartClose_Synchronised(_Trade triggeringTrade);
         internal abstract void ShowAccountBalances();
         protected abstract void UpdateLiveState();
         #endregion

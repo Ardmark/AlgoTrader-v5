@@ -14,7 +14,7 @@ namespace AlgoTrader.Shared
     {
         public override async void Test()
         {
-            CalculateLeverageFromStop(GetValueForTimeframe(STOP_MIN_VALUE), TradePosition.LONG);
+            CalculateLeverageFromPercent(GetValueForTimeframe(STOP_MIN_VALUE), TradePosition.LONG);
             return;
             bool openOrdersCancelled = false;
             try
@@ -690,7 +690,7 @@ namespace AlgoTrader.Shared
             //determine if this is within an acceptable range
             if (diff > (USE_TESTNET ? 1000 : MAX_ENTRY_DIFF_PERCENT))
             {
-                LogTrades.WriteLineOrder("Did not enter trade as price difference between Order and current price was too great");
+                LogTrades.WriteLine("Did not enter trade as price difference between Order and current price was too great");
                 return;
             }
 
@@ -700,28 +700,7 @@ namespace AlgoTrader.Shared
             bool openOrdersCancelled = false;
             try
             {
-                var openOrders = GetOpenOrders();
-                if (openOrders.Count == 0)
-                {
-                    openOrdersCancelled = true;
-                }
-                else
-                {
-                    //if there are no orders to cancel then this will throw an exception with 'unknown order sent' hence need to check for open orders first
-                    //generally when null is returned the operation has failed so assume null is a fail to cancel the orders for some reason without exception or error
-                    var v = DeserializeToList(binanceAPI.CancelOpenOrdersAsync(symbolName).Result.AsArray());
-                    if (v != null)
-                    {
-                        if (v.Count != 0)
-                        {
-                            //if any order does not have cancelled status, then assume stops not removed
-                            if (!v.Any(x => x.Status != null && x.Status != "CANCELED"))
-                            {
-                                openOrdersCancelled = true;
-                            }
-                        }
-                    }
-                }
+                openOrdersCancelled = CancelOpenOrders();
             }
             catch (Exception ex)
             {
@@ -795,9 +774,10 @@ namespace AlgoTrader.Shared
                 //THIS IS RETURNING AN OPPOSITE ORDER IN TESTING AFTER FLIP
                 //ALSO WHEN YOU CLOSE THE FLIPPED ORDER, IT JUST FLIPS AGAIN
 
-                 var _oppOrder = GetOppositeOrder(Order.Position);
+                 var _oppOrder = GetOppositeOrder(Order);
                 if (_oppOrder != null)
                 {
+                    stopPercent = _oppOrder.Price;
                     var orderLine = AllLinesForSymbol.FirstOrDefault(x => x.TradeId == _oppOrder.Id);
                     if (orderLine != null)
                     {
@@ -813,7 +793,7 @@ namespace AlgoTrader.Shared
 
             //if a stop line is present, the leverage will be calculated from that, base on the range of stop values and leverages
             // for the timeframe. If no stop line is present, the leverage will be whatever is currently set in the UI
-            Leverage = Stop != null ? CalculateLeverageFromStop(stopPercent, Entry.Position) : Leverage;
+            Leverage = Stop != null ? CalculateLeverageFromPercent(stopPercent, Entry.Position) : Leverage;
 
             //save the calculated leverage, even if we are not using it
             Order.Leverage = Entry.Leverage = Leverage;
@@ -861,7 +841,7 @@ namespace AlgoTrader.Shared
                         return;
                     }
                 }
-                LogTrades.WriteLineOrder($"{Entry.Position} order FILLED for {Entry.SymbolName} at {DateTime.UtcNow}");
+                LogTrades.WriteLine($"{Entry.Position} order FILLED for {Entry.SymbolName} at {DateTime.UtcNow}");
 
                 //at this point, trade is entered live
                 EnterTradeOnSystem_synchronised(orderEntry.AveragePrice, orderEntry.ExecutedQty, TradeExchangeStatus.ENTERED_ON_EXCHANGE);
@@ -906,8 +886,37 @@ namespace AlgoTrader.Shared
 
 
         }
-        
-        protected override async void StartClose_Synchronised()
+
+        private bool CancelOpenOrders()
+        {
+            bool ret = false;
+            var openOrders = GetOpenOrders();
+            if (openOrders.Count == 0)
+            {
+                ret = true;
+            }
+            else
+            {
+                //if there are no orders to cancel then this will throw an exception with 'unknown order sent' hence need to check for open orders first
+                //generally when null is returned the operation has failed so assume null is a fail to cancel the orders for some reason without exception or error
+                var v = DeserializeToList(binanceAPI.CancelOpenOrdersAsync(symbolName).Result.AsArray());
+                if (v != null)
+                {
+                    if (v.Count != 0)
+                    {
+                        //if any order does not have cancelled status, then assume stops not removed
+                        if (!v.Any(x => x.Status != null && x.Status != "CANCELED"))
+                        {
+                            ret = true;
+                        }
+                    }
+                }
+            }
+
+            return ret;
+        }
+
+        protected override async void StartClose_Synchronised(_Trade triggeringTrade)
         {
             //while we can get the price from the exchange, any stops will be set from that then next update the candle value will be used.
             //This could result in a stop being updated on the exchange unnecessarily if the values differ
@@ -927,42 +936,35 @@ namespace AlgoTrader.Shared
                     return;
                 }
 
-                LogTrades.WriteLine("Closing order...");
+                LogTrades.WriteLine("Closing order:");
 
                 //if the base asset balance is very small, assume the trade has exited on the exchange, so go no further
 
-                try
-                {
-                    LogTrades.WriteLine("Cancelling OCO...");
-                    //this throws an exception, "unknown order sent"
-                    try
-                    {
-                        var result = binanceAPI.CancelOpenOrdersAsync(symbolName).Result;
-                    }
-                    catch { }
+                LogTrades.WriteLine("Cancelling OCO...");
+                
+                //remove OCO
+                CancelOpenOrders();
 
-                    if (IsTradeClosed()) //i.e there is no BTC
-                    {
-                        LogTrades.WriteLine("No BTC, closing trade locally.");
-                        CloseTradeOnSystem_synchronised(currentDataItem.Close);
-                        return;
-                    }
-                }
-                catch (Exception ex)
-                {
-                    LogTrades.WriteLine("Could not get asset balance, will attempt to close trade anyway...");
-                }
+                bool canFlip = false;
 
                 /*********************/
                 //generate close order
                 /*********************/
 
                 LogTrades.WriteLine($"Closing order for {symbolName}...");
-                var _baseAsset = SymbolNames.GetBaseAssetForSymbol(symbolName);
-                if (_baseAsset != null)
-                {
-                    var coinBalance = GetFreeBalance(_baseAsset);
 
+                var _baseAsset = SymbolNames.GetBaseAssetForSymbol(symbolName);
+
+                var coinBalance = GetFreeBalance(_baseAsset);
+
+                if (coinBalance == 0)
+                {
+                    LogTrades.WriteLine($"No {symbolName} to sell, trade has already closed on exchange.");
+                    CloseTradeOnSystem_synchronised(currentDataItem.Close);
+                    canFlip = true; //will still attempt to flip though
+                }
+                else
+                {
                     LogTrades.WriteLine($"Using received balance of {coinBalance} {_baseAsset}");
 
                     /***************************************/
@@ -982,156 +984,232 @@ namespace AlgoTrader.Shared
                         amountToSell = coinBalance;
                     }
 
-                    if (amountToSell > 0)
+
+                    LogTrades.WriteLine($"Amount to sell is {amountToSell}");
+
+                    Close.Quantity = GetCorrectPrecisionForTrade(amountToSell);
+
+                    LogTrades.WriteLine($"Placing sell order of {Close.Quantity}, adjusted for step size, at {DateTime.Now}...");
+                    SetUpdateRequest(Close);
+
+                    var dataClose = SendOrder(Close.Quantity, Side.SELL, Close.ItemId);
+
+                    if (dataClose == null)
                     {
-                        Close.Quantity = GetCorrectPrecisionForTrade(amountToSell);
+                        LogTrades.WriteLine("Failed to close order on the exchange, exiting");
+                        return;
+                    }
 
-                        LogTrades.WriteLine($"Placing sell order of {Close.Quantity}, adjusted for step size, at {DateTime.Now}...");
-                        SetUpdateRequest(Close);
+                    /*********************/
+                    //Set order on system
+                    /*********************/
+                    //if status is 'NEW' then order is accepted but not yet filled
+                    //status could be 'PARTIALLY_FILLED' (limit orders only??)
 
-                        var dataClose = SendOrder(Close.Quantity, Side.SELL, Close.ItemId);
+                    var entryItemId = Entry.ItemId; //save this since close on system will set Entry = null
+                    var closeItemId = Close.ItemId; //need this later for conversion rate
+                    switch (dataClose.Status)
+                    {
+                        case "FILLED":
+                            //price will be zero on testnet, so use the current price instead
+                            dataClose.Price = dataClose.Price == 0 ? currentDataItem.Close : dataClose.Price;
 
-                        if (dataClose == null)
+                            LogTrades.WriteLine($"Close order filled, closing trade on system at {DateTime.UtcNow}");
+                            CloseTradeOnSystem_synchronised(dataClose.Price);
+
+                            EndEntryOrCloseScript();
+
+                            canFlip = true;
+
+
+                            break;
+
+                        case "CANCELED":
+                        case "REJECTED":
+                        case "EXPIRED":
+                            //can try again
+                            LogTrades.WriteLine($"Trade was {dataClose.Status} in CLOSE_ORDER_SCRIPT for {Close.SymbolName} at {DateTime.UtcNow}");
+                            KillEntryOrCloseOrder(true);
+
+                            break;
+
+                    }
+
+                    if (triggeringTrade != null && canFlip)
+                    {
+                        #region Set flip from opposing trade
+                        //if there is an opposing trade:
+                        // 1) convert any opposing trade stop to waiting stop
+                        // 2) convert opposing trade to flip order
+
+                        _Trade waitingStop = null;
+                        string oldTradeReference;
+                        string newTradeReference;
+                        //var triggeringTrade = GetOppositeOrder(Close.Position);
+
+                        //if (stop != null)
+                        //{
+                        //    //remove any line
+                        //    var stopLine = AllLinesForSymbol.FirstOrDefault(x => x.TradeId == stop.Id);
+                        //    if (stopLine != null)
+                        //    {
+                        //        SetUpdateRequest(stopLine, TradeUpdateRequest.FORCE_DELETE);
+                        //    }
+                        //    SetUpdateRequest(stop, TradeUpdateRequest.FORCE_DELETE);
+                        //}
+
+
+                        // 1) convert any opposing trade stop to waiting stop and remove any opposite take profit, ceiling or break even trades
+                        List<_Trade> oppTrades = [.. AllTrades.Where(x => x.TradeReference == triggeringTrade.TradeReference)];
+
+                        waitingStop = oppTrades.FirstOrDefault(x => x.Action == TradeAction.STOP);
+                        oldTradeReference = Close.TradeReference;
+                        newTradeReference = _Trade.GetNewTradeId();
+                        if (waitingStop != null)
                         {
-                            LogTrades.WriteLine("Failed to close order on the exchange, exiting");
-                            return;
+                            //use this stop
+                            waitingStop.TradeReference = newTradeReference;
+                            //oppStop.Type = TradeType.STOP_WAITING;
+                            //oppStop.Action = TradeAction.WAITING_STOP;
+                            waitingStop.Action = TradeAction.STOP;
+                            SetUpdateRequest(waitingStop);
+
+                            var oppStopLine = AllLinesForSymbol.FirstOrDefault(x => x.TradeId == waitingStop.Id);
+                            if (oppStopLine != null)
+                            {
+                                oppStopLine.TradeReference = newTradeReference;
+                                oppStopLine.Type = LineType.SUPPORT;
+                                SetUpdateRequest(oppStopLine);
+                            }
+                        }
+                        else
+                        {
+                            //add a waiting stop at the original order price
+                            var trade = Close.Clone();
+                            trade.Id = 0; //so it will be added to db
+                            trade.ItemId = null;
+                            trade.ItemStatus = TradeItemStatus.OPEN;
+                            //trade.Action = TradeAction.WAITING_STOP;
+                            trade.Action = TradeAction.STOP;
+                            trade.Timestamp = DateTime.UtcNow;
+                            trade.TimeFrame = TimeFrame;
+                            //trade.Type = TradeType.STOP_WAITING;
+                            trade.Position = GetOppositePosition(trade);
+                            trade.TradeExchangeStatus = TradeExchangeStatus.NO_WARNING;
+                            trade.TradeReference = newTradeReference;
+                            SetUpdateRequest(trade);
+                            waitingStop = trade;
                         }
 
-                        /*********************/
-                        //Set order on system
-                        /*********************/
-                        //if status is 'NEW' then order is accepted but not yet filled
-                        //status could be 'PARTIALLY_FILLED' (limit orders only??)
-
-                        var entryItemId = Entry.ItemId; //save this since close on system will set Entry = null
-                        var closeItemId = Close.ItemId; //need this later for conversion rate
-                        switch (dataClose.Status)
+                        // 2) convert opposing trade to flip order (which is just a stop)
+                        var line = AllLinesForSymbol.FirstOrDefault(x => x.TradeId == triggeringTrade.Id);
+                        if (line != null)
                         {
-                            case "FILLED":
-                                //price will be zero on testnet, so use the current price instead
-                                dataClose.Price = dataClose.Price == 0 ? currentDataItem.Close : dataClose.Price;
+                            line.TradeReference = newTradeReference;
+                            line.Type = LineType.SUPPORT;
+                            SetUpdateRequest(line);
+                        }
 
-                                LogTrades.WriteLineOrder($"Close order filled, closing trade on system at {DateTime.UtcNow}");
-                                CloseTradeOnSystem_synchronised(dataClose.Price);
+                        triggeringTrade.TradeReference = newTradeReference;
+                        triggeringTrade.Action = TradeAction.STOP;
+                        //firstOppositeOrder.Type = TradeType.FLIP_ORDER;
+                        triggeringTrade.Position = Close.Position; //because a flip is the same side as the order it is flipping.
+                        SetUpdateRequest(triggeringTrade);
 
-                                EndEntryOrCloseScript();
-//testing
- Stop = AllTrades.FirstOrDefault(t => t.Action == TradeAction.STOP);
- Stop.Type = TradeType.FLIP_ORDER;
 
-                                if (Stop != null && Stop.Type == TradeType.FLIP_ORDER)
-                                {
+                        //if (firstOppositeOrder == null && Stop != null && Stop.Type == TradeType.FLIP_ORDER)
+                        //{
+                        //    firstOppositeOrder = Stop;
+                        //}
+                        //so now the order set consists of a flip stop and a waiting stop, if set
+                        // - no order, that was converted to a flip stop
+                        // - but if no opposite order anyway, any stop which has FLIP_ORDER type will be set as the firstOppositeOrder
+                        //   this is for future TODO as it should be possible to add a flip stop to a market order, but that is not yet implemented
 
-                                    #region Flip trade
 
-                                    var flipOrder = Stop;// AllTrades.FirstOrDefault(t => t.Type == TradeType.FLIP_ORDER && t.TradeReference == Stop.TradeReference);
-                                    if (flipOrder != null)
-                                    {
-                                        //get the current price and the stop price
-                                        var position = flipOrder.Position == TradePosition.LONG ? TradePosition.SHORT : TradePosition.LONG;
+                        var tradeReference = triggeringTrade.TradeReference;
+                        var waitingStopId = waitingStop.Id;
+                        SaveChangesForDataContext();
+                        ResetForDataContext();
 
-                                        var nextStop = AllTrades.FirstOrDefault(t => t.Type == TradeType.STOP_WAITING && t.TradeReference == Stop.TradeReference);
-                                        double stopPercent = GetValueForTimeframe(STOP_MIN_VALUE);
-                                        double stopPrice1 = 0;
+                        //Stop will not be valid as that comes from ActiveTrades which is populated from the Order trade reference
+                        //firstOppositeOrder and waiting stop will no longer be EF tracked, so get new references
+                        Stop = AllTrades.FirstOrDefault(t => t.Id == waitingStopId);
+                        Order = AllTrades.FirstOrDefault(t => t.Id == triggeringTrade.Id);
 
-                                        //Calculate stop value
-                                        //next stop can be a floor or stop, so get the correct value and set leverage from that
-                                        if (nextStop != null)
+                        if (Order != null)
+                        {
+                            //get the current price and the stop price
+                            var position = GetOppositePosition(Order);
+
+                            //var oppStop = AllTrades.FirstOrDefault(t => t.Type == TradeType.STOP_WAITING && t.TradeReference == tradeReference);
+                            double stopPercent = GetValueForTimeframe(STOP_MIN_VALUE);
+                            double stopPrice1 = 0;
+
+                            //Calculate stop value
+                            //next stop can be a floor or stop, so get the correct value and set leverage from that
+                            if (Stop != null)
+                            {
+                                //switch (Stop.Action)
+                                //{
+                                //    case TradeAction.STOP:
+                                        //case TradeAction.WAITING_STOP:
+                                        var stopLine = AllLinesForSymbol.FirstOrDefault(x => x.TradeId == waitingStop.Id);
+                                        if (stopLine != null)
                                         {
-                                            switch (nextStop.Action)
-                                            {
-                                                case TradeAction.STOP:
-                                                case TradeAction.WAITING_STOP:
-                                                    var stopLine = AllLinesForSymbol.FirstOrDefault(x => x.TradeId == nextStop.Id);
-                                                    if (stopLine != null)
-                                                    {
-                                                        (stopPrice1, _) = stopLine.GetPriceAtTime(DateTime.UtcNow, true);
-                                                        stopPercent = MainObj.GetPriceDiffPercent(currentDataItem, stopPrice1, position) * 100;
-                                                    }
-                                                    else
-                                                    {
-                                                        //in case the waiting stop does not have a line
-                                                        stopPercent = MainObj.GetPriceDiffPercent(currentDataItem, nextStop.Price, position) * 100;
-                                                    }
-                                                    break;
-                                            }
+                                            (stopPrice1, _) = stopLine.GetPriceAtTime(DateTime.UtcNow, true);
+                                            stopPercent = MainObj.GetPriceDiffPercent(currentDataItem, stopPrice1, position) * 100;
                                         }
                                         else
                                         {
-                                            //although precision is set when OCO is sent to exchange, it helps to keep the number of decimal places down anyway.
-                                            stopPrice1 = GetCorrectPrecisionForPrice(MainObj.GetStopPriceFromPercent(Entry.Price, stopPercent, Entry.Position));
+                                            //in case the waiting stop does not have a line
+                                            stopPercent = MainObj.GetPriceDiffPercent(currentDataItem, waitingStop.Price, position) * 100;
                                         }
+                                 //       break;
+                                //}
+                            }
+                            else
+                            {
+                                //although precision is set when OCO is sent to exchange, it helps to keep the number of decimal places down anyway.
+                                stopPrice1 = GetCorrectPrecisionForPrice(MainObj.GetStopPriceFromPercent(Close.Price, stopPercent, Close.Position));
+                            }
 
+                            line = AllLinesForSymbol.FirstOrDefault(x => x.TradeId == Order.Id);
 
-                                        //get new trade reference for this order
-                                        var newReference = _Trade.GetNewTradeId();
+                            //update the line trade reference (tradeId will still be valid)
+                            if (line != null)
+                            {
+                                line.TradeReference = tradeReference;
+                                SetUpdateRequest(line);
+                            }
 
-                                        var line = AllLinesForSymbol.FirstOrDefault(x => x.TradeId == flipOrder.Id);
+                            //create a new order from the stop, so the Id is still valid for the line
+                            Order.Timestamp = DateTime.UtcNow;
+                            Order.TradeReference = tradeReference;
+                            Order.Type = TradeType.MARKET_ORDER;
+                            Order.Position = position;
+                            Order.Action = TradeAction.ORDER;
+                            Order.GlobalStatus = TradeGlobalStatus.ACTIVE;
+                            Order.ItemStatus = TradeItemStatus.OPEN;
+                            SetUpdateRequest(Order);
 
-                                        //update the line trade reference (tradeId will still be valid)
-                                        if (line != null)
-                                        {
-                                            line.TradeReference = newReference;
-                                            SetUpdateRequest(line);
-                                        }
+                            LogTrades.WriteLine($"Flipping order if possible...");
 
-                                        //create a new order from the stop, so the Id is still valid for the line
-                                        Order = flipOrder;
+                            StartEntry_Synchronised();
 
-                                        Order.Timestamp = DateTime.UtcNow;
-                                        Order.TradeReference = newReference;
-                                        Order.Type = TradeType.MARKET_ORDER;
-                                        Order.Position = position;
-                                        Order.Action = TradeAction.ORDER;
-                                        Order.GlobalStatus = TradeGlobalStatus.ACTIVE;
-                                        Order.ItemStatus = TradeItemStatus.OPEN;
-                                        SetUpdateRequest(Order);
-
-                                        Stop = nextStop;
-
-                                        Entry = null;
-                                        Close = null;
-                                        TakeProfit = null;
-
-                                        LogTrades.WriteLineOrder($"Flipping order if possible...");
-
-                                        StartEntry_Synchronised();
-
-                                        //Entry will now be created, Stop added with OCO TakeProfit, exchange rate determined.
-
-                                        #endregion
-
-                                    }
-                                }
-
-                                break;
-
-                            case "CANCELED":
-                            case "REJECTED":
-                            case "EXPIRED":
-                                //can try again
-                                LogTrades.WriteLineOrder($"Trade was {dataClose.Status} in CLOSE_ORDER_SCRIPT for {Close.SymbolName} at {DateTime.UtcNow}");
-                                KillEntryOrCloseOrder(true);
-
-                                break;
+                            //Entry will now be created, Stop added with OCO TakeProfit, exchange rate determined.
                         }
-
-                        tradeStatusChanged = true;
-
-                        ShowAccountBalances(); //will log balance
-                        
-                       
-                        //this will cause synchronisation to exit BEFORE this awaitable method completes,
-                        // so CANNOT have any synched objects accessed after this (like Close, etc.)
-                        LogTrades.WriteLine("Getting exchange conversion rate...");
-                        await GetConversionRate(entryItemId);
-                        await GetConversionRate(closeItemId);
-                        LogTrades.WriteLine($"Conversion rate(s) received, Trade close complete!");
-                   }
-                    else
-                    {
-                        LogTrades.WriteLine($"Quote asset balance was zero so could not close trade for {symbolName}"); //this can happen multiple times if unsyncronised with server
+                        #endregion
                     }
+                    ShowAccountBalances(); //will log balance
+
+                    //this will cause synchronisation to exit BEFORE this awaitable method completes,
+                    // so CANNOT have any synched objects accessed after this (like Close, etc.)
+                    LogTrades.WriteLine("Getting exchange conversion rate...");
+                    await GetConversionRate(entryItemId);
+                    await GetConversionRate(closeItemId);
+                    LogTrades.WriteLine($"Conversion rate(s) received, Trade close complete!");
+                    tradeStatusChanged = true;
                 }
 
                 MainObj.DrawCurrentDispatcher();
@@ -1171,86 +1249,7 @@ namespace AlgoTrader.Shared
                 SetUpdateRequest(Entry);
 
                 Order.ItemStatus = TradeItemStatus.CLOSED; //close the order, this is now an active trade
-                SetUpdateRequest(Order);
-
-                //Set flip from opposing trade
-                //if there is an opposing trade:
-                // 1) convert any opposing trade stop to waiting stop
-                // 2) convert opposing trade to flip order
-
-
-
-                var firstOppositeOrder = GetOppositeOrder(Order.Position);
-                if (firstOppositeOrder != null)
-                {
-                    //if (stop != null)
-                    //{
-                    //    //remove any line
-                    //    var stopLine = AllLinesForSymbol.FirstOrDefault(x => x.TradeId == stop.Id);
-                    //    if (stopLine != null)
-                    //    {
-                    //        SetUpdateRequest(stopLine, TradeUpdateRequest.FORCE_DELETE);
-                    //    }
-                    //    SetUpdateRequest(stop, TradeUpdateRequest.FORCE_DELETE);
-                    //}
-
-
-                    // 1) convert any opposing trade stop to waiting stop and remove any opposite take profit, ceiling or break even trades
-                    List<_Trade> oppTrades = [.. AllTrades.Where(x => x.TradeReference == firstOppositeOrder.TradeReference)];
-
-                    var oppStop = oppTrades.FirstOrDefault(x => x.Action == TradeAction.STOP);
-                    if (oppStop != null)
-                    {
-                        //use this stop
-                        oppStop.TradeReference = Order.TradeReference;
-                        oppStop.Type = TradeType.STOP_WAITING;
-                        oppStop.Action = TradeAction.WAITING_STOP;
-                        SetUpdateRequest(oppStop);
-
-                        var oppStopLine = AllLinesForSymbol.FirstOrDefault(x => x.TradeReference == oppStop.TradeReference);
-                        if (oppStopLine != null)
-                        {
-                            oppStopLine.TradeReference = Order.TradeReference;
-                            oppStopLine.Type = LineType.SUPPORT;
-                            SetUpdateRequest(oppStopLine);
-                        }
-                    }
-
-                    else
-                    {
-                        //add a waiting stop at the original order price
-                        var trade = Order.Clone();
-                        trade.Id = 0; //so it will be added to db
-                        trade.ItemId = null;
-                        trade.ItemStatus = TradeItemStatus.OPEN;
-                        trade.Action = TradeAction.WAITING_STOP;
-                        trade.Timestamp = DateTime.UtcNow;
-                        trade.TimeFrame = TimeFrame;
-
-                        //this may be an existing Moving Average stop, if so just changing the Type will stop the moving average update loop (see Order::ExecuteStop_synchronised())
-                        trade.Type = TradeType.STOP_WAITING;
-                        //flip side if this is a waiting stop
-                        trade.Quantity = Order.Quantity;
-                        trade.Position = Order.Position == TradePosition.LONG ? TradePosition.SHORT : TradePosition.LONG;
-                        trade.TradeExchangeStatus = TradeExchangeStatus.NO_WARNING;
-                        SetUpdateRequest(trade);
-                    }
-
-                    // 2) convert opposing trade to flip order (which is also a stop)
-                    var line = AllLinesForSymbol.FirstOrDefault(x => x.TradeReference == firstOppositeOrder.TradeReference);
-                    if (line != null)
-                    {
-                        line.TradeReference = Order.TradeReference;
-                        line.Type = LineType.SUPPORT;
-                        SetUpdateRequest(line);
-                    }
-
-                    firstOppositeOrder.TradeReference = Order.TradeReference;
-                    firstOppositeOrder.Action = TradeAction.STOP;
-                    firstOppositeOrder.Type = TradeType.FLIP_ORDER;
-                    firstOppositeOrder.Position = Order.Position; //because a flip is the same side as the order it is flipping.
-                    SetUpdateRequest(firstOppositeOrder);
-                }
+                SetUpdateRequest(Order);       
 
             }
             catch (Exception e)
@@ -1308,8 +1307,7 @@ namespace AlgoTrader.Shared
                 USE_SIMULATED_EXCHANGE ||
                 Entry == null ||
                 Entry.TradeExchangeStatus != TradeExchangeStatus.ENTERED_ON_EXCHANGE ||
-                Stop == null ||
-                Stop.Action == TradeAction.WAITING_STOP
+                Stop == null
                 )
             {
                 return;
@@ -1325,7 +1323,7 @@ namespace AlgoTrader.Shared
                 return;
             }
 
-            if (Stop.TradeExchangeStatus == TradeExchangeStatus.ENTERED_OFF_EXCHANGE && Stop.Type != TradeType.STOP_WAITING)
+            if (Stop.TradeExchangeStatus == TradeExchangeStatus.ENTERED_OFF_EXCHANGE) // && Stop.Type != TradeType.STOP_WAITING)
             {
                 LogTrades.WriteLine($"Did not set Stop on exchange, exchange status was {Stop.TradeExchangeStatus} - you need to add a new stop!");
                 Stop.TradeExchangeStatus = TradeExchangeStatus.NO_WARNING;
@@ -1607,15 +1605,6 @@ namespace AlgoTrader.Shared
 
         }
 
-        _Trade GetOppositeOrder(TradePosition position)
-        {
-            var oppositeSide = position == TradePosition.LONG ? TradePosition.SHORT : TradePosition.LONG;
-            return AllTrades.FirstOrDefault(x =>
-                                            x.Action == TradeAction.ORDER &&
-                                            x.Position == oppositeSide &&
-                                            x.ItemStatus == TradeItemStatus.OPEN &&
-                                            x.GlobalStatus == TradeGlobalStatus.ACTIVE);
-        }
 
         bool IsTradeClosed()
         {

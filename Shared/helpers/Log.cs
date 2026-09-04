@@ -116,11 +116,11 @@ namespace AlgoTrader.Shared.Logging
             MainObj.mainViewModel.DisplayLogTrades(s);
         }
 
-        public static void WriteLineOrder(string text)
-        {
-            LogBase.Write(text, "LogOrders.txt");
-            WriteLine(text);
-        }
+        //public static void WriteLineOrder(string text)
+        //{
+        //    LogBase.Write(text, "LogOrders.txt");
+        //    WriteLine(text);
+        //}
 
         public static void WriteSpacer()
         {

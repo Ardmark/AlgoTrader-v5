@@ -814,13 +814,13 @@ namespace AlgoTrader.Shared
                             var order = tradeGroup.FirstOrDefault(x => x.Action == TradeAction.ORDER);
                             var entry = tradeGroup.FirstOrDefault(x => x.Action == TradeAction.ENTRY);
                             var stop = tradeGroup.FirstOrDefault(x => x.Action == TradeAction.STOP); //can also be a flip order stop
-                            var stopWaiting = tradeGroup.FirstOrDefault(x => x.Action == TradeAction.WAITING_STOP);
+                            //var stopWaiting = tradeGroup.FirstOrDefault(x => x.Action == TradeAction.WAITING_STOP);
                             var takeProfit = tradeGroup.FirstOrDefault(x => x.Action == TradeAction.TAKE_PROFIT);
                             //var ceiling = tradeGroup.FirstOrDefault(x => x.Action == TradeAction.CEILING);
                             //var floor = tradeGroup.FirstOrDefault(x => x.Action == TradeAction.FLOOR);
                             var close = tradeGroup.FirstOrDefault(x => x.Action == TradeAction.CLOSE);
                             //var breakEven = tradeGroup.FirstOrDefault(x => x.Action == TradeAction.BREAK_EVEN);
-                            var flipOrder = tradeGroup.FirstOrDefault(x => x.Type == TradeType.FLIP_ORDER);
+                            //var flipOrder = tradeGroup.FirstOrDefault(x => x.Type == TradeType.FLIP_ORDER);
 
                             var oppPosition = order.Position == TradePosition.LONG ? TradePosition.SHORT : TradePosition.LONG;
                             var oppOrder = visibleOrActiveOrders.FirstOrDefault(x => x.Action == TradeAction.ORDER && x.GlobalStatus == TradeGlobalStatus.ACTIVE && x.Position == oppPosition);
@@ -931,31 +931,31 @@ namespace AlgoTrader.Shared
                                             if (trade.ItemStatus == TradeItemStatus.OPEN || trade.GlobalStatus == TradeGlobalStatus.ACTIVE || entry == null)
                                             {
                                                 string extraText = string.Empty;
-                                                if (stop == null)
-                                                {
-                                                    if (flipOrder != null)
-                                                    {
-                                                        var _oppOrderLine = visibleLines.FirstOrDefault(x => x.TradeId == flipOrder.Id);
-                                                        if (_oppOrderLine != null)
-                                                        {
-                                                            (double oppOrderPriceNow, _) = _oppOrderLine.GetPriceAtTime(DateTime.UtcNow, true);
+                                                //if (stop == null)
+                                                //{
+                                                //    if (flipOrder != null)
+                                                //    {
+                                                //        var _oppOrderLine = visibleLines.FirstOrDefault(x => x.TradeId == flipOrder.Id);
+                                                //        if (_oppOrderLine != null)
+                                                //        {
+                                                //            (double oppOrderPriceNow, _) = _oppOrderLine.GetPriceAtTime(DateTime.UtcNow, true);
 
-                                                            var floorPricePC = -MainObj.GetPriceDiff(orderPriceNow, oppOrderPriceNow, order.Position) * 100;
-                                                            extraText = GetStopText(floorPricePC, false, order, true);
-                                                        }
-                                                    }
-                                                    else if (oppOrder != null)
-                                                    {
-                                                        var _oppOrderLine = visibleLines.FirstOrDefault(x => x.TradeId == oppOrder.Id);
-                                                        if (_oppOrderLine != null)
-                                                        {
-                                                            (double oppOrderPriceNow, _) = _oppOrderLine.GetPriceAtTime(DateTime.UtcNow, true);
+                                                //            var floorPricePC = -MainObj.GetPriceDiff(orderPriceNow, oppOrderPriceNow, order.Position) * 100;
+                                                //            extraText = GetStopText(floorPricePC, false, order, true);
+                                                //        }
+                                                //    }
+                                                //    else if (oppOrder != null)
+                                                //    {
+                                                //        var _oppOrderLine = visibleLines.FirstOrDefault(x => x.TradeId == oppOrder.Id);
+                                                //        if (_oppOrderLine != null)
+                                                //        {
+                                                //            (double oppOrderPriceNow, _) = _oppOrderLine.GetPriceAtTime(DateTime.UtcNow, true);
 
-                                                            var floorPricePC = -MainObj.GetPriceDiff(orderPriceNow, oppOrderPriceNow, order.Position) * 100;
-                                                            extraText = GetStopText(floorPricePC, false, order, true);
-                                                        }
-                                                    }
-                                                }
+                                                //            var floorPricePC = -MainObj.GetPriceDiff(orderPriceNow, oppOrderPriceNow, order.Position) * 100;
+                                                //            extraText = GetStopText(floorPricePC, false, order, true);
+                                                //        }
+                                                //    }
+                                                //}
                                                 /*
 
                                                 //this is a locally placed order if it is running with a zero action value. Otherwise it was placed on exchange.
@@ -1005,7 +1005,7 @@ namespace AlgoTrader.Shared
                                             break;
 
                                         case TradeAction.STOP:
-                                        case TradeAction.WAITING_STOP:
+                                        //case TradeAction.WAITING_STOP:
 
                                             //double stopPriceNow = 0;
 
@@ -1030,49 +1030,50 @@ namespace AlgoTrader.Shared
                                                     text = "UNSYNCHED - CHECK EXCHANGE " + text;
                                                 }
 
-                                                switch (trade.Type)
-                                                {
+                                                text += " stop ";
+                                                //switch (trade.Type)
+                                                //{
  
-                                                    case TradeType.NO_FLIP_ORDER:
-                                                        text += " stop ";
-                                                        break;
-                                                    case TradeType.FLIP_ORDER:
-                                                        text += " flip order ";
-                                                        break;
-                                                    case TradeType.STOP_WAITING:
-                                                        text += " flip order stop ";
-                                                        break;
-                                                }
+                                                //    case TradeType.NO_FLIP_ORDER:
+                                                //        text += " stop ";
+                                                //        break;
+                                                //    case TradeType.FLIP_ORDER:
+                                                //        text += " flip order ";
+                                                //        break;
+                                                //    case TradeType.STOP_WAITING:
+                                                //        text += " flip order stop ";
+                                                //        break;
+                                                //}
 
 
                                                 double stopPricePC = 0;
                                                 switch (trade.Type)
                                                 {
-                                                    case TradeType.STOP_WAITING:
-                                                        stopPricePC = flipOrder != null
-                                                        ? -MainObj.GetPriceDiff(flipOrder.Price, trade.Price, order.Position) * 100
-                                                        : 0;
-                                                        if (entry == null)
-                                                        {
-                                                            //will add this in when it breaks the entry line
-                                                            stopPricePC -= TradeEngine.ENTRY_LINE_PRICE_GAP_PC;
-                                                        }
-                                                        text += GetStopText(stopPricePC, false, order);
-                                                        break;
-                                                    case TradeType.FLIP_ORDER:
-                                                        stopPricePC = entry != null
-                                                        ? -MainObj.GetPriceDiff(entry.Price, trade.Price, order.Position) * 100
-                                                        : stopWaiting != null
-                                                            ? -MainObj.GetPriceDiff(stopWaiting.Price, trade.Price, order.Position) * 100
-                                                            : 0;
-                                                        if (entry == null)
-                                                        {
-                                                            //will add this in when it breaks the entry line
-                                                            stopPricePC -= TradeEngine.ENTRY_LINE_PRICE_GAP_PC;
-                                                        }
+                                                    //case TradeType.STOP_WAITING:
+                                                    //    stopPricePC = flipOrder != null
+                                                    //    ? -MainObj.GetPriceDiff(flipOrder.Price, trade.Price, order.Position) * 100
+                                                    //    : 0;
+                                                    //    if (entry == null)
+                                                    //    {
+                                                    //        //will add this in when it breaks the entry line
+                                                    //        stopPricePC -= TradeEngine.ENTRY_LINE_PRICE_GAP_PC;
+                                                    //    }
+                                                    //    text += GetStopText(stopPricePC, false, order);
+                                                    //    break;
+                                                    //case TradeType.FLIP_ORDER:
+                                                    //    stopPricePC = entry != null
+                                                    //    ? -MainObj.GetPriceDiff(entry.Price, trade.Price, order.Position) * 100
+                                                    //    : stopWaiting != null
+                                                    //        ? -MainObj.GetPriceDiff(stopWaiting.Price, trade.Price, order.Position) * 100
+                                                    //        : 0;
+                                                    //    if (entry == null)
+                                                    //    {
+                                                    //        //will add this in when it breaks the entry line
+                                                    //        stopPricePC -= TradeEngine.ENTRY_LINE_PRICE_GAP_PC;
+                                                    //    }
 
-                                                        text += GetStopText(stopPricePC, stopWaiting == null, order, true, true, entry == null ? "" : " from entry");
-                                                        break;
+                                                    //    text += GetStopText(stopPricePC, stopWaiting == null, order, true, true, entry == null ? "" : " from entry");
+                                                    //    break;
                                                     default:
                                                         stopPricePC = -MainObj.GetPriceDiff(orderPriceNow, trade.Price, order.Position) * 100;
                                                         if (entry == null)
@@ -1107,8 +1108,9 @@ namespace AlgoTrader.Shared
 
                                             }
                                             //adjust slightly away from current price, for clarity
-                                            var _col = trade.Type == TradeType.FLIP_ORDER ? flipColor : color;
-                                            liveTrailMarker = TradeStopMarker(trade.Position, left + currentTimeOffset, top, trade.Type == TradeType.STOP_WAITING ? Brushes.White : unsynched ? EXCHANGE_NOT_SYNCHED_COLOR : _col, outline, text, trade.Type == TradeType.FLIP_ORDER, trade.TradeExecutionStatus == TradeExecutionStatus.EXCHANGE_NOT_SYNCHED);
+                                            //var _col = trade.Type == TradeType.FLIP_ORDER ? flipColor : color;
+                                            var _col = color;
+                                            liveTrailMarker = TradeStopMarker(trade.Position, left + currentTimeOffset, top, unsynched ? EXCHANGE_NOT_SYNCHED_COLOR : _col, outline, text, false, /*trade.Type == TradeType.FLIP_ORDER,*/ trade.TradeExecutionStatus == TradeExecutionStatus.EXCHANGE_NOT_SYNCHED);
                                             canvas1 = liveTrailMarker.canvas;
                                             break;
 
