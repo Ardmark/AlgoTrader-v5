@@ -593,7 +593,7 @@ namespace AlgoTrader.Shared
 
                     //although precision is set when OCO is sent to exchange, it helps to keep the number of decimal places down anyway.
                     //_price = GetCorrectPrecisionForPrice(_price);
-                    trade.Price = trade.Result = _price;
+                    trade.Price = _price;
                     trade.Action = tradeAction;
                     trade.ItemId = null; //need a new ID for this as it is a new order.;
                     trade.ItemStatus = TradeItemStatus.OPEN;
@@ -608,7 +608,7 @@ namespace AlgoTrader.Shared
                     //trade.Quantity = order.Quantity;
                     //trade.Position = order.Position;// isWaitingStop ? order.Position == TradePosition.LONG ? TradePosition.SHORT : TradePosition.LONG : order.Position;
                     
-                    SetUpdateRequestAdd_UI(trade);
+                  //  SetUpdateRequestAdd_UI(trade);
 
                     if (trade.Action == TradeAction.STOP || trade.Action == TradeAction.TAKE_PROFIT)
                     {
@@ -623,6 +623,15 @@ namespace AlgoTrader.Shared
                         }
                     }
 
+                    if (Stop == null)
+                    {
+                        //stop has been force-removed in error, so replace it
+                        Stop = trade;
+                        if (TakeProfit != null)
+                        {
+                            TakeProfit.Result = 0;
+                        }
+                    }
                     //if (Stop.Type == TradeType.NO_FLIP_ORDER)
                     //{
                         SetStopOnExchange_Synchronised(); //this will not do anything if trade is not entered
@@ -984,7 +993,7 @@ namespace AlgoTrader.Shared
                     else
                     {
                         //if no tradeId specified, close all open orders
-                        tradesToClose = AllTrades.Where(x => x.Action == TradeAction.ORDER).ToList();
+                        tradesToClose = [.. AllTrades.Where(x => x.Action == TradeAction.ORDER)];
                     }
 
                     foreach (var order in tradesToClose)

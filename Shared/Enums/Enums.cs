@@ -24,13 +24,12 @@ namespace AlgoTrader.Shared.Enums
         NULL_ORDER,
         MAX_CONCURRENT_TRADES_EXCEDED,
         MAX_TRADES_PER_24_HOURS_EXCEDED,
-        PREV_CLOSE_TOO_CLOSE,
+        PREV_ENTRY_TOO_CLOSE,
         OK_TO_ENTER_LIVE
     }
     #endregion
 
     #region Trade enums
-
 
     public enum TradeExchangeStatus
     {
@@ -56,9 +55,6 @@ namespace AlgoTrader.Shared.Enums
         PRICE_BREAK_ORDER,  //Unused - for a break when a specific price is crossed. This is redundant as now all price breaks are done with lines
         LINE_BREAK_ORDER,   //price breaks line
         MARKET_ORDER,       //immediate order
-        //FLIP_ORDER,         //for stops, this is a flip order (TradeAction Action will be STOP)
-        //NO_FLIP_ORDER,      //for stops, this will dead exit rather than flip (TradeAction Action will be WAITING_STOP)
-        //STOP_WAITING,        //as above but dead stop (TradeAction Action will be WAITING_STOP)
         LIMIT_ORDER,
         HMA_BREAK_ORDER,    //price breaks HMA
     }
@@ -80,7 +76,6 @@ namespace AlgoTrader.Shared.Enums
         CLOSE,
         STOP, 
         TAKE_PROFIT,
-        //WAITING_STOP,
         NULL //just a convenient way to hide take profits!
     }
 

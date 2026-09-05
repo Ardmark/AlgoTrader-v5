@@ -30,6 +30,7 @@ namespace AlgoTrader.Windows
             TradeEngine.RESTRICTED_TRADE_VALUE = 10;
             #endregion
 
+            TradeEngine.MINIMUM_TRADE_TIME = TradeEngine.USE_TESTNET ? 1 : 15; //3 bars on 5min, really need a dictionary for this
             #region Leverage
             TradeEngine.USE_FIXED_LEVERAGE = false; //if true, will use the default leverage for all trades, otherwise will calculate leverage from stop
             TradeEngine.MIN_ALLOWED_LEVERAGE_SHORT = 1;
@@ -76,7 +77,7 @@ namespace AlgoTrader.Windows
             #region stop loss
             TradeEngine.STOP_LINE_PRICE_GAP_PC = 0;////this percent will be used to offset line for trade exit
             TradeEngine.ENTRY_LINE_PRICE_GAP_PC = 0;//this percent will be used to offset line for trade entry
-            TradeEngine.STOPLINE_MIN_VALUE = 0.2; //if stopline is moved closer than this % to Order / Entry, this will trigger a UI warning
+            TradeEngine.STOPLINE_MIN_VALUE = 0.1; //if stopline is moved closer than this % to Order / Entry, this will trigger a UI warning
             TradeEngine.MAX_STOP_LOSS = 1; //
             #endregion
 

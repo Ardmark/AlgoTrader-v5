@@ -432,7 +432,7 @@ namespace AlgoTrader.Shared
         }
         #endregion
 
-        #region Context synmchronisation
+        #region Context synchronisation
         public void InitForDataContext(Action callback)
         {
             lock (synchLock)
@@ -1117,13 +1117,13 @@ namespace AlgoTrader.Shared
                 {
                     if (MINIMUM_TRADE_TIME > 0)
                     {
-                        var lastClose = AllTrades.OrderByDescending(x => x.Timestamp).FirstOrDefault(x => x.Action == TradeAction.CLOSE);
-                        if (lastClose != null)
+                        var lastEntry = AllTrades.OrderByDescending(x => x.Timestamp).FirstOrDefault(x => x.Action == TradeAction.ENTRY);
+                        if (lastEntry != null)
                         {
-                            var timeDiff = DateTime.UtcNow.Subtract(lastClose.Timestamp).TotalMinutes;
+                            var timeDiff = DateTime.UtcNow.Subtract(lastEntry.Timestamp).TotalMinutes;
                             if (timeDiff < MINIMUM_TRADE_TIME)
                             {
-                                reason = OrderFrequency.PREV_CLOSE_TOO_CLOSE;
+                                reason = OrderFrequency.PREV_ENTRY_TOO_CLOSE;
                             }
                         }
                     }
@@ -1136,7 +1136,7 @@ namespace AlgoTrader.Shared
                         //AlertDialog.Show($"Could not place order for {trade.SymbolName} as there have already been {TradeEngine.MAX_TRADES_PER_24_HOURS} in 24 hours");
                         return (false, true);
 
-                    case OrderFrequency.PREV_CLOSE_TOO_CLOSE:
+                    case OrderFrequency.PREV_ENTRY_TOO_CLOSE:
                         LogTrades.WriteLine($" {trade.SymbolName} at {DateTime.Now} - Trade not entered as too near to previous trade's close order");
                         return (false, true);
 

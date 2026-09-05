@@ -1022,7 +1022,7 @@ namespace AlgoTrader.Shared
                                             var unsynched = trade.TradeExecutionStatus == TradeExecutionStatus.EXCHANGE_NOT_SYNCHED;
 
 
-                                            string text = "stop ";
+                                            string text = string.Empty;
                                             if (trade.GlobalStatus == TradeGlobalStatus.ACTIVE)
                                             {
                                                 if (unsynched)
@@ -1030,7 +1030,7 @@ namespace AlgoTrader.Shared
                                                     text = "UNSYNCHED - CHECK EXCHANGE " + text;
                                                 }
 
-                                                text += " stop ";
+                                                text += " Stop ";
                                                 //switch (trade.Type)
                                                 //{
  
@@ -1094,7 +1094,7 @@ namespace AlgoTrader.Shared
                                                         text += " (spike)";
                                                         break;
                                                     case TradeStop.STOP_ON_LINE_BREAK:
-                                                        text += " (line break)";
+                                                        //text += " (line break)";
                                                         break;
                                                     case TradeStop.TAKE_PROFIT_MA_CROSS:
                                                         text += " (moving average)";
@@ -1116,21 +1116,21 @@ namespace AlgoTrader.Shared
 
                                         case TradeAction.TAKE_PROFIT:
 
-                                            text =  "take profit ";
-                                            switch (trade.Type)
-                                            {
-                                                //case TradeType.NO_FLIP_ORDER:
-                                                //    text += "dead exit ";
-                                                //    break;
-                                                case TradeType.LINE_BREAK_ORDER:
-                                                    text += "flip order ";
-                                                    break;
-                                            }
+                                            text =  "Take Profit ";
+                                            //switch (trade.Type)
+                                            //{
+                                            //    //case TradeType.NO_FLIP_ORDER:
+                                            //    //    text += "dead exit ";
+                                            //    //    break;
+                                            //    case TradeType.LINE_BREAK_ORDER:
+                                            //        text += "flip order ";
+                                            //        break;
+                                            //}
 
                                             var tpPricePC = -MainObj.GetPriceDiff(orderPriceNow, trade.Price, order.Position) * 100;
                                             text += GetStopText(tpPricePC, hasEntered, order, false, false);
 
-                                            canvas1 = TradeTakeProfitMarker(left + currentTimeOffset, top, color, outline, trade.Position, (trade.GlobalStatus == TradeGlobalStatus.ACTIVE ? text : " stopped"), trade.Type == TradeType.LINE_BREAK_ORDER).canvas;
+                                            canvas1 = TradeTakeProfitMarker(left + currentTimeOffset, top, color, outline, trade.GlobalStatus == TradeGlobalStatus.ACTIVE ? text : " stopped").canvas;
                                             break;
 
                                         case TradeAction.CLOSE:

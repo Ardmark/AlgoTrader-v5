@@ -422,7 +422,7 @@ namespace Shared.Drawings
             return new TradeMarkerCanvas(canvas, left - halfSize / 2, top, -halfSize);
         }
 
-        public static TradeMarkerCanvas TradeTakeProfitMarker(double left, double top, SolidColorBrush fill, SolidColorBrush stroke, TradePosition tradePosition, string text, bool flipOrder)
+        public static TradeMarkerCanvas TradeTakeProfitMarker(double left, double top, SolidColorBrush fill, SolidColorBrush stroke, string text)
         {
             double halfSize = size / 2;
             Polygon triangle1 = new Polygon
@@ -440,20 +440,7 @@ namespace Shared.Drawings
             Canvas canvas = new Canvas { Opacity = MARKER_OPACITY };
             canvas.Children.Add(triangle1);
 
-            if (flipOrder)
-            {
-                Ellipse circle = new Ellipse
-                {
-                    Width = halfSize,
-                    Height = halfSize,
-                    Fill = fill,
-                    Stroke = stroke,
-                };
-
-                canvas.Children.Add(circle);
-                Canvas.SetTop(circle, -halfSize - 2);
-            }
-            TextBlock textBlock = new TextBlock
+            TextBlock textBlock = new()
             {
                 Text = text,
                 Foreground = MainObj.isDarkMode ? Brushes.White : Brushes.Black,
@@ -464,48 +451,7 @@ namespace Shared.Drawings
             Canvas.SetLeft(textBlock, 20);
             Canvas.SetTop(textBlock, -4);
             return new TradeMarkerCanvas(canvas, left - halfSize / 2, top, -halfSize);
-            /*
-            double halfSize = size / 2;
-            Polygon triangle1 = new Polygon
-            {
-                Points = new PointCollection
-                {
-                    new Point(-halfSize, -halfSize / 2),
-                    new Point(-halfSize, halfSize / 2),
-                    new Point(0, 0)
-                },
-                Fill = fill,
-                Stroke = stroke
-            };
-            Polygon triangle2 = new Polygon
-            {
-                Points = new PointCollection
-                {
-                    new Point(0, 0),
-                    new Point(halfSize, halfSize / 2),
-                    new Point(halfSize, -halfSize / 2)
-                },
-                Fill = fill,
-                Stroke = stroke
-            };
-            Canvas canvas = new Canvas { Opacity = MARKER_OPACITY };
-            canvas.Children.Add(triangle1);
-            //canvas.Children.Add(triangle2);
-          
-
-            TextBlock textBlock = new TextBlock
-            {
-                Text = text,
-                Foreground = MainObj.isDarkMode ? Brushes.White : Brushes.Black,
-                Background = Brushes.Transparent
-            };
-
-            canvas.Children.Add(textBlock);
-            Canvas.SetLeft(textBlock, 6);
-            Canvas.SetTop(textBlock, size - 48);
-            return new TradeMarkerCanvas(canvas, left, top, 0);// -halfSize);
-
-            */
+            
         }
 
         public static TradeMarkerCanvas TradeFloorMarker(double left, double top, SolidColorBrush fill, SolidColorBrush stroke, TradePosition tradePosition, string text)

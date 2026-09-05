@@ -739,7 +739,8 @@ namespace AlgoTrader.Live.ViewModels
                             if (symbolName != null && !TradeEngine.USE_SIMULATED_EXCHANGE)
                             {
                                 //using MessageBox, non-blocking outside of UI thread
-                                if (MessageBox.Show("This is a live trade, close on exchange?", "!!! CLOSE RUNNING TRADE !!!", MessageBoxButton.OKCancel) != MessageBoxResult.OK)
+                                var t = TradeEngine.USE_TESTNET ? " (using Testnet, so this will also flip any opposite order. Live will not do this)" : "";
+                                if (MessageBox.Show($"This is a live trade, close on exchange? {t}", "!!! CLOSE RUNNING TRADE !!!", MessageBoxButton.OKCancel) != MessageBoxResult.OK)
                                 {
                                     return;
                                 }
@@ -1000,9 +1001,6 @@ namespace AlgoTrader.Live.ViewModels
                 #region Set Market order (Long)
                 () =>
                 {
-                    //MainObj.visibleTradeEngine.StartEntryOrClose_Synchronised();
-                    //return;
-
                     if (MainObj.invertChart)
                     {
                         ShowInvertedChartWarning();
@@ -1015,20 +1013,21 @@ namespace AlgoTrader.Live.ViewModels
                         }
                         else
                         {
-                            AlertDialog.ShowCallback("This order will execute immediately!", "Set Long Market order?", (_) =>
+                            AlertDialog.ShowCallback("This order will execute immediately!", "Set Long Market order?", (ret) =>
                             {
-                                try
+                                if (ret)
                                 {
-                                    MainObj.visibleTradeEngine.SetMarketOrderAtTime_UI_synchronised(DateTime.UtcNow, MainObj.visibleTradeEngine.currentDataItem.Close, TradePosition.LONG);
-                                }
-                                catch
-                                {
-                                    AlertDialog.Show("Could not place order.");
+                                    try
+                                    {
+                                        MainObj.visibleTradeEngine.SetMarketOrderAtTime_UI_synchronised(DateTime.UtcNow, MainObj.visibleTradeEngine.currentDataItem.Close, TradePosition.LONG);
+                                    }
+                                    catch
+                                    {
+                                        AlertDialog.Show("Could not place order.");
+                                    }
                                 }
                             });
                         }
-
-
                     }
 
                     RemovePopupWindow();
@@ -1044,27 +1043,27 @@ namespace AlgoTrader.Live.ViewModels
                     }
                     else
                     {
-
                         if (MainObj.visibleTradeEngine.currentDataItem == null)
                         {
                             AlertDialog.Show("Could not place order, system not fully initialised.");
                         }
                         else
                         {
-                            AlertDialog.ShowCallback("This order will execute immediately!", "Set Short Market order?", (_) =>
+                            AlertDialog.ShowCallback("This order will execute immediately!", "Set Short Market order?", (ret) =>
                             {
-                                try
+                                if (ret)
                                 {
-                                    MainObj.visibleTradeEngine.SetMarketOrderAtTime_UI_synchronised(DateTime.UtcNow, MainObj.visibleTradeEngine.currentDataItem.Close, TradePosition.SHORT);
-                                }
-                                catch
-                                {
-                                    AlertDialog.Show("Could not place order.");
+                                    try
+                                    {
+                                        MainObj.visibleTradeEngine.SetMarketOrderAtTime_UI_synchronised(DateTime.UtcNow, MainObj.visibleTradeEngine.currentDataItem.Close, TradePosition.SHORT);
+                                    }
+                                    catch
+                                    {
+                                        AlertDialog.Show("Could not place order.");
+                                    }
                                 }
                             });
                         }
-
-
                     }
 
                     RemovePopupWindow();

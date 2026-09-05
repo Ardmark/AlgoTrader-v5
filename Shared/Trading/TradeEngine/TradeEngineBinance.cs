@@ -2,9 +2,7 @@
 using AlgoTrader.Shared.Logging;
 using Newtonsoft.Json;
 using OpenExchangeRates;
-using System.Diagnostics;
 using System.Text.Json.Nodes;
-using System.Windows.Interop;
 using static AlgoTrader.Shared.BinanceAPI;
 using static AlgoTrader.Shared.ExchangeConnection.ExchangeDataProcessorBinance;
 
@@ -14,61 +12,6 @@ namespace AlgoTrader.Shared
     {
         public override async void Test()
         {
-            CalculateLeverageFromPercent(GetValueForTimeframe(STOP_MIN_VALUE), TradePosition.LONG);
-            return;
-            bool openOrdersCancelled = false;
-            try
-            {
-                    var v1 = DeserializeToList(binanceAPI.CancelOpenOrdersAsync(symbolName).Result.AsArray());
-                var openOrders = GetOpenOrders();
-                if (openOrders.Count == 0)
-                {
-                    openOrdersCancelled = true;
-                }
-                else
-                {
-                    var v = DeserializeToList(binanceAPI.CancelOpenOrdersAsync(symbolName).Result.AsArray());
-                    if (v != null)
-                    {
-                        if (v.Count != 0)
-                        {
-                            if (!v.Any(x => x.Status != null && x.Status != "CANCELED"))
-                            {
-                                openOrdersCancelled = true;
-                            }
-                        }
-                    }
-                    else
-                    {
-                        openOrdersCancelled = true;
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                LogTrades.WriteLine($"Failed to deserialize CancelAllOpenOrders(...): {ex}");
-            }
-
-            return;
-            // exchangeInfo = Deserialize<ExchangeInfoData>(binanceAPI.ExchangeInfoAsync().Result);
-            //var _symbol = exchangeInfo.Symbols.Where(x => x.Symbol == "BTCUSDT").FirstOrDefault();
-
-            //var data = new Dictionary<string, string>
-            //{
-            //    { SYMBOL, "BTCUSDT"},
-            //    { SIDE, SELL},
-            //    { ABOVE_TYPE, TAKE_PROFIT},
-            //    { ABOVE_STOP_PRICE, "85000"},
-            //    { QUANTITY, "0.00012"},
-            //    { BELOW_TYPE, STOP_LOSS},
-            //    { BELOW_STOP_PRICE, "75000"},      
-            //};
-
-            //var json =  binanceAPI.NewOcoAsync(data).Result;
-            //var r = Deserialize<NewOCOData>(json);
-
-            return;
-           
             return;
         }
 
@@ -232,7 +175,6 @@ namespace AlgoTrader.Shared
         {
             public long OrderId { get; set; }
             public long OrderListId { get; set; }
-
             public double Price { get; set; }
             public double OrigQty { get; set; }
             public double ExecutedQty { get; set; }
@@ -242,7 +184,6 @@ namespace AlgoTrader.Shared
             //Order: NEW, PARTIALLY_FILLED, FILLED, CANCELED, PENDING_CANCEL, REJECTED, EXPIRED (PENDING_CANCEL is currenty Unused)
             //there are some additional enum strings for OCO's
             public string Status { get; set; }
-
             public string TimeInForce { get; set; } //e.g. GTC
             public string Type { get; set; } //LIMIT, MARKET, STOP_LOSS, STOP_LOSS_LIMIT, TAKE_PROFIT, TAKE_PROFIT_LIMIT, LIMIT_MAKER
             public string Side { get; set; } //BUY or SELL
@@ -257,7 +198,6 @@ namespace AlgoTrader.Shared
             public string ListClientOrderId { get; set; } //for stops
             public string AboveClientOrderId { get; set; } //for stops
             public string BelowClientOrderId { get; set; } //for stops
-
             public DateTime TimeAsDateTime
             {
                 get
@@ -396,7 +336,6 @@ namespace AlgoTrader.Shared
         #region Fields
         DateTime lastExchangeInfoRequest = new DateTime();
         ExchangeInfoData exchangeInfo = null;
-        private long drift;
         BinanceAPI binanceAPI;
         #endregion
 
@@ -558,6 +497,7 @@ namespace AlgoTrader.Shared
         }
         #endregion
 
+        #region Orders
         public NewOrderData SendOrder(double orderQuantity, Side side, string orderId)
         {
             var data = new Dictionary<string, string>
@@ -642,6 +582,7 @@ namespace AlgoTrader.Shared
                 return null;
             }
         }
+        #endregion
 
         double GetLastPrice()
         {
@@ -669,11 +610,8 @@ namespace AlgoTrader.Shared
 
         protected override async void StartEntry_Synchronised()
         {
-            //while we can get the price from the exchange, any stops will be set from that then next update the candle value will be used.
-            //This could result in a stop being updated on the exchange unnecessarily if the values differ
-
             if (!USE_TESTNET && !dataReady) return;
-
+           
             //if this has just restarted, will try to enter any trades immediately but the price won't be available from the websocket yet.
             //so use the REST api instead
             var lastQuoteValue = GetLastPrice();
@@ -686,7 +624,7 @@ namespace AlgoTrader.Shared
             var diff = Math.Abs(MainObj.GetPriceDiff(Order.Price, lastQuoteValue, Order.Position) * 100);
 
             LogTrades.WriteLine($"Price diff. between entry and current price is {diff}%");
-            
+
             //determine if this is within an acceptable range
             if (diff > (USE_TESTNET ? 1000 : MAX_ENTRY_DIFF_PERCENT))
             {
@@ -750,12 +688,23 @@ namespace AlgoTrader.Shared
             //the problem here is the stops are only calculated AFTER the trade has entered, including any reversal trades.
             //So that needs to be done first
 
-            //TakeProfit = trades.FirstOrDefault(x => x.Action == TradeAction.TAKE_PROFIT);
-            //Stop = trades.FirstOrDefault(x => x.Action == TradeAction.STOP);
-
             //need the closest of the current stop or opposing trade. If neither found, use the minimum stop value
             double stopPercent = GetValueForTimeframe(STOP_MIN_VALUE);
             double stopPrice = 0;
+
+            //get the existing line break stop if it exists
+            var stop = AllTrades.FirstOrDefault(x => x.TradeReference == Order.TradeReference && x.Action == TradeAction.STOP);
+            if (stop != null)
+            {
+                Stop = stop;
+            }
+            var takeProfit = AllTrades.FirstOrDefault(x => x.TradeReference == Order.TradeReference && x.Action == TradeAction.TAKE_PROFIT);
+            if (takeProfit != null)
+            {
+                TakeProfit = takeProfit;
+            }
+            
+            //even if this comes from a flip, the stop will still be found as the data context has been refreshed for the new order
             if (Stop != null)
             {
                 stopPrice = Stop.Price;
@@ -767,14 +716,9 @@ namespace AlgoTrader.Shared
                     stopPercent = MainObj.GetPriceDiffPercent(currentDataItem, stopPrice, Order.Position) * 100;
                 }
             }
-
-            //if there is no stop, take the opposing order as one instead
-            else
+            else //if there is no stop, take the opposing order as one instead
             {
-                //THIS IS RETURNING AN OPPOSITE ORDER IN TESTING AFTER FLIP
-                //ALSO WHEN YOU CLOSE THE FLIPPED ORDER, IT JUST FLIPS AGAIN
-
-                 var _oppOrder = GetOppositeOrder(Order);
+                var _oppOrder = GetOppositeOrder(Order);
                 if (_oppOrder != null)
                 {
                     stopPercent = _oppOrder.Price;
@@ -787,7 +731,6 @@ namespace AlgoTrader.Shared
                     }
                 }
             }
-
 
             #region Calculate Leverage
 
@@ -883,8 +826,6 @@ namespace AlgoTrader.Shared
 
             //No more access to Entry, Close etc. after call to async GetConversionRate()!!!
             MainObj.DrawCurrentDispatcher();
-
-
         }
 
         private bool CancelOpenOrders()
@@ -918,9 +859,6 @@ namespace AlgoTrader.Shared
 
         protected override async void StartClose_Synchronised(_Trade triggeringTrade)
         {
-            //while we can get the price from the exchange, any stops will be set from that then next update the candle value will be used.
-            //This could result in a stop being updated on the exchange unnecessarily if the values differ
-
             if (!USE_TESTNET && !dataReady) return;
 
             UpdateGetExchangeInfo();
@@ -928,7 +866,6 @@ namespace AlgoTrader.Shared
             //Execute the trade
             if (Entry != null)
             {
-
                 if (Close == null)
                 {
                     LogTrades.WriteLine($"No Close set in CLOSE_ORDER_SCRIPT for {symbolName}, cannot close trade, exiting OnExchangeDataReceived");
@@ -937,14 +874,9 @@ namespace AlgoTrader.Shared
                 }
 
                 LogTrades.WriteLine("Closing order:");
-
-                //if the base asset balance is very small, assume the trade has exited on the exchange, so go no further
-
-                LogTrades.WriteLine("Cancelling OCO...");
-                
-                //remove OCO
-                CancelOpenOrders();
-
+                LogTrades.WriteLine("Cancelling OCO...");  
+                CancelOpenOrders(); 
+    
                 bool canFlip = false;
 
                 /*********************/
@@ -953,6 +885,7 @@ namespace AlgoTrader.Shared
 
                 LogTrades.WriteLine($"Closing order for {symbolName}...");
 
+                //if the base asset balance is very small, assume the trade has exited on the exchange, so go no further
                 var _baseAsset = SymbolNames.GetBaseAssetForSymbol(symbolName);
 
                 var coinBalance = GetFreeBalance(_baseAsset);
@@ -984,7 +917,6 @@ namespace AlgoTrader.Shared
                         amountToSell = coinBalance;
                     }
 
-
                     LogTrades.WriteLine($"Amount to sell is {amountToSell}");
 
                     Close.Quantity = GetCorrectPrecisionForTrade(amountToSell);
@@ -1003,8 +935,6 @@ namespace AlgoTrader.Shared
                     /*********************/
                     //Set order on system
                     /*********************/
-                    //if status is 'NEW' then order is accepted but not yet filled
-                    //status could be 'PARTIALLY_FILLED' (limit orders only??)
 
                     var entryItemId = Entry.ItemId; //save this since close on system will set Entry = null
                     var closeItemId = Close.ItemId; //need this later for conversion rate
@@ -1013,15 +943,10 @@ namespace AlgoTrader.Shared
                         case "FILLED":
                             //price will be zero on testnet, so use the current price instead
                             dataClose.Price = dataClose.Price == 0 ? currentDataItem.Close : dataClose.Price;
-
                             LogTrades.WriteLine($"Close order filled, closing trade on system at {DateTime.UtcNow}");
                             CloseTradeOnSystem_synchronised(dataClose.Price);
-
                             EndEntryOrCloseScript();
-
                             canFlip = true;
-
-
                             break;
 
                         case "CANCELED":
@@ -1030,177 +955,25 @@ namespace AlgoTrader.Shared
                             //can try again
                             LogTrades.WriteLine($"Trade was {dataClose.Status} in CLOSE_ORDER_SCRIPT for {Close.SymbolName} at {DateTime.UtcNow}");
                             KillEntryOrCloseOrder(true);
-
                             break;
-
                     }
 
+                    #region Set flip from opposing trade
                     if (triggeringTrade != null && canFlip)
                     {
-                        #region Set flip from opposing trade
-                        //if there is an opposing trade:
-                        // 1) convert any opposing trade stop to waiting stop
-                        // 2) convert opposing trade to flip order
+                        var triggeringTradeId = triggeringTrade.Id;
 
-                        _Trade waitingStop = null;
-                        string oldTradeReference;
-                        string newTradeReference;
-                        //var triggeringTrade = GetOppositeOrder(Close.Position);
-
-                        //if (stop != null)
-                        //{
-                        //    //remove any line
-                        //    var stopLine = AllLinesForSymbol.FirstOrDefault(x => x.TradeId == stop.Id);
-                        //    if (stopLine != null)
-                        //    {
-                        //        SetUpdateRequest(stopLine, TradeUpdateRequest.FORCE_DELETE);
-                        //    }
-                        //    SetUpdateRequest(stop, TradeUpdateRequest.FORCE_DELETE);
-                        //}
-
-
-                        // 1) convert any opposing trade stop to waiting stop and remove any opposite take profit, ceiling or break even trades
-                        List<_Trade> oppTrades = [.. AllTrades.Where(x => x.TradeReference == triggeringTrade.TradeReference)];
-
-                        waitingStop = oppTrades.FirstOrDefault(x => x.Action == TradeAction.STOP);
-                        oldTradeReference = Close.TradeReference;
-                        newTradeReference = _Trade.GetNewTradeId();
-                        if (waitingStop != null)
-                        {
-                            //use this stop
-                            waitingStop.TradeReference = newTradeReference;
-                            //oppStop.Type = TradeType.STOP_WAITING;
-                            //oppStop.Action = TradeAction.WAITING_STOP;
-                            waitingStop.Action = TradeAction.STOP;
-                            SetUpdateRequest(waitingStop);
-
-                            var oppStopLine = AllLinesForSymbol.FirstOrDefault(x => x.TradeId == waitingStop.Id);
-                            if (oppStopLine != null)
-                            {
-                                oppStopLine.TradeReference = newTradeReference;
-                                oppStopLine.Type = LineType.SUPPORT;
-                                SetUpdateRequest(oppStopLine);
-                            }
-                        }
-                        else
-                        {
-                            //add a waiting stop at the original order price
-                            var trade = Close.Clone();
-                            trade.Id = 0; //so it will be added to db
-                            trade.ItemId = null;
-                            trade.ItemStatus = TradeItemStatus.OPEN;
-                            //trade.Action = TradeAction.WAITING_STOP;
-                            trade.Action = TradeAction.STOP;
-                            trade.Timestamp = DateTime.UtcNow;
-                            trade.TimeFrame = TimeFrame;
-                            //trade.Type = TradeType.STOP_WAITING;
-                            trade.Position = GetOppositePosition(trade);
-                            trade.TradeExchangeStatus = TradeExchangeStatus.NO_WARNING;
-                            trade.TradeReference = newTradeReference;
-                            SetUpdateRequest(trade);
-                            waitingStop = trade;
-                        }
-
-                        // 2) convert opposing trade to flip order (which is just a stop)
-                        var line = AllLinesForSymbol.FirstOrDefault(x => x.TradeId == triggeringTrade.Id);
-                        if (line != null)
-                        {
-                            line.TradeReference = newTradeReference;
-                            line.Type = LineType.SUPPORT;
-                            SetUpdateRequest(line);
-                        }
-
-                        triggeringTrade.TradeReference = newTradeReference;
-                        triggeringTrade.Action = TradeAction.STOP;
-                        //firstOppositeOrder.Type = TradeType.FLIP_ORDER;
-                        triggeringTrade.Position = Close.Position; //because a flip is the same side as the order it is flipping.
-                        SetUpdateRequest(triggeringTrade);
-
-
-                        //if (firstOppositeOrder == null && Stop != null && Stop.Type == TradeType.FLIP_ORDER)
-                        //{
-                        //    firstOppositeOrder = Stop;
-                        //}
-                        //so now the order set consists of a flip stop and a waiting stop, if set
-                        // - no order, that was converted to a flip stop
-                        // - but if no opposite order anyway, any stop which has FLIP_ORDER type will be set as the firstOppositeOrder
-                        //   this is for future TODO as it should be possible to add a flip stop to a market order, but that is not yet implemented
-
-
-                        var tradeReference = triggeringTrade.TradeReference;
-                        var waitingStopId = waitingStop.Id;
                         SaveChangesForDataContext();
                         ResetForDataContext();
 
-                        //Stop will not be valid as that comes from ActiveTrades which is populated from the Order trade reference
-                        //firstOppositeOrder and waiting stop will no longer be EF tracked, so get new references
-                        Stop = AllTrades.FirstOrDefault(t => t.Id == waitingStopId);
-                        Order = AllTrades.FirstOrDefault(t => t.Id == triggeringTrade.Id);
-
-                        if (Order != null)
-                        {
-                            //get the current price and the stop price
-                            var position = GetOppositePosition(Order);
-
-                            //var oppStop = AllTrades.FirstOrDefault(t => t.Type == TradeType.STOP_WAITING && t.TradeReference == tradeReference);
-                            double stopPercent = GetValueForTimeframe(STOP_MIN_VALUE);
-                            double stopPrice1 = 0;
-
-                            //Calculate stop value
-                            //next stop can be a floor or stop, so get the correct value and set leverage from that
-                            if (Stop != null)
-                            {
-                                //switch (Stop.Action)
-                                //{
-                                //    case TradeAction.STOP:
-                                        //case TradeAction.WAITING_STOP:
-                                        var stopLine = AllLinesForSymbol.FirstOrDefault(x => x.TradeId == waitingStop.Id);
-                                        if (stopLine != null)
-                                        {
-                                            (stopPrice1, _) = stopLine.GetPriceAtTime(DateTime.UtcNow, true);
-                                            stopPercent = MainObj.GetPriceDiffPercent(currentDataItem, stopPrice1, position) * 100;
-                                        }
-                                        else
-                                        {
-                                            //in case the waiting stop does not have a line
-                                            stopPercent = MainObj.GetPriceDiffPercent(currentDataItem, waitingStop.Price, position) * 100;
-                                        }
-                                 //       break;
-                                //}
-                            }
-                            else
-                            {
-                                //although precision is set when OCO is sent to exchange, it helps to keep the number of decimal places down anyway.
-                                stopPrice1 = GetCorrectPrecisionForPrice(MainObj.GetStopPriceFromPercent(Close.Price, stopPercent, Close.Position));
-                            }
-
-                            line = AllLinesForSymbol.FirstOrDefault(x => x.TradeId == Order.Id);
-
-                            //update the line trade reference (tradeId will still be valid)
-                            if (line != null)
-                            {
-                                line.TradeReference = tradeReference;
-                                SetUpdateRequest(line);
-                            }
-
-                            //create a new order from the stop, so the Id is still valid for the line
-                            Order.Timestamp = DateTime.UtcNow;
-                            Order.TradeReference = tradeReference;
-                            Order.Type = TradeType.MARKET_ORDER;
-                            Order.Position = position;
-                            Order.Action = TradeAction.ORDER;
-                            Order.GlobalStatus = TradeGlobalStatus.ACTIVE;
-                            Order.ItemStatus = TradeItemStatus.OPEN;
-                            SetUpdateRequest(Order);
-
-                            LogTrades.WriteLine($"Flipping order if possible...");
-
-                            StartEntry_Synchronised();
-
-                            //Entry will now be created, Stop added with OCO TakeProfit, exchange rate determined.
-                        }
-                        #endregion
+                        //ActiveTrades is no loger valid, and this is used to get Order, Stop etc.
+                        
+                        Order = AllTrades.FirstOrDefault(t => t.Id == triggeringTradeId);
+                        LogTrades.WriteLine($"Flipping order if possible...");
+                        StartEntry_Synchronised(); //and that's all there is to it.
                     }
+                    #endregion
+
                     ShowAccountBalances(); //will log balance
 
                     //this will cause synchronisation to exit BEFORE this awaitable method completes,
@@ -1215,7 +988,6 @@ namespace AlgoTrader.Shared
                 MainObj.DrawCurrentDispatcher();
             }
         }
-
 
         protected override void EnterTradeOnSystem_synchronised(double price, double quantity, TradeExchangeStatus orderType)
         {
@@ -1256,9 +1028,6 @@ namespace AlgoTrader.Shared
             {
                 LogTrades.WriteLine($"Exception in EnterTradeOnSystem  at {DateTime.UtcNow} (1): {e}");
             }
-
-            //MainObj.PlaySound(MainObj.ALERT_SOUND);
-            
         }
 
         #endregion
@@ -1313,7 +1082,6 @@ namespace AlgoTrader.Shared
                 return;
             }
 
-
             double lastPrice;
             lastPrice = GetValueForSymbol(symbolName);
             
@@ -1340,7 +1108,6 @@ namespace AlgoTrader.Shared
                 return;
             }
 
-
             //check take profit price as well, if it is set
             if ( TakeProfit != null &&
                 (TakeProfit.Position == TradePosition.SHORT && TakeProfit.Price > lastPrice ||
@@ -1350,7 +1117,6 @@ namespace AlgoTrader.Shared
                 LogTrades.WriteLine($"Did not set Take Profit on exchange, Take Profit price was wrong side of candle data");
                 return;
             }
-
 
             //will add a Take Profit since Binance require an OCO
             if (TakeProfit == null)
@@ -1362,8 +1128,7 @@ namespace AlgoTrader.Shared
                     Entry.Position == TradePosition.LONG
                         ? lastPrice * (1 + INITIAL_TAKE_PROFIT_PERCENT_MARKET / 100)
                         : lastPrice * (1 - INITIAL_TAKE_PROFIT_PERCENT_MARKET / 100);
-                TakeProfit.Result = TakeProfit.Price;
-                    
+                TakeProfit.Result = TakeProfit.Price;   
 
                 AddLineToTrade_synchronised(TakeProfit, DateTime.UtcNow.AddMinutes(-1));
                 SetUpdateRequest(TakeProfit);
@@ -1383,8 +1148,6 @@ namespace AlgoTrader.Shared
             {
                 //trade is entering, run synchronously and allow enclosing InitForDataContext() to save changes
                 Stop.TradeExecutionStatus = TakeProfit.TradeExecutionStatus = TradeExecutionStatus.EXCHANGE_NOT_SYNCHED;
-                SetUpdateRequest(Stop);
-                SetUpdateRequest(TakeProfit);
 
                 if (SendOCOToExchange(false)) //not updating, so will not remove OCO first
                 {
@@ -1404,37 +1167,32 @@ namespace AlgoTrader.Shared
                 //can just use the Result property to save the previous price
                 if (Stop.Price !=  Stop.Result || TakeProfit.Price != TakeProfit.Result)
                 {
+                    //can assume this is a new stop if either the stop or take profit has no result, since this will be zero
+                    // for a new stop or TP. This would happen if the stop or TP had been force-removed in error
+                    bool isUpdating = Stop.Result != 0 && TakeProfit.Result != 0;
+
                     Stop.Result = Stop.Price;
                     TakeProfit.Result = TakeProfit.Price;
 
                     Stop.TradeExecutionStatus = TakeProfit.TradeExecutionStatus = TradeExecutionStatus.EXCHANGE_NOT_SYNCHED;
-                    SetUpdateRequest(Stop);
-                    SetUpdateRequest(TakeProfit);
-
-                    //await Task.Run(() =>
-                    //{
-                    //    InitForDataContext(() =>
-                    //    {
 
                     LogConnection.WriteLine("Sending OCO...");
-                    if (SendOCOToExchange(true))
+                    if (SendOCOToExchange(true)) 
                     {
                         LogConnection.WriteLine("OCO order accepted.");
                         Stop.TradeExchangeStatus = TakeProfit.TradeExchangeStatus = TradeExchangeStatus.ENTERED_ON_EXCHANGE;
                         Stop.TradeExecutionStatus = TakeProfit.TradeExecutionStatus = TradeExecutionStatus.OK;
-                        SetUpdateRequest(Stop);
-                        SetUpdateRequest(TakeProfit);
+
                     }
                     else
                     {
                         LogConnection.WriteLine("OCO order NOT accepted.");
                     }
-
-                    //    });
-                    //});
                 }
             }
-            
+
+            SetUpdateRequest(Stop);
+            SetUpdateRequest(TakeProfit);
 
         }
 
@@ -1476,33 +1234,40 @@ namespace AlgoTrader.Shared
             return true;
         }
 
-
         protected override bool RemoveStopFromExchange_Synchronised()
         {
             //originally with Bitmex this would have the stop or floor ID passed in, but with Binance since we don't have Floors now,
             // just the single stop (OCO) then that is not needed
-            var data = new Dictionary<string, string>
+            if (Stop.OrderListId == null)
             {
-                {SYMBOL, symbolName },
-                {LIST_CLIENT_ORDER_ID, Stop.OrderListId}
-            };
-            try
+                //if a stop was removed in error, this would be a replacement but the OrderListID will be lost
+                CancelOpenOrders();
+            }
+            else
             {
-                var orderData = Deserialize<NewOrderData>(binanceAPI.CancelOrderListAsync(data).Result);
-
-                if (orderData != null)
+                var data = new Dictionary<string, string>
                 {
-                    if (!string.IsNullOrEmpty(orderData.Status))
+                    {SYMBOL, symbolName },
+                    {LIST_CLIENT_ORDER_ID, Stop.OrderListId}
+                };
+                try
+                {
+                    var orderData = Deserialize<NewOrderData>(binanceAPI.CancelOrderListAsync(data).Result);
+
+                    if (orderData != null)
                     {
-                        WriteDeliniatedMessage($"Stop cancel order was rejected: {orderData.Status}, stop not updated / replaced");
-                        return false;
+                        if (!string.IsNullOrEmpty(orderData.Status))
+                        {
+                            WriteDeliniatedMessage($"Stop cancel order was rejected: {orderData.Status}, stop not updated / replaced");
+                            return false;
+                        }
                     }
                 }
-            }
-            catch (Exception e)
-            {
-                LogTrades.WriteLine($"Error cancelling order list: {e.Message}");
-                return false;
+                catch (Exception e)
+                {
+                    LogTrades.WriteLine($"Error cancelling order list: {e.Message}");
+                    return false;
+                }
             }
             return true;
         }
@@ -1602,9 +1367,7 @@ namespace AlgoTrader.Shared
             }
 
             return base.GetValueForSymbol(symbolName);
-
         }
-
 
         bool IsTradeClosed()
         {
@@ -1708,10 +1471,7 @@ namespace AlgoTrader.Shared
             return -1;
         }
 
-        void WriteDeliniatedMessage(string msg)
-        {
-            LogTrades.WriteLine($"\n**************************************\n{msg}\n**************************************");
-        }
+        void WriteDeliniatedMessage(string msg) => LogTrades.WriteLine($"\n**************************************\n{msg}\n**************************************");
 
         #endregion
     } 
