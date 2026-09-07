@@ -1870,7 +1870,6 @@ namespace AlgoTrader.Live.ViewModels
 
         public void SetWindowTitle()
         {
-
             var executionType = TradeEngine.USE_TESTNET ? "TESTNET TRADING" : "LIVE TRADING ";
             var orderLimit = TradeEngine.RESTRICTED_TRADE_VALUE > 0 ? $" | ${TradeEngine.RESTRICTED_TRADE_VALUE} trade limit " : "";
             var exchange = TradeEngine.EXCHANGE.GetEnumDisplayName();

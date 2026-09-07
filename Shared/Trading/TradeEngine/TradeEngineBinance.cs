@@ -12,7 +12,31 @@ namespace AlgoTrader.Shared
     {
         public override async void Test()
         {
-            return;
+            //var response = Deserialize<IsolatedMarginData>(binanceAPI.QueryIsolateMarginAccountInfoAsync().Result);
+            //try
+            //{
+            //    if (double.TryParse(response["price"].ToString(), out double price))
+            //    {
+            //        return price;
+            //    }
+            //    LogTrades.WriteLine("Failed to get symbol price");
+            //    return 0;
+            //}
+            //catch (Exception e)
+            //{
+            //    LogTrades.WriteLine($"Error getting price info: {e.Message}");
+            //    return 0;
+            //}
+
+            var response1 = Deserialize<MaxBorrowData>(binanceAPI.QueryMaxBorrowAsync("BTC").Result);
+            var response2 = Deserialize<MaxBorrowData>(binanceAPI.QueryMaxBorrowAsync("USDT").Result);
+
+            var response = binanceAPI.QueryIsolateMarginAccountInfoAsync().Result;
+            var d = Deserialize<IsolatedMarginAccountData>(response);
+
+            //contains interest / fee data
+            JsonNode response3 = binanceAPI.QueryIsolateMarginAccountFeeAsync(symbolName).Result;
+            var d1 = Deserialize<List<IsolatedMarginFeeData>>(response3);
         }
 
         /*
@@ -35,6 +59,64 @@ namespace AlgoTrader.Shared
         static T Deserialize<T>(JsonNode jsonNode)
         {
             return JsonConvert.DeserializeObject<T>(jsonNode.ToString());
+        }
+
+        public class MaxBorrowData
+        {
+            public string Amount { get; set; }
+            public string BorrowLimit { get; set; }
+        }
+
+        //The JSON node here is an unnamed array of these objects, so to deserialize: Deserialize<List<IsolatedMarginFeeData>>(response);
+        public class IsolatedMarginFeeData
+        {
+            public class IsolatedMarginData
+            {
+                public string Coin { get; set; }
+                public double DailyInterest { get; set; }
+                public double BorrowLimit { get; set; }
+            }
+            public double VipLevel { get; set; }
+            public string Symbol { get; set; }
+            public double Leverage { get; set; }
+            public List<IsolatedMarginData> Data { get; set; }
+        }
+
+
+        public class IsolatedMarginAccountData
+        {   
+            public class AssetData
+            {
+                public class BaseQuoteAssetData
+                {
+                    public string Asset { get; set; }
+                    public bool BorrowEnabled { get; set; }
+                    public double Borrowed { get; set; }
+                    public double Free { get; set; }
+                    public double Interest { get; set; }
+                    public double Locked { get; set; }
+                    public double NetAsset { get; set; }
+                    public double NetAssetOfBTC { get; set; }
+                    public bool RepayEnabled { get; set; }
+                    public double TotalAsset { get; set; }
+                }
+                public BaseQuoteAssetData BaseAsset { get; set; }
+                public BaseQuoteAssetData QuoteAsset { get; set; }
+                public string Symbol { get; set; }
+                public bool IsolatedCreated { get; set; }
+                public bool Enabled { get; set; }
+                public double MarginLevel { get; set; }
+                public string MarginLevelStatus { get; set; }
+                public double MarginRatio { get; set; }
+                public double IndesPrice { get; set; }
+                public double LiquidatePrice { get; set; }
+                public double LiquidateRate { get; set; }
+                public bool TradeEnabled { get; set; }
+            }
+            public List<AssetData> Assets { get; set; }
+            public double TotalAssetOfBtc { get; set; }
+            public double TotalLiabilityOfBtc { get; set; }
+            public double TotalNetAssetOfBtc { get; set; }
         }
 
         #region Exchange info data
@@ -557,7 +639,7 @@ namespace AlgoTrader.Shared
             }
             catch (Exception e)
             {
-                LogConnection.WriteLine($"Error executing order: {e.Message}");
+                LogTrades.WriteLine($"Error executing order: {e.Message}");
                 return null;
             }
         }
@@ -584,6 +666,7 @@ namespace AlgoTrader.Shared
         }
         #endregion
 
+        #region Price info
         double GetLastPrice()
         {
             JsonNode response = binanceAPI.TickerPriceAsync(symbolName).Result;
@@ -603,7 +686,38 @@ namespace AlgoTrader.Shared
             }
 
         }
+        #endregion
 
+        #endregion
+
+        #region Send Margin REST requests
+
+        public bool EnableIsolatedMargin()
+        {
+            JsonNode response = binanceAPI.EnableIsolateMarginAsync(symbolName).Result;
+            try
+            {
+                string s = response["success"].ToString();
+                return s == "true";
+            }
+            catch (Exception e)
+            {
+                LogTrades.WriteLine($"Error enabling isolated margin: {e.Message}");
+                return false;
+            }
+        }
+
+        public void QueryIsolatedMarginAccountInfo()
+        {
+            try
+            {
+                JsonNode response = binanceAPI.QueryIsolateMarginAccountInfoAsync().Result;
+            }
+            catch (Exception ex)
+            {
+
+            }
+        }
         #endregion
 
         #region Enter and close trades
@@ -682,6 +796,17 @@ namespace AlgoTrader.Shared
             SetUpdateRequest(Entry);
 
             var balanceToTrade = RESTRICTED_TRADE_VALUE > 0 ? RESTRICTED_TRADE_VALUE : freeBalance * 0.95; //this will just be a 95% order for now
+            if (RESTRICTED_TRADE_VALUE > 0)
+            {
+                var _minValue = 0.0001; //no idea where this comes from, not in exchange info etc. but it is the minimum trade amount BTC
+                balanceToTrade = _minValue * lastQuoteValue;
+                if (RESTRICTED_TRADE_VALUE > balanceToTrade)
+                {
+                    balanceToTrade = RESTRICTED_TRADE_VALUE;
+                }
+                //balanceToTrade = 1;
+            }
+                
             var tradeAmount = GetCorrectPrecisionForTrade(balanceToTrade / lastQuoteValue);
             LogTrades.WriteLine($"Trade amount is {tradeAmount} for new order");
 
@@ -747,8 +872,15 @@ namespace AlgoTrader.Shared
 
             LogTrades.WriteLine($"Placing buy order of {tradeAmount}, adjusted for step size, at {DateTime.Now}...");
             var orderEntry = SendOrder(tradeAmount, Side.BUY, Entry.ItemId);
-
-            if (orderEntry != null)
+            if (orderEntry == null)
+            {
+                Order.ItemStatus = Entry.ItemStatus = TradeItemStatus.CLOSED;
+                Order.GlobalStatus = Entry.GlobalStatus = TradeGlobalStatus.STOPPED;
+                Order.TradeExchangeStatus = Entry.TradeExchangeStatus = TradeExchangeStatus.NEVER_ENTERED;
+                SetUpdateRequest(Order);
+                SetUpdateRequest(Entry);
+            }
+            else
             {
                 var orderValid = true;
                 var orderError = string.Empty;

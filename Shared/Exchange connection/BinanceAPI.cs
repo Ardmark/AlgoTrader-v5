@@ -1,31 +1,16 @@
-﻿using AlgoTrader.Shared.Logging;
-using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
-using System;
-using System.Collections.Generic;
-using System.ComponentModel.DataAnnotations;
+﻿using System.ComponentModel.DataAnnotations;
 using System.Diagnostics;
 using System.Net;
-using System.Net.Http;
 using System.Security.Cryptography;
-using System.Security.Policy;
 using System.Text;
 using System.Text.Json.Nodes;
-using System.Threading;
-using System.Threading.Tasks;
-using System.Windows.Forms.VisualStyles;
-using static AlgoTrader.Shared.ExchangeConnection.ExchangeDataProcessorBinance;
-using static System.Runtime.InteropServices.JavaScript.JSType;
-using static System.Windows.Forms.VisualStyles.VisualStyleElement.TextBox;
-
-
 
 namespace AlgoTrader.Shared
 {
     public class BinanceAPI : IDisposable
     {
 
-
+        #region Strings
         public const string SYMBOL = "symbol";
         public const string BTCUSDT = "BTCUSDT";
         public const string CLIENT_ORDER_ID_ORIGINAL = "origClientOrderId";
@@ -72,7 +57,9 @@ namespace AlgoTrader.Shared
         public const string CANCEL_REPLACE_MODE = "cancelReplaceMode";
         public const string ALLOW_FAILURE = "ALLOW_FAILURE";
         public const string STOP_ON_FAILURE = "STOP_ON_FAILURE";
+        #endregion
 
+        #region Enums
         public enum OrderTypes
         {
             [Display(Name = "LIMIT")]
@@ -95,8 +82,9 @@ namespace AlgoTrader.Shared
             BUY,
             SELL
         }
+        #endregion
 
-
+        #region Fields
         private readonly string _key;
         private readonly string _secret;
         private readonly long? _recvWindow;
@@ -105,7 +93,8 @@ namespace AlgoTrader.Shared
         private readonly HttpClient _http;
         private string _baseUrl;
         public long _drift;
-        private System.Threading.Timer? _syncTimer;
+        private System.Threading.Timer _syncTimer;
+        #endregion
 
         #region Constructor
         public BinanceAPI(
@@ -115,7 +104,7 @@ namespace AlgoTrader.Shared
             int timeoutMs = 15000,
             bool handleDrift = false,
             string baseUrl = "https://api.binance.com/",
-            HttpMessageHandler? handler = null)
+            HttpMessageHandler handler = null)
         {
             _key = key ?? string.Empty;
             _secret = secret ?? string.Empty;
@@ -293,8 +282,62 @@ namespace AlgoTrader.Shared
             return null;
         }
         #endregion
+  
+        #region Drift / time sync
+        public async Task CalculateDriftAsync(CancellationToken cancellationToken = default)
+        {
+            var systemTime = GetTimeMillis();
+            var response = await TimeAsync(cancellationToken).ConfigureAwait(false);
+            var serverTimeNode = response?["serverTime"];
+            if (serverTimeNode is null)
+            {
+                // cannot calculate drift if serverTime not present
+                return;
+            }
+            if (!long.TryParse(serverTimeNode.ToString(), out var serverTime)) return;
 
-        // --- Public endpoints (ported) ---
+            var transitTime = (GetTimeMillis() - systemTime) / 2;
+            _drift = serverTime - (systemTime + transitTime);
+        }
+
+
+        public Task StartTimeSyncAsync(int intervalMs = 300_000, Action<Task>? onRecalculateDriftCb = null)
+        {
+            // If timer already running, stop and reset
+            if (_syncTimer != null)
+            {
+                EndTimeSync();
+                return Task.CompletedTask;
+            }
+
+            // calculate initial drift
+            var t = CalculateDriftAsync();
+            t.ConfigureAwait(false);
+
+            // schedule periodic sync
+            _syncTimer = new System.Threading.Timer(async _ =>
+            {
+                var promise = CalculateDriftAsync();
+                onRecalculateDriftCb?.Invoke(promise);
+                try { 
+                    await promise.ConfigureAwait(false); 
+                    Debug.WriteLine($"[BinanceRest] Time sync completed. Current drift: {_drift} ms");
+
+                } catch { /* swallow */ }
+            }, null, intervalMs, intervalMs);
+
+            return Task.CompletedTask;
+        }
+
+        public void EndTimeSync()
+        {
+            _syncTimer?.Dispose();
+            _syncTimer = null;
+            _drift = 0;
+        }
+        #endregion
+
+        // --- Public endpoints
 
         #region General
         public Task<JsonNode> ExchangeInfoAsync(CancellationToken cancellationToken = default) =>
@@ -308,7 +351,7 @@ namespace AlgoTrader.Shared
 
         public Task<JsonNode> TimeAsync(CancellationToken cancellationToken = default) =>
             MakeRequestAsync(new Dictionary<string, string>(), "api/v1/time", null, HttpMethod.Get, 0, cancellationToken);
-        #endregion
+
 
         public Task<JsonNode> KlinesAsync(IDictionary<string, string> query, CancellationToken cancellationToken = default) =>
             MakeRequestAsync(query, "api/v1/klines", null, HttpMethod.Get, 0, cancellationToken);
@@ -320,6 +363,7 @@ namespace AlgoTrader.Shared
         //Best price/qty on the order book for a symbol or symbols.
         public Task<JsonNode> BookTickerAsync(string symbol = null, CancellationToken cancellationToken = default) =>
             MakeRequestAsync(string.IsNullOrEmpty(symbol) ? new Dictionary<string, string>() : new Dictionary<string, string> { ["symbol"] = symbol }, "api/v3/ticker/bookTicker", null, HttpMethod.Get, 0, cancellationToken);
+        #endregion
 
         #region not needed
         public Task<JsonNode> OrderBookAsync(IDictionary<string, string> query, CancellationToken cancellationToken = default) =>
@@ -368,6 +412,50 @@ namespace AlgoTrader.Shared
 
 
         // --- Account / Signed endpoints ---
+
+        #region Margin
+        public Task<JsonNode> EnableIsolateMarginAsync(string symbol, CancellationToken cancellationToken = default)
+        {
+           var query = new Dictionary<string, string> { ["symbol"] = symbol };
+           SetTimestamp(query);
+           return MakeRequestAsync(query, "sapi/v1/margin/isolated/account", "SIGNED", HttpMethod.Post, 0, cancellationToken);
+        }
+        public Task<JsonNode> QueryIsolateMarginAccountInfoAsync(CancellationToken cancellationToken = default)
+        {
+            var query = new Dictionary<string, string> {};
+            SetTimestamp(query);
+            return MakeRequestAsync(query, "sapi/v1/margin/isolated/account", "SIGNED", HttpMethod.Get, 0, cancellationToken);
+        }
+        public Task<JsonNode> QueryIsolateMarginAccountFeeAsync(string symbol, CancellationToken cancellationToken = default)
+        {
+            var query = new Dictionary<string, string> { ["symbol"] = symbol };
+            SetTimestamp(query);
+            return MakeRequestAsync(query, "sapi/v1/margin/isolatedMarginData", "SIGNED", HttpMethod.Get, 0, cancellationToken);
+        }
+        public Task<JsonNode> QueryMaxBorrowAsync(string asset, CancellationToken cancellationToken = default)
+        {
+            var query = new Dictionary<string, string> { ["asset"] = asset };
+            SetTimestamp(query);
+            return MakeRequestAsync(query, "sapi/v1/margin/maxBorrowable", "SIGNED", HttpMethod.Get, 0, cancellationToken);
+        }
+
+        #region not much use
+        public Task<JsonNode> GetSummaryOfMarginAccountAsync(CancellationToken cancellationToken = default)
+        {
+            var query = new Dictionary<string, string> { };
+            SetTimestamp(query);
+            return MakeRequestAsync(query, "sapi/v1/margin/tradeCoeff", "SIGNED", HttpMethod.Get, 0, cancellationToken);
+        }
+        public Task<JsonNode> QueryEnabledIsolatedMarginAccountLimitAsync(CancellationToken cancellationToken = default)
+        {
+            var query = new Dictionary<string, string> { };
+            SetTimestamp(query);
+            return MakeRequestAsync(query, "sapi/v1/margin/isolated/accountLimit", "SIGNED", HttpMethod.Get, 0, cancellationToken);
+        }
+        #endregion
+
+        #endregion
+
         #region Trade
         public Task<JsonNode> NewOrderAsync(IDictionary<string, string> query, CancellationToken cancellationToken = default)
         {
@@ -407,15 +495,12 @@ namespace AlgoTrader.Shared
             SetTimestamp(query);
             return MakeRequestAsync(query, "api/v3/order/test", "SIGNED", HttpMethod.Post, 0, cancellationToken);
         }        
-        
-        #endregion
-
-
+ 
         public Task<JsonNode> OpenOrdersAsync(string symbol, CancellationToken cancellationToken = default)
         {
-            var q = new Dictionary<string, string> { ["symbol"] = symbol };
-            SetTimestamp(q);
-            return MakeRequestAsync(q, "api/v3/openOrders", "SIGNED", HttpMethod.Get, 0, cancellationToken);
+            var query = new Dictionary<string, string> { ["symbol"] = symbol };
+            SetTimestamp(query);
+            return MakeRequestAsync(query, "api/v3/openOrders", "SIGNED", HttpMethod.Get, 0, cancellationToken);
         }
 
         public Task<JsonNode> OpenOrdersAsync(IDictionary<string, string> query, CancellationToken cancellationToken = default)
@@ -427,17 +512,16 @@ namespace AlgoTrader.Shared
         //cancel all open orders
         public Task<JsonNode> CancelOpenOrdersAsync(string symbol, CancellationToken cancellationToken = default)
         {
-            var q = new Dictionary<string, string> { ["symbol"] = symbol };
-            SetTimestamp(q);
-            return MakeRequestAsync(q, "api/v3/openOrders", "SIGNED", HttpMethod.Delete, 0, cancellationToken);
+            var query = new Dictionary<string, string> { ["symbol"] = symbol };
+            SetTimestamp(query);
+            return MakeRequestAsync(query, "api/v3/openOrders", "SIGNED", HttpMethod.Delete, 0, cancellationToken);
         }
-
 
         public Task<JsonNode> AllOrdersAsync(string symbol, CancellationToken cancellationToken = default)
         {
-            var q = new Dictionary<string, string> { ["symbol"] = symbol };
-            SetTimestamp(q);
-            return MakeRequestAsync(q, "api/v3/allOrders", "SIGNED", HttpMethod.Get, 0, cancellationToken);
+            var query = new Dictionary<string, string> { ["symbol"] = symbol };
+            SetTimestamp(query);
+            return MakeRequestAsync(query, "api/v3/allOrders", "SIGNED", HttpMethod.Get, 0, cancellationToken);
         }
 
         public Task<JsonNode> AllOrdersAsync(IDictionary<string, string> query, CancellationToken cancellationToken = default)
@@ -446,6 +530,9 @@ namespace AlgoTrader.Shared
             return MakeRequestAsync(query, "api/v3/allOrders", "SIGNED", HttpMethod.Get, 0, cancellationToken);
         }
 
+        #endregion
+
+        #region Account
         public Task<JsonNode> AccountAsync(CancellationToken cancellationToken = default)
         {
             var q = new Dictionary<string, string>();
@@ -472,6 +559,7 @@ namespace AlgoTrader.Shared
             SetTimestamp(query);
             return MakeRequestAsync(query, "api/v3/myTrades", "SIGNED", HttpMethod.Get, 0, cancellationToken);
         }
+        #endregion
 
         #region deposit and withdrawal
         public Task<JsonNode> WithdrawAsync(IDictionary<string, string> query, CancellationToken cancellationToken = default)
@@ -540,59 +628,8 @@ namespace AlgoTrader.Shared
             MakeRequestAsync(query, "api/v1/userDataStream", "API-KEY", HttpMethod.Delete, 0, cancellationToken);
 
         #endregion
-        // --- Drift / time sync ---
-
-        public async Task CalculateDriftAsync(CancellationToken cancellationToken = default)
-        {
-            var systemTime = GetTimeMillis();
-            var response = await TimeAsync(cancellationToken).ConfigureAwait(false);
-            var serverTimeNode = response?["serverTime"];
-            if (serverTimeNode is null)
-            {
-                // cannot calculate drift if serverTime not present
-                return;
-            }
-            if (!long.TryParse(serverTimeNode.ToString(), out var serverTime)) return;
-
-            var transitTime = (GetTimeMillis() - systemTime) / 2;
-            _drift = serverTime - (systemTime + transitTime);
-        }
 
 
-        public Task StartTimeSyncAsync(int intervalMs = 300_000, Action<Task>? onRecalculateDriftCb = null)
-        {
-            // If timer already running, stop and reset
-            if (_syncTimer != null)
-            {
-                EndTimeSync();
-                return Task.CompletedTask;
-            }
-
-            // calculate initial drift
-            var t = CalculateDriftAsync();
-            t.ConfigureAwait(false);
-
-            // schedule periodic sync
-            _syncTimer = new System.Threading.Timer(async _ =>
-            {
-                var promise = CalculateDriftAsync();
-                onRecalculateDriftCb?.Invoke(promise);
-                try { 
-                    await promise.ConfigureAwait(false); 
-                    Debug.WriteLine($"[BinanceRest] Time sync completed. Current drift: {_drift} ms");
-
-                } catch { /* swallow */ }
-            }, null, intervalMs, intervalMs);
-
-            return Task.CompletedTask;
-        }
-
-        public void EndTimeSync()
-        {
-            _syncTimer?.Dispose();
-            _syncTimer = null;
-            _drift = 0;
-        }
 
         public void Dispose()
         {

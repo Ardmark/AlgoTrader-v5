@@ -1,10 +1,8 @@
 ﻿using AlgoTrader.Shared.Enums;
 using Shared.Drawings;
-using System.Diagnostics;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
-using System.Windows.Media.Media3D;
 using System.Windows.Shapes;
 using static Shared.Drawings.DrawingObjects;
 using Brushes = System.Windows.Media.Brushes;
@@ -18,10 +16,7 @@ namespace AlgoTrader.Shared
 {
     public class Chart : DisplayPanel
     {
-
         #region Constants
-
-
         const int NUM_BARS_TO_DISPLAY_INITIALLY = 200;
         const int SCROLL_TO_END_OFFSET = 20; //space between last bar and edge of screen when ScrollToEnd, symbol change etc. happens
         const int HORIZONTAL_GRID_LINES = 3;
@@ -31,7 +26,6 @@ namespace AlgoTrader.Shared
         public static Line currentTimeMarkerLine;
         public static Canvas alertBox, timeBarChildCanvas;
         public static bool canDraw = true;
-
         public static bool showClosedTrades = true;
         public static bool showOnlyActiveTrade = true;
         public static bool showTrades = true;
@@ -40,27 +34,22 @@ namespace AlgoTrader.Shared
 
         public static readonly SolidColorBrush STOPPED_COLOR_L = Brushes.Black;
         public static readonly SolidColorBrush STOPPED_COLOR_D = Brushes.White;
-
         public static readonly SolidColorBrush CANCELLED_COLOR_L = Brushes.Gray;
         public static readonly SolidColorBrush CANCELLED_COLOR_D = Brushes.Gray;
 
-        public static readonly SolidColorBrush VERTICAL_LINE_ACTIVE_L = new SolidColorBrush(Color.FromRgb(200, 200, 200));
-        public static readonly SolidColorBrush VERTICAL_LINE_ACTIVE_D = Brushes.Black;
-
-        public static readonly SolidColorBrush VERTICAL_LINE_INACTIVE_L = new SolidColorBrush(Color.FromRgb(96, 96, 96));
-        public static readonly SolidColorBrush VERTICAL_LINE_INACTIVE_D = new SolidColorBrush(Color.FromRgb(192, 192, 192));
-
-        static readonly SolidColorBrush RUNNING_COLOR_LONG_D = new SolidColorBrush(Color.FromRgb(0, 153, 255));
+        static readonly SolidColorBrush VERTICAL_LINE_ACTIVE_L = new(Color.FromRgb(200, 200, 200));
+        static readonly SolidColorBrush VERTICAL_LINE_ACTIVE_D = Brushes.Black;
+        static readonly SolidColorBrush VERTICAL_LINE_INACTIVE_L = new (Color.FromRgb(96, 96, 96));
+        static readonly SolidColorBrush VERTICAL_LINE_INACTIVE_D = new (Color.FromRgb(192, 192, 192));
+        static readonly SolidColorBrush RUNNING_COLOR_LONG_D = new(Color.FromRgb(0, 153, 255));
         static readonly SolidColorBrush RUNNING_COLOR_LONG_L = Brushes.Blue;
         static readonly SolidColorBrush RUNNING_COLOR_SHORT = Brushes.Red;
-        static readonly SolidColorBrush WAITING_COLOR_LONG_D = new SolidColorBrush(Color.FromRgb(57, 83, 130));
+        static readonly SolidColorBrush WAITING_COLOR_LONG_D = new (Color.FromRgb(57, 83, 130));
         static readonly SolidColorBrush WAITING_COLOR_LONG_L = Brushes.CornflowerBlue;
         static readonly SolidColorBrush WAITING_COLOR_SHORT = Brushes.Orange;
         static readonly SolidColorBrush STOP_COLOR_ACTIVE = Brushes.Gray;
         static readonly SolidColorBrush LIQUIDATION_COLOR = Brushes.Red;
-        static readonly SolidColorBrush BREAKEVEN_COLOR_ACTIVE = Brushes.Black;
         static readonly SolidColorBrush TAKE_PROFIT_COLOR_ACTIVE = Brushes.Black;
-        static readonly SolidColorBrush BREAK_EVEN_COLOR = Brushes.Lime; //this is just #00ff00
         static readonly SolidColorBrush EXCHANGE_NOT_SYNCHED_COLOR = Brushes.Gray;
         static readonly SolidColorBrush OUTLINE_COLOR = Brushes.Black;
         static readonly SolidColorBrush TEXT_COLOR = Brushes.White;
@@ -230,7 +219,6 @@ namespace AlgoTrader.Shared
             WAITING_COLOR_SHORT.Freeze();
             STOP_COLOR_ACTIVE.Freeze();
             TAKE_PROFIT_COLOR_ACTIVE.Freeze();
-            BREAK_EVEN_COLOR.Freeze();
             EXCHANGE_NOT_SYNCHED_COLOR.Freeze();
             OUTLINE_COLOR.Freeze();
             TEXT_COLOR.Freeze();
@@ -459,8 +447,6 @@ namespace AlgoTrader.Shared
                     }
                 }
 
-
-
                 FirstVisibleTime = Chart.ScrollBars >= items_chart.Count ? items_chart[items_chart.Count - 1].Timestamp : items_chart[Chart.ScrollBars].Timestamp;
                 var lastFrame = Chart.ScrollBars + Chart.ScaleBars;
                 if (lastFrame > items_chart.Count - 1)
@@ -496,13 +482,13 @@ namespace AlgoTrader.Shared
                     {
                         //so this is a callback, to ensure thread safety - cannot read any of the UI lists if they are being updated
                         // - it also does not create a shallow copy of the entire lists, only a copy from a query  
-                            bool _CompareDateTime(_ChartLine f)
-                            {
-                            return
-                               (DateTime.Compare(f.StartTimeStamp, rightEdgeTimestamp) <= 0 && DateTime.Compare(f.EndTimeStamp, leftEdgeTimestamp) >= 0) ||
-                               (DateTime.Compare(f.StartTimeStamp, leftEdgeTimestamp) >= 0 && DateTime.Compare(f.EndTimeStamp, rightEdgeTimestamp) <= 0);
+                        bool _CompareDateTime(_ChartLine f)
+                        {
+                        return
+                            (DateTime.Compare(f.StartTimeStamp, rightEdgeTimestamp) <= 0 && DateTime.Compare(f.EndTimeStamp, leftEdgeTimestamp) >= 0) ||
+                            (DateTime.Compare(f.StartTimeStamp, leftEdgeTimestamp) >= 0 && DateTime.Compare(f.EndTimeStamp, rightEdgeTimestamp) <= 0);
 
-                            }
+                        }
                         if (showTrades)
                         {
                             //interesting - the objects returned are not fresh from the DB, but are references to any in-memory objects with any properties set, etc.
@@ -522,18 +508,6 @@ namespace AlgoTrader.Shared
                         {
                             visibleLines = tradeEngine.UI_Lines.Where(f => _CompareDateTime(f));
                         }
-                        #region Hide lines if only showing selected trade (unused)
-
-                        //if (!showOnlyActiveTrade)
-                        //{
-                        //    //stops are awkward because they are always open and active until the order is closed, regardless of whether entered or not
-                        //    visibleLines = visibleLines.Where(x => x.Trade == null || (x.Trade != null && x.Trade.Type == TradeType.STOP_WAITING || (x.Trade.GlobalStatus == TradeGlobalStatus.ACTIVE && x.Trade.ItemStatus == TradeItemStatus.OPEN && x.Trade.ExchangeStatus == TradeExchangeStatus.ENTERED_ON_EXCHANGE)));
-                        //}
-                        //if (!showClosedTrades)
-                        //{
-                        //    visibleLines = visibleLines.Where(x => x.Trade == null || (x.Trade != null && x.Trade.GlobalStatus != TradeGlobalStatus.STOPPED && x.Trade.ItemStatus != TradeItemStatus.CLOSED));
-                        //}
-                        #endregion
 
                         foreach (var l in visibleLines)
                         {
@@ -559,7 +533,6 @@ namespace AlgoTrader.Shared
                             {
                                 orders = orders.Where(x => x.Action != TradeAction.TAKE_PROFIT);
                             }
-
 
                             //include any orders where the order and current time / close are either visible or bracket the visible area
                             foreach (var trade in orders)
@@ -606,8 +579,6 @@ namespace AlgoTrader.Shared
                                     }
                                 }
                             }
-
-
                         }
                     });
                     #endregion
@@ -813,17 +784,9 @@ namespace AlgoTrader.Shared
                         {
                             var order = tradeGroup.FirstOrDefault(x => x.Action == TradeAction.ORDER);
                             var entry = tradeGroup.FirstOrDefault(x => x.Action == TradeAction.ENTRY);
-                            var stop = tradeGroup.FirstOrDefault(x => x.Action == TradeAction.STOP); //can also be a flip order stop
-                            //var stopWaiting = tradeGroup.FirstOrDefault(x => x.Action == TradeAction.WAITING_STOP);
+                            var stop = tradeGroup.FirstOrDefault(x => x.Action == TradeAction.STOP); 
                             var takeProfit = tradeGroup.FirstOrDefault(x => x.Action == TradeAction.TAKE_PROFIT);
-                            //var ceiling = tradeGroup.FirstOrDefault(x => x.Action == TradeAction.CEILING);
-                            //var floor = tradeGroup.FirstOrDefault(x => x.Action == TradeAction.FLOOR);
                             var close = tradeGroup.FirstOrDefault(x => x.Action == TradeAction.CLOSE);
-                            //var breakEven = tradeGroup.FirstOrDefault(x => x.Action == TradeAction.BREAK_EVEN);
-                            //var flipOrder = tradeGroup.FirstOrDefault(x => x.Type == TradeType.FLIP_ORDER);
-
-                            var oppPosition = order.Position == TradePosition.LONG ? TradePosition.SHORT : TradePosition.LONG;
-                            var oppOrder = visibleOrActiveOrders.FirstOrDefault(x => x.Action == TradeAction.ORDER && x.GlobalStatus == TradeGlobalStatus.ACTIVE && x.Position == oppPosition);
 
                             double orderPriceNow = 0;
                             if (entry != null)
@@ -864,12 +827,6 @@ namespace AlgoTrader.Shared
                                     ? MainObj.isDarkMode ? RUNNING_COLOR_LONG_D : RUNNING_COLOR_LONG_L
                                     : RUNNING_COLOR_SHORT
                                     : EXCHANGE_NOT_SYNCHED_COLOR;
-                                var flipColor = order.Position == TradePosition.SHORT
-                                    ? MainObj.isDarkMode ? RUNNING_COLOR_LONG_D : RUNNING_COLOR_LONG_L
-                                    : RUNNING_COLOR_SHORT;
-                                //var breakEvenColor = exchangeSynched ? BREAK_EVEN_COLOR : EXCHANGE_NOT_SYNCHED_COLOR;
-                                //var stopColorActive = exchangeSynched ? STOP_COLOR_ACTIVE : EXCHANGE_NOT_SYNCHED_COLOR;
-                                //var tpColorActive = exchangeSynched ? TAKE_PROFIT_COLOR_ACTIVE : EXCHANGE_NOT_SYNCHED_COLOR;
 
                                 if (isRunning)
                                 {
@@ -878,8 +835,8 @@ namespace AlgoTrader.Shared
                                 }
                                 else if (hasClosedEntered)
                                 {
-                                    color = Brushes.White;
-                                    outline = runningColor;
+                                    color = Brushes.Black;
+                                    outline = Brushes.White;
                                 }
                                 else if (hasClosedNoEntry)
                                 {
@@ -894,8 +851,6 @@ namespace AlgoTrader.Shared
 
                                 #endregion
 
-
-
                                 #region Draw trade markers
 
                                 //only draw floor and ceiling markers if trade is running
@@ -904,7 +859,6 @@ namespace AlgoTrader.Shared
 
                                 foreach (var trade in tradeGroup)
                                 {
-
                                     canvas1 = null;
 
                                     //will always draw trades lined up, although the stops will actually track along the support lines
@@ -922,8 +876,6 @@ namespace AlgoTrader.Shared
                                         //when it is runninng (Global Status OPEN) will be inactive until Item Status is CLOSED, i.e. trade has entered, this will be for a backtesting trade
                                         case TradeAction.ORDER:
 
-                                            //(left, top) = GetDrawPosition1(timeStamp, trade.Price);
-
                                             //for clarity, don't show the order if the trade has entered and closed, just show the entry and close markers
                                             //but if the trade has no close marker, then must show it or will never see it again
                                             //so trade is either pending, active, or closed with entry, otherwise don't show
@@ -931,69 +883,11 @@ namespace AlgoTrader.Shared
                                             if (trade.ItemStatus == TradeItemStatus.OPEN || trade.GlobalStatus == TradeGlobalStatus.ACTIVE || entry == null)
                                             {
                                                 string extraText = string.Empty;
-                                                //if (stop == null)
-                                                //{
-                                                //    if (flipOrder != null)
-                                                //    {
-                                                //        var _oppOrderLine = visibleLines.FirstOrDefault(x => x.TradeId == flipOrder.Id);
-                                                //        if (_oppOrderLine != null)
-                                                //        {
-                                                //            (double oppOrderPriceNow, _) = _oppOrderLine.GetPriceAtTime(DateTime.UtcNow, true);
-
-                                                //            var floorPricePC = -MainObj.GetPriceDiff(orderPriceNow, oppOrderPriceNow, order.Position) * 100;
-                                                //            extraText = GetStopText(floorPricePC, false, order, true);
-                                                //        }
-                                                //    }
-                                                //    else if (oppOrder != null)
-                                                //    {
-                                                //        var _oppOrderLine = visibleLines.FirstOrDefault(x => x.TradeId == oppOrder.Id);
-                                                //        if (_oppOrderLine != null)
-                                                //        {
-                                                //            (double oppOrderPriceNow, _) = _oppOrderLine.GetPriceAtTime(DateTime.UtcNow, true);
-
-                                                //            var floorPricePC = -MainObj.GetPriceDiff(orderPriceNow, oppOrderPriceNow, order.Position) * 100;
-                                                //            extraText = GetStopText(floorPricePC, false, order, true);
-                                                //        }
-                                                //    }
-                                                //}
-                                                /*
-
-                                                //this is a locally placed order if it is running with a zero action value. Otherwise it was placed on exchange.
-                                                var p = trade.Position == TradePosition.LONG ? "LONG" : "SHORT";
-                                                //var t =  trade.ItemStatus == TradeItemStatus.CLOSED && trade.ActionValue == 0 ? $"Pending {p} ORDER: " : $"{p} ORDER: ";
-                                                var t = trade.ExchangeStatus == TradeExchangeStatus.ENTERED_ON_EXCHANGE ? $"{p} ORDER: {trade.Quantity}" : "";
-                                                switch (trade.Type)
-                                                {
-                                                    case TradeType.HMA_BREAK_ORDER:
-                                                        extraText = trade.GlobalStatus == TradeGlobalStatus.ACTIVE ? $"{t} HMA break" : " stopped";
-                                                        break;
-                                                    case TradeType.LINE_BREAK_ORDER:
-                                                        extraText = trade.GlobalStatus == TradeGlobalStatus.ACTIVE ? $"{t} line break" : " stopped";
-                                                        break;
-                                                    case TradeType.PRICE_BREAK_ORDER:
-                                                        //trade may be closed before or after it has entered, so ItemStatus can be open or closed when trade stopped
-                                                        extraText = trade.GlobalStatus == TradeGlobalStatus.ACTIVE ? $"{t} price break" : " stopped";
-                                                        break;
-                                                    case TradeType.MARKET_ORDER:
-                                                        //trade may be closed before or after it has entered, so ItemStatus can be open or closed when trade stopped
-                                                        extraText = trade.GlobalStatus == TradeGlobalStatus.ACTIVE ? $"{t} market" : " stopped";
-                                                        break;
-                                                    case TradeType.AUTO_ORDER:
-                                                        extraText = trade.GlobalStatus == TradeGlobalStatus.ACTIVE ? $"{t} auto" : " stopped";
-                                                        break;
-                                                }
-                                                var s = trade.TimeFrame > 1 ? "s" : "";
-                                                extraText += trade.ExchangeStatus == TradeExchangeStatus.ENTERED_ON_EXCHANGE 
-                                                    ? $" ({trade.TimeFrame}min{s}) {trade.Leverage.ToString("0.0")}X"
-                                                    : $" ({trade.TimeFrame}min{s})";
-                                                */
                                                 canvas1 = TradeOrderMarker(trade.Position, left, top, color, outline, extraText).canvas;
                                             }
                                             break;
 
                                         case TradeAction.ENTRY:
-
-                                            //(left, top) = GetDrawPosition1(timeStamp, trade.Price);
 
                                             //Entry and Close will kill the order locally if they timeout
                                             //so if trade is closed but still has script name, can consider this to be an interrupted trade
@@ -1005,22 +899,7 @@ namespace AlgoTrader.Shared
                                             break;
 
                                         case TradeAction.STOP:
-                                        //case TradeAction.WAITING_STOP:
-
-                                            //double stopPriceNow = 0;
-
-                                            //stopPriceNow = trade.Price;
-                                            //if (!hasEntered)
-                                            //{
-                                            //    var _stopLine = visibleLines.FirstOrDefault(x => x.TradeId == trade.Id);
-                                            //    if (_stopLine != null)
-                                            //    {
-                                            //        (stopPriceNow, _) = _stopLine.GetPriceAtTime(DateTime.UtcNow, true);
-                                            //    }
-                                            //}
-
                                             var unsynched = trade.TradeExecutionStatus == TradeExecutionStatus.EXCHANGE_NOT_SYNCHED;
-
 
                                             string text = string.Empty;
                                             if (trade.GlobalStatus == TradeGlobalStatus.ACTIVE)
@@ -1031,60 +910,15 @@ namespace AlgoTrader.Shared
                                                 }
 
                                                 text += " Stop ";
-                                                //switch (trade.Type)
-                                                //{
- 
-                                                //    case TradeType.NO_FLIP_ORDER:
-                                                //        text += " stop ";
-                                                //        break;
-                                                //    case TradeType.FLIP_ORDER:
-                                                //        text += " flip order ";
-                                                //        break;
-                                                //    case TradeType.STOP_WAITING:
-                                                //        text += " flip order stop ";
-                                                //        break;
-                                                //}
 
-
-                                                double stopPricePC = 0;
-                                                switch (trade.Type)
+                                                double stopPricePC = -MainObj.GetPriceDiff(orderPriceNow, trade.Price, order.Position) * 100;
+                                                if (entry == null)
                                                 {
-                                                    //case TradeType.STOP_WAITING:
-                                                    //    stopPricePC = flipOrder != null
-                                                    //    ? -MainObj.GetPriceDiff(flipOrder.Price, trade.Price, order.Position) * 100
-                                                    //    : 0;
-                                                    //    if (entry == null)
-                                                    //    {
-                                                    //        //will add this in when it breaks the entry line
-                                                    //        stopPricePC -= TradeEngine.ENTRY_LINE_PRICE_GAP_PC;
-                                                    //    }
-                                                    //    text += GetStopText(stopPricePC, false, order);
-                                                    //    break;
-                                                    //case TradeType.FLIP_ORDER:
-                                                    //    stopPricePC = entry != null
-                                                    //    ? -MainObj.GetPriceDiff(entry.Price, trade.Price, order.Position) * 100
-                                                    //    : stopWaiting != null
-                                                    //        ? -MainObj.GetPriceDiff(stopWaiting.Price, trade.Price, order.Position) * 100
-                                                    //        : 0;
-                                                    //    if (entry == null)
-                                                    //    {
-                                                    //        //will add this in when it breaks the entry line
-                                                    //        stopPricePC -= TradeEngine.ENTRY_LINE_PRICE_GAP_PC;
-                                                    //    }
-
-                                                    //    text += GetStopText(stopPricePC, stopWaiting == null, order, true, true, entry == null ? "" : " from entry");
-                                                    //    break;
-                                                    default:
-                                                        stopPricePC = -MainObj.GetPriceDiff(orderPriceNow, trade.Price, order.Position) * 100;
-                                                        if (entry == null)
-                                                        {
-                                                            //will add this in when it breaks the entry line
-                                                            stopPricePC -= TradeEngine.ENTRY_LINE_PRICE_GAP_PC;
-                                                        }
-                                                        text += GetStopText(stopPricePC, hasEntered, order);
-                                                        break;
+                                                    //will add this in when it breaks the entry line
+                                                    stopPricePC -= TradeEngine.ENTRY_LINE_PRICE_GAP_PC;
                                                 }
-        
+                                                text += GetStopText(stopPricePC, hasEntered, order);
+         
                                                 switch (trade.Stop)
                                                 {
                                                     case TradeStop.STOP_TRAIL:
@@ -1094,7 +928,6 @@ namespace AlgoTrader.Shared
                                                         text += " (spike)";
                                                         break;
                                                     case TradeStop.STOP_ON_LINE_BREAK:
-                                                        //text += " (line break)";
                                                         break;
                                                     case TradeStop.TAKE_PROFIT_MA_CROSS:
                                                         text += " (moving average)";
@@ -1103,33 +936,18 @@ namespace AlgoTrader.Shared
                                                         text += " (unspecified)";
                                                         break;
                                                 }
-
-
-
                                             }
                                             //adjust slightly away from current price, for clarity
-                                            //var _col = trade.Type == TradeType.FLIP_ORDER ? flipColor : color;
                                             var _col = color;
-                                            liveTrailMarker = TradeStopMarker(trade.Position, left + currentTimeOffset, top, unsynched ? EXCHANGE_NOT_SYNCHED_COLOR : _col, outline, text, false, /*trade.Type == TradeType.FLIP_ORDER,*/ trade.TradeExecutionStatus == TradeExecutionStatus.EXCHANGE_NOT_SYNCHED);
+                                            liveTrailMarker = TradeStopMarker(trade.Position, left + currentTimeOffset, top, unsynched ? EXCHANGE_NOT_SYNCHED_COLOR : _col, outline, text, false, trade.TradeExecutionStatus == TradeExecutionStatus.EXCHANGE_NOT_SYNCHED);
                                             canvas1 = liveTrailMarker.canvas;
                                             break;
 
                                         case TradeAction.TAKE_PROFIT:
 
                                             text =  "Take Profit ";
-                                            //switch (trade.Type)
-                                            //{
-                                            //    //case TradeType.NO_FLIP_ORDER:
-                                            //    //    text += "dead exit ";
-                                            //    //    break;
-                                            //    case TradeType.LINE_BREAK_ORDER:
-                                            //        text += "flip order ";
-                                            //        break;
-                                            //}
-
                                             var tpPricePC = -MainObj.GetPriceDiff(orderPriceNow, trade.Price, order.Position) * 100;
                                             text += GetStopText(tpPricePC, hasEntered, order, false, false);
-
                                             canvas1 = TradeTakeProfitMarker(left + currentTimeOffset, top, color, outline, trade.GlobalStatus == TradeGlobalStatus.ACTIVE ? text : " stopped").canvas;
                                             break;
 
@@ -1137,60 +955,6 @@ namespace AlgoTrader.Shared
                                             var s1 = (trade.Position == TradePosition.LONG ? "Long " : "Short ") + trade.Result.ToString("0.0000") + "%";
                                             canvas1 = TradeExitMarker(left, top, MainObj.darkBG, outline, s1).canvas;
                                             break;
-                                            
-                                            /*
-                                        case TradeAction.BREAK_EVEN:
-
-                                            text = trade.Quantity.ToString() + " break even ";
-
-                                            if (tradeEngine.currentDataItem != null)
-                                            {
-                                                var breakEvenPrice = -MainObj.GetPriceDiff(orderPriceNow, trade.Price, order.Position) * 100;
-                                                text += GetStopText(breakEvenPrice, hasEntered, order, false, false);
-                                            }
-
-                                            canvas1 = TradeBreakEvenMarker(left + currentTimeOffset, top, color, outline, trade.Position, trade.GlobalStatus == TradeGlobalStatus.ACTIVE ? text : " stopped").canvas;
-                                            break;
-                                        case TradeAction.CEILING:
-
-                                        text = trade.Quantity.ToString() + " ceiling ";
-
-                                        if (tradeEngine.currentDataItem != null)
-                                        {
-                                            var ceilingPricePC = -MainObj.GetPriceDiff(orderPriceNow, trade.Price, order.Position) * 100;
-                                            text += GetStopText(ceilingPricePC, hasEntered, order, false, false);
-                                        }
-
-                                        canvas1 = TradeTakeProfitMarker(left + currentTimeOffset, top, color, outline, trade.Position, (trade.GlobalStatus == TradeGlobalStatus.ACTIVE ? text : " stopped"), trade.Type == TradeType.FLIP_ORDER).canvas;
-                                        break;
-                                        case TradeAction.FLOOR:
-
-                                        if (showFloorTrades)
-                                        {
-                                            text = "floor";
-
-                                            if (tradeEngine.currentDataItem != null)
-                                            {
-                                                var floorPricePC = order.Position == TradePosition.LONG
-                                                    ? -MainObj.GetPriceDiff(orderPriceNow, trade.Price, order.Position) * 100
-                                                    : -MainObj.GetPriceDiff(trade.Price, orderPriceNow, order.Position) * 100;
-
-
-                                                if (entry == null)
-                                                {
-                                                    //will add this in when it breaks the entry line
-                                                    floorPricePC -= TradeEngine.ENTRY_LINE_PRICE_GAP_PC;
-                                                }
-
-                                                text += GetStopText(floorPricePC, hasEntered, order, false, true);
-                                            }
-
-                                            canvas1 = TradeStopMarker(trade.Position, left + currentTimeOffset, top, color, outline, (trade.GlobalStatus == TradeGlobalStatus.ACTIVE ? text : " stopped"), trade.Type == TradeType.FLIP_ORDER, trade.ExecutionSystem == TradeExecutionSystem.EXCHANGE_UNSYNCHED).canvas;
-                                        }
-                                        break;
-                                        */
-
-
                                     }
 
 
@@ -1230,9 +994,6 @@ namespace AlgoTrader.Shared
                                                 switch (trade.Action)
                                                 {
                                                     case TradeAction.STOP:
-                                                    //case TradeAction.FLOOR:
-                                                    //case TradeAction.CEILING:
-                                                    //case TradeAction.BREAK_EVEN:
                                                     case TradeAction.TAKE_PROFIT:
                                                         CurrentTrade = trade;
                                                         e.Handled = true;
@@ -1317,23 +1078,6 @@ namespace AlgoTrader.Shared
                             }
                             if (close == null)// && entry?.GlobalStatus == TradeGlobalStatus.ACTIVE)
                             {
-                                /*
-                                if (ceiling != null)
-                                {
-                                    DrawStopLines(ceiling.Price, TAKE_PROFIT_COLOR_ACTIVE, right, 2, true);
-                                }
-                                //hide floor because it will scale the drawings to an unworkable level
-                                if (floor != null && showFloorTrades)
-                                {
-                                    DrawStopLines(floor.Price, STOP_COLOR_ACTIVE, right, 2, true);
-                                }
-                                
-                                if (breakEven != null)
-                                {
-                                    DrawStopLines(breakEven.Price, BREAKEVEN_COLOR_ACTIVE, right, 2, true);
-                                }
-                                */
-
                                 var topPrice = tradeGroup.Max(x => x.Price);
                                 var botPrice = tradeGroup.Min(x => x.Price);
 
@@ -1385,8 +1129,7 @@ namespace AlgoTrader.Shared
                                     };
                                     if (order.ItemStatus == TradeItemStatus.CLOSED && order.GlobalStatus == TradeGlobalStatus.ACTIVE)
                                     {
-                                        p.Brush = Brushes.Orange;// tradeEngine.currentTradeSetReference == null || tradeEngine.currentTradeSetReference == order.TradeReference 
-                                                                 // ? Brushes.Orange : Brushes.Blue;
+                                        p.Brush = Brushes.Orange;
                                     }
                                     else
                                     {
@@ -1418,31 +1161,13 @@ namespace AlgoTrader.Shared
                     #region Draw overlay text
                     void SetOverlay(string text)
                     {
-                        //var textTop = 0;// (canvas.ActualHeight - overlay.ActualHeight) / 2;
-
-                        //FormattedText ft = new FormattedText(
-                        //    text,
-                        //    CultureInfo.GetCultureInfo("en-us"),
-                        //    FlowDirection.LeftToRight,
-                        //    new Typeface("Verdana"),
-                        //    20,
-                        //    Brushes.Black);
-
-                        //ft.MaxTextWidth = 800;
-                        //ft.MaxTextHeight = 200;
-                        //var textLeft = (int)(canvas.ActualWidth - ft.Width - 20);
-                        //dc.DrawText(ft, new Point(textLeft, textTop));
-
                         symbolText.Background = Brushes.Transparent;
                         symbolText.Text = text;
                         symbolText.FontSize = 14;
                         symbolText.Foreground = MainObj.TextColor;
                         symbolText.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
                         symbolText.Arrange(new Rect(currentPrice.DesiredSize));
-                        //var textLeft = (int)(canvas.ActualWidth - symbolText.ActualWidth - 50);
-                        //var textTop = 0;
                         Canvas.SetLeft(symbolText, 10);
-                        //Canvas.SetTop(symbolText, textTop);
                     }
 
                     var paused = !MainObj.exchangeConnector.IsConnected ? "CONNECTION PAUSED\n" : "";
@@ -1523,8 +1248,6 @@ namespace AlgoTrader.Shared
 
                     #region Add canvases
                     canvas.Children.Add(currentPriceMarker.canvas);
-                    //canvas.Children.Add(currentCandleImage);
-
                     canvas.Children.Add(alertBox);
                     canvas.Children.Add(priceMarkerLine);
                     canvas.Children.Add(currentPrice);
@@ -1563,6 +1286,7 @@ namespace AlgoTrader.Shared
         #endregion
 
         #region Mouse
+
         public void MouseUp()
         {
             //finish line here
@@ -1606,8 +1330,6 @@ namespace AlgoTrader.Shared
                 //handle mouse down for drag of chart
                 if (mouseDown)
                 {
-                   // if (!shiftDown)
-                   // {
                         if (keydown_D) //dd || toggleDraw)
                         {
                             //draw line
@@ -1628,50 +1350,48 @@ namespace AlgoTrader.Shared
                                 currentLine.EndPrice = currentLine.StartPrice;
                             }
 
-                            //currentLine.SetMinimumLength(TimeFrame);
                             currentLine.InitLine(false);
                             currentLine.Draw_UI(this); //if no chart scroll, must draw the line here
-
                         }
-                        if (!keydown_D && !shiftDown)
+                    if (!keydown_D && !shiftDown)
+                    {
+
+                        //drag chart
+                        double diffX = this.mouseX - mouseX;
+                        double diffY = this.mouseY - mouseY;
+                        double amt = diffX / CandleWidth;
+
+                        if (diffX != 0 || diffY != 0)
                         {
-
-                            //drag chart
-                            double diffX = this.mouseX - mouseX;
-                            double diffY = this.mouseY - mouseY;
-                            double amt = diffX / CandleWidth;
-
-                            if (diffX != 0 || diffY != 0)
+                            ShowBox = false;
+                            oldScrollbars += amt;
+                            if (Math.Abs(oldScrollbars) > 1)
                             {
-                                ShowBox = false;
-                                oldScrollbars += amt;
-                                if (Math.Abs(oldScrollbars) > 1)
+                                amt = (int)oldScrollbars;
+                                //if scrolling left, don't want to scroll all bars off screen (and continue to move them further to the left)
+                                if (amt < 0 || items_chart.Count > 2)
                                 {
-                                    amt = (int)oldScrollbars;
-                                    //if scrolling left, don't want to scroll all bars off screen (and continue to move them further to the left)
-                                    if (amt < 0 || items_chart.Count > 2)
+                                    ScrollBars += (int)amt;
+                                    if (ScrollBars < 0)
                                     {
-                                        ScrollBars += (int)amt;
-                                        if (ScrollBars < 0)
-                                        {
-                                            ScrollBars = 0;
-                                            oldScrollbars = 0;
-                                        }
+                                        ScrollBars = 0;
+                                        oldScrollbars = 0;
                                     }
-                                    oldScrollbars -= (int)oldScrollbars;
                                 }
-
-                                //limit scroll to always fill 80% of screen, pointless hiding everything
-                                int w = (int)(canvas.ActualWidth / CandleWidth * 0.2);
-                                if (ScrollBars > Results.Count - w)
-                                {
-                                    ScrollBars = Results.Count - w;
-                                }
-                                yOffset -= (int)diffY;
-                                drawRequired = true;
+                                oldScrollbars -= (int)oldScrollbars;
                             }
+
+                            //limit scroll to always fill 80% of screen, pointless hiding everything
+                            int w = (int)(canvas.ActualWidth / CandleWidth * 0.2);
+                            if (ScrollBars > Results.Count - w)
+                            {
+                                ScrollBars = Results.Count - w;
+                            }
+                            yOffset -= (int)diffY;
+                            drawRequired = true;
                         }
-                    //}
+                    }
+
                     if (!keydown_D && shiftDown)
                     {
                         if (!ShowBox)
@@ -1797,8 +1517,7 @@ namespace AlgoTrader.Shared
                                                             x.Action == TradeAction.ORDER &&
                                                             x.Timestamp > firstVisibleTime &&
                                                             x.Timestamp <= LastVisibleTime
-                                                            ).OrderBy(x => x.TimeFrame)
-                                                            ;
+                                                            ).OrderBy(x => x.TimeFrame);
 
             var allOrders = allTrades.Where(x => x.Action == TradeAction.ORDER).OrderBy(x => x.TimeFrame);
 
@@ -1921,16 +1640,6 @@ namespace AlgoTrader.Shared
             {
                 //zoom out
                 ScaleBars = (int)(ScaleBars * 1.2);
-
-                //something like this could work to adjust timeframe when zooming... but this does not
-                //if (ScaleBars > 1000)
-                //{
-                //    ScaleBars /= 2;
-                //    var oldTimeframe = TimeFrame;
-                //    TimeFrame *= 2;
-                //    OnTimeframeChange(oldTimeframe, TimeFrame);
-                //    items_chart.Clear();
-                //}
             }
 
             ScrollBars = barNum - (int)(ScaleBars * scale);
@@ -1978,54 +1687,6 @@ namespace AlgoTrader.Shared
             yOffset = 0;
             ScrollBars += forward ? (int)scrollAmount : (int)-scrollAmount;
             return;
-            #region unused
-            /*
-            bool single = scrollAmount == 1;
-            double fastScroll = 100 / (double)(ScaleBars);  //default is 100, if scale is larger need a faster scroll
-            //scrollAmount = scrollAmount * fastScroll / 2; //increase or decrease the amount to be scrolled
-
-            if (scrollTimer != null)
-            {
-                scrollTimer.Stop();
-            }
-
-            int numSteps = (int) (scrollAmount / fastScroll);
-            if (numSteps <= 0)
-            {
-                numSteps = 1;
-            }
-            scrollAmount /= numSteps;
-
-            if (scrollAmount < 1)
-            {
-                scrollAmount = 1;
-            }
-
-            if (!single)
-            {
-                //speed it up
-
-                savedScrollOffset = (int)(4 * scrollAmount / fastScroll);
-                numSteps = (int) ((double) numSteps / (4 / fastScroll));
-            }
-
-            int direction = forward ? (int)scrollAmount : (int)-scrollAmount;
-            scrollTimer = new DispatcherTimer();
-            scrollTimer.Tick += new EventHandler((source, eventArgs) =>
-            {
-                ScrollBars += direction;
-                numSteps--;
-                Draw(numSteps > 1);
-
-                if (numSteps == 0)
-                {
-                    scrollTimer.Stop();
-                }
-            });
-            scrollTimer.Interval = new TimeSpan(0, 0, 0, 0, 10);
-            scrollTimer.Start();
-            */
-            #endregion
         }
 
         double oldScrollbars;
@@ -2120,11 +1781,8 @@ namespace AlgoTrader.Shared
         internal (double left, double top) GetDrawPosition(int frame, double price, bool addYOffset = true)
         {
             var numFramesToPosition = frame - ScrollBars;
-
             var left = numFramesToPosition * CandleWidth + CandleWidth / 2;
-
             var _yOffset = addYOffset ? yOffset : 0;
-
             var range = (price - Low) / (High - Low); //map price to pixels
 
             var top = MainObj.invertChart
@@ -2140,8 +1798,6 @@ namespace AlgoTrader.Shared
             {
                 return (0, 0);
             }
-
-            //timeStamp = timeStamp.AddMinutes(items_chart.First().Timestamp.Hour * 60);
 
             var frameOffset = (TimeFrame > 1) ? ShowHeikinAshi ? 2 : 1 : 0;
 
@@ -2163,18 +1819,9 @@ namespace AlgoTrader.Shared
             return GetTimeAndPrice(mouseX, mouseY, isSettingTrade);
         }
 
-
         //inverse of GetDrawPosition(), returns frame and price from absolute pixel coordinates
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <param name="left"></param>
-        /// <param name="top"></param>
-        /// <param name="isSettingTrade">If setting a trade, will use current time on LIVE build (so trade is always placed now), frame time on BACKTEST build</param>
-        /// <returns></returns>
         internal (DateTime timeStamp, double price) GetTimeAndPrice(double left, double top, bool isSettingTrade = false)
         {
-
             //this just solves the draw position for frames given the on-screen position, using the GetDrawPosition formula
             //var frame = TimeFrame * ((left - CandleWidth / 2) * ScaleBars / canvas.ActualWidth + ScrollBars + 0.5);
             var frame = GetFrameNumFromMouseX(left);
@@ -2193,7 +1840,6 @@ namespace AlgoTrader.Shared
 
             //this is actually the same, but (+ CandleWidth / 2 - 0.5)
             var ret = ((pos / canvas.ActualWidth * ScaleBars) + ScrollBars) * TimeFrame;
-            //Debug.WriteLine(ret);
             return (int)ret;
         }
 
@@ -2219,56 +1865,6 @@ namespace AlgoTrader.Shared
             pos = 1 - (1 - pos) * rangeScale; //scale to match range;
             return Low + (High - Low) * pos;
         }
-        #endregion
-
-        #region Unused
-        //unused
-        /*
-        internal (DateTime timeStamp, double price) GetTimeAndChartPriceFromLastMouse() //always used to set a trade
-        {
-            // (DateTime timeStamp, double price) =  GetTimeAndPrice(mouseX, mouseY, isSettingTrade);
-
-            //ignore the price at the cursor, use the bar price instead
-            //this just solves the draw position for frames given the on-screen position, using the GetDrawPosition formula
-            //var frame = TimeFrame * ((left - CandleWidth / 2) * ScaleBars / canvas.ActualWidth + ScrollBars + 0.5);
-            if (MainObj.LIVE)
-            {
-                return (DateTime.UtcNow, tradeEngine.currentDataItem.Close);
-            }
-
-            //backtesting
-            if (MainObj.BACKTEST)
-            {
-                var frame = GetFrameNumFromMouseX(mouseX);
-                //may be clicking beyond candle range
-
-                //due to display bug, cannot use last candle so go to previous one to avoid confusion
-                // - problem is, last candle doesn't display unless chart scrolled (i.e. if whole chart does not fit on screen),
-                // and when scrolled, last candle is messed up anyway
-                if (frame > tradeEngine.Results.Count - 1)
-                {
-                    frame = tradeEngine.results.Count - 1;
-                }
-
-                var frameNum = (int)((double)frame / TimeFrame) * TimeFrame;
-
-                //offset for start hour if on day
-                if (TimeFrame == 1440)
-                {
-                    frameNum += 60 * TradeEngine.START_HOUR;
-                }
-
-                var timeStamp = GetTimestampFromFrameNum(frameNum);
-                var price = tradeEngine.Results[frameNum].Open;
-                return (timeStamp, price);
-            }
-
-            throw new Exception();
-
-
-        }
-        */
-
         #endregion
     }
 }

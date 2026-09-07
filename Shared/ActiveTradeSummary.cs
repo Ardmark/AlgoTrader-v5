@@ -254,7 +254,7 @@ namespace AlgoTrader.Shared
                             //binance has a close quantity of BTC and a close price of BTC $ value
                             double entryEquity = 0;
                             double closeEquity = 0;
-                            double prevEquity = 0;
+
                             switch (TradeEngine.EXCHANGE)
                             {
                                 case ExchangeId.BINANCE:
@@ -264,41 +264,40 @@ namespace AlgoTrader.Shared
                             }
 
                             //display intermediate trade result
-                            //if (TradeEngine.EXCHANGE == ExchangeId.BITMEX)
-                            //{
-                                if (prevClose != null)
-                                {
-                                    var _profit = entry.Balance - prevClose.Balance;
-                                    var _result = (entry.Price / prevClose.Price - 1) * 100;
-                                    var _gbp = _profit * entry.ExchangeRate;
 
-                                    sb.Append(
-                                        "BTC\t" +
-                                        "\t" +
-                                        "\t" +
-                                        $"{prevClose.Timestamp:d}\t" +
-                                        $"{prevClose.Timestamp:t}\t" +
-                                        $"{PriceFormatter.Format(prevClose.Price)}\t" +
-                                        $"{prevClose.Balance.ToString("F2")}\t" +
-                                        $"{entry.Timestamp:d}\t" +
-                                        $"{entry.Timestamp:t}\t" +
-                                        $"{PriceFormatter.Format(entry.Price)}\t" +
-                                        $"{entry.Balance:F2}\t" +
-                                        //"\t" +
-                                        $"{_result:F2}%\t" +
-                                        //"\t" +
-                                        "\t" +
-                                        "\t" +
-                                        "\t" +
-                                        "\t" +
-                                        $"{_profit:F4}\t" +
-                                        $"{entry.ExchangeRate:F6}\t" +
-                                        $"{_gbp:F2}"
-                                    );
-                                    sb.Append('\n');
-                                }
-                                prevClose = close;
-                            //}
+                            if (prevClose != null)
+                            {
+                                var _profit = entry.Balance - prevClose.Balance;
+                                var _result = (entry.Price / prevClose.Price - 1) * 100;
+                                var _gbp = _profit * entry.ExchangeRate;
+
+                                sb.Append(
+                                    "BTC\t" +
+                                    "\t" +
+                                    "\t" +
+                                    $"{prevClose.Timestamp:d}\t" +
+                                    $"{prevClose.Timestamp:t}\t" +
+                                    $"{PriceFormatter.Format(prevClose.Price)}\t" +
+                                    $"{prevClose.Balance.ToString("F2")}\t" +
+                                    $"{entry.Timestamp:d}\t" +
+                                    $"{entry.Timestamp:t}\t" +
+                                    $"{PriceFormatter.Format(entry.Price)}\t" +
+                                    $"{entry.Balance:F2}\t" +
+                                    //"\t" +
+                                    $"{_result:F2}%\t" +
+                                    //"\t" +
+                                    "\t" +
+                                    "\t" +
+                                    "\t" +
+                                    "\t" +
+                                    $"{_profit:F4}\t" +
+                                    $"{entry.ExchangeRate:F6}\t" +
+                                    $"{_gbp:F2}"
+                                );
+                                sb.Append('\n');
+                            }
+                            prevClose = close;
+
 
                             var leverage = close.Leverage == 0 ? 1 : close.Leverage; //just to be safe
                             var result = close.Result; //already adjusted for fees
@@ -306,10 +305,8 @@ namespace AlgoTrader.Shared
                             var balanceResult = entry.Balance > 0 ? (close.Balance / entry.Balance - 1) * 100 : 0;
                             var profit = close.Balance - entry.Balance;
                             var pos = close.Position == TradePosition.LONG ? "long" : "short";
-                            //var stopResult = order != null ? order.Result.ToString("F1") : "--"; //Order.Result holds the stop percent, I think
                             var leveragedResult = result * leverage;
                             var gbp = profit * close.ExchangeRate;
-                            //prevEquity = close.Equity;
                             sb.Append(
                                 $"{symbolName}\t" +
                                 $"{leverage:F1}\t" +
@@ -356,9 +353,6 @@ namespace AlgoTrader.Shared
                 LogConnection.WriteLine("ActiveTradeSummary exception: " + ex.ToString());
                 return (null, null);
             }
-
-
-
         }
 
         internal static async Task ClearClosedTrades(object param)

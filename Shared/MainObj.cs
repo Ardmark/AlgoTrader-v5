@@ -6,7 +6,6 @@ using System.Data;
 using System.Data.Entity.Core.Common.CommandTrees.ExpressionBuilder;
 using System.Data.SqlClient;
 using System.Diagnostics;
-using System.IO;
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Threading;
@@ -155,27 +154,11 @@ namespace AlgoTrader.Shared
         public static Dictionary<string, _SymbolDataItem> lastItemsAdded = new Dictionary<string, _SymbolDataItem>();
         #endregion
 
-
-        //static object thisLock = new object();
-        //public static List<int> obj = new List<int>();
-        //public static void Test(string s)
-        //{
-        //    lock (thisLock)
-        //    {
-        //        Debug.WriteLine("++++++++++++++++++++++++++++++++++" + s);
-        //        Thread.Sleep(10000);
-        //    }
-        //}
-
-
         #region Init
         static Grid _panelsContainer;
         static DateTime startTime = DateTime.UtcNow;
         public static void Setup(Grid panelsContainer, Canvas chartCanvas, Canvas timeBarCanvas, params Canvas[] indicatorCanvases)
         {
-            //System.Threading.Tasks.Task.Run(() => { Test("first"); });
-            //System.Threading.Tasks.Task.Run(() => { Test("second"); });
-
             _panelsContainer = panelsContainer;
 
             LogBase.StartSession();
@@ -551,7 +534,7 @@ namespace AlgoTrader.Shared
                 }
             }
 
-            #region update tables to remove columns, etc.
+            #region update tables to remove columns, etc. (unused)
             /*
             using (SqlConnection conn2 = new SqlConnection(value.ToString()))
             {
@@ -569,7 +552,7 @@ namespace AlgoTrader.Shared
             */
             #endregion
 
-            #region fill individual tables
+            #region fill individual tables (unused)
             /*
             /////////////////////////////////////////////////////////////////////////////////////////
 
@@ -628,7 +611,6 @@ namespace AlgoTrader.Shared
                 LogConnection.WriteLine("Fetching symbol data...");
                 foreach (var s in SymbolNames.GetSymbolNames().OrderBy(x => x))
                 {
-
                     var missCount = 0;
                     var interpCount = 0;
                     var pulledCount = 0;
@@ -674,13 +656,6 @@ namespace AlgoTrader.Shared
                                     }
                                     prevItem = item;
                                     list.Add(item);
-                                    //currCount++;
-                                    //if (currCount == 10000)
-                                    //{
-                                    //    currCount = 0;
-                                    //    count++;
-                                    //    Debug.WriteLine($"Interpolated {count * 10000} items");
-                                    //}
                                 }
 
                                 if (missCount > 0 || interpCount > 0)
@@ -696,7 +671,7 @@ namespace AlgoTrader.Shared
                             }
                         }
                     }
-                    #region Drop table and rebuild with contiguous data
+                    #region Drop table and rebuild with contiguous data (keep can use if needed)
                     //**********************************************************************************************//
                     //if you are going to run this, do it against the ENTIRE TABLE not just the data set being pulled
                     //do it only once, there may be a couple of missed items the next time around anyway.
@@ -728,8 +703,6 @@ namespace AlgoTrader.Shared
                     //    LogTrades.WriteLine($"Table rebuild complete.");
                     //} 
                     #endregion
-
-
 
                 }
             }
@@ -858,7 +831,6 @@ namespace AlgoTrader.Shared
                     }
                     finally
                     {
-                        //Debug.WriteLine($"{itemGroup.Key}");
                         numSymbols--;
                     }
                 }
@@ -906,7 +878,6 @@ namespace AlgoTrader.Shared
             allItems.Clear();
             allItems = null;
 
-
             #endregion
 
             foreach (var s in SymbolNames.GetSymbolNames())
@@ -915,8 +886,7 @@ namespace AlgoTrader.Shared
                 tradeEngine.InitLiveUpdateTimer();
             }
 
-                //finish any UI init here
-
+            //finish any UI init here
             Application.Current.Dispatcher.Invoke(() =>
             {
                 //can only run a DispatcherTimer from this thread, so InitConnector here.
@@ -932,13 +902,12 @@ namespace AlgoTrader.Shared
 
                 ToggleDarkMode();
                 
-                MainObj.ScrollToEnd();
+                ScrollToEnd();
                 TradeStatusChanged(tradeEngine);
                 ActiveTradeSummary.Init();
             });
 
-            
-
+           
             initComplete = true; //marks so DB can now be backed up
 
             if (BACKUP_DB == true && BACKUP_FOLDER != null && NUM_INCREMENTAL_BACKUPS > 0)
@@ -965,7 +934,7 @@ namespace AlgoTrader.Shared
                 }
             }
 
-            #region run a timer to monitor memory usage and reset connection if it gets too high.
+            #region run a timer to monitor memory usage and reset connection if it gets too high (unused)
             //this did not solve the runaway memory usage issue, it never triggered.
             //so the assumption is the system was bottlenecked somewhere else which stopped this thread from executing,
             // i.e. too many processes.
@@ -1015,7 +984,7 @@ namespace AlgoTrader.Shared
         }
         public static async Task BackupDB()
         {
-            if (MainObj.initComplete == false)
+            if (initComplete == false)
             {
                 return;
             }
@@ -1048,8 +1017,8 @@ namespace AlgoTrader.Shared
                     {
                         File.Delete(earliestFile);
                     }
-
                 }
+
                 //filename will be DB name combined with ticks when created
                 string fileName = Path.Combine(BACKUP_FOLDER, dbName + "_" + DateTime.UtcNow.Ticks.ToString() + ".bak");
                 //if (File.Exists(fileName))
@@ -1083,9 +1052,7 @@ namespace AlgoTrader.Shared
 
         public static void RefreshConnector()
         {
-            return;
-            exchangeConnector.StopTimers();
-            exchangeConnector = new ExchangeConnector();
+            exchangeConnector.RestartConnection();
         }
 
         public static void SetupSidePanel(Canvas sidePanelCanvas)
@@ -1108,10 +1075,7 @@ namespace AlgoTrader.Shared
         {
             var elapsedTime = DateTime.UtcNow.Subtract(startTime);
             LogConnection.WriteLine($"Initialisation complete in {elapsedTime.Minutes} mins {elapsedTime.Seconds} secs.");
-            //elapsedTime = DateTime.UtcNow.Subtract(FirstStartTime);
-            //LogConnection.WriteLine($"Total time since first start: {elapsedTime.Days} days, {elapsedTime.Hours} hours, {elapsedTime.Minutes} mins, {elapsedTime.Seconds} secs.");
         }
-
 
         public static void InitPanels()
         {
@@ -1201,7 +1165,6 @@ namespace AlgoTrader.Shared
         {
             mainViewModel.__DebugOut(s);
         }
-        static DateTime? lastTime = null;
         public static bool isRefreshing = true;
         public static void ItemUpdated(_SymbolDataItem _item, string symbolName, bool itemAdded)
         {
@@ -1242,7 +1205,6 @@ namespace AlgoTrader.Shared
                     RefreshConnector();
                     LogTrades.WriteLine($"Data delay at {DateTime.UtcNow:g}, {timeDiff:0} seconds behind real time. Refreshing connection.");
                 }
-
             }
             catch (Exception ex)
             {
@@ -1330,7 +1292,6 @@ namespace AlgoTrader.Shared
             mainViewModel.SetProperty("DarkMode_Checked", isDarkMode);
 
             DrawCurrentDispatcher();
-
         }
         internal static SolidColorBrush TextColor
         {
@@ -1376,7 +1337,6 @@ namespace AlgoTrader.Shared
                     timer.Close();
                 });
             });
-
         }
 
         private static void Draw(bool shallow = false)
@@ -1397,37 +1357,36 @@ namespace AlgoTrader.Shared
                     panel.Draw(shallow);
                 }
             }
-
         }
 
         internal static void ScrollToEnd()
         {
             visibleChart?.ScrollToEnd();
-            MainObj.DrawImmediate();
+            DrawImmediate();
         }
 
         internal static void ScrollToStart()
         {
             visibleChart?.ScrollToStart();
-            MainObj.DrawImmediate();
+            DrawImmediate();
         }
 
         internal static void ScrollForward(bool page)
         {
             visibleChart?.ScrollForward(page);
-            MainObj.DrawImmediate();
+            DrawImmediate();
         }
 
         internal static void ScrollBack(bool page)
         {
             visibleChart?.ScrollBack(page);
-            MainObj.DrawImmediate();
+            DrawImmediate();
         }
 
         internal static void ScrollBy(double scrollAmount, bool forward)
         {
             visibleChart?.ScrollBy(scrollAmount, forward);
-            MainObj.DrawImmediate();
+            DrawImmediate();
         }
 
         internal static void GoToFrame(int frame, int offsetFrames = 0, string symbolName = null)
@@ -1484,7 +1443,6 @@ namespace AlgoTrader.Shared
         public const string ALERT_SOUND = "alarm-clock-ringing-01.mp3";// will not play the .wav files in windows/media, even after conversion
         public const string SPIKE_SOUND = "alarm-clock-ringing-02.mp3";//;
         static Dictionary<string, MediaPlayer> mediaPlayers = new Dictionary<string, MediaPlayer>();
-
 
         public static void PlaySound(string soundName)
         {
@@ -1614,7 +1572,6 @@ namespace AlgoTrader.Shared
                                 : orderPrice * (1 + gapPercent / 100);
         }
 
-
         internal static string GetSymbolId(_SymbolDataItem item, string symbolName)
         {
             return string.Concat(symbolName, ":", TradeEngine.EXCHANGE.ToString());
@@ -1630,55 +1587,7 @@ namespace AlgoTrader.Shared
             catch { }
         }
 
-
-
-
         #endregion
 
-        #region unused
-        //unused
-
-        //this is the actual delegate used in Init, there are a number of pre-defined ones in the framework
-        //public delegate T MyFunc<in TradeEngine, in Chart, out T>(Chart arg);
-
-        /*
-        public static bool TradeRunningLocally(_Trade trade)
-        {
-            return MainObj.IsBacktesting
-                    || trade.ExchangeStatus == TradeExchangeStatus.ENTERED_OFF_EXCHANGE
-                    || ((trade.Action == TradeAction.STOP || trade.Action == TradeAction.FLOOR || trade.Action == TradeAction.CEILING || trade.Action == TradeAction.TAKE_PROFIT) && TradeEngine.USE_SIMULATED_EXCHANGE == true);
-        }
-        internal static void ClearOrders(TradeType tradeType, DataContext db)
-        {
-            db.Trades.RemoveRange(dataContext_UI.Trades.Where(d =>
-                        d.Type == tradeType &&
-                        d.GlobalStatus == TradeGlobalStatus.STOPPED));
-
-            db.SaveChanges();
-        }
-
-        //set significant figures
-        double SetSigFigs(double d, int digits)
-        {
-            try
-            {
-                if (d == 0) return d;
-                //get number of zeros
-                var numZeros = Math.Floor(Math.Log10(Math.Abs(d)));
-                decimal scale = (decimal)Math.Pow(10, numZeros + 1);
-                return ((double)(scale * Math.Round((decimal)d / scale, digits)));
-            }
-            catch
-            {
-                return d;
-            }
-        }
-        
-        internal static void DisplayLogTrades(string s)
-        {
-            mainViewModel.DisplayLogTrades(s);
-        }
-        */
-        #endregion
     }
 }

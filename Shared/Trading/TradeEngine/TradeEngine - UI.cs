@@ -134,10 +134,8 @@ namespace AlgoTrader.Shared
             {
                 foreach (var trade in AllTrades.Where(x => x.Action == TradeAction.ORDER && x.GlobalStatus == TradeGlobalStatus.STOPPED))
                 {
-
                     foreach (var _trade in AllTrades.Where(x => x.TradeReference == trade.TradeReference))
                     {
-
                         if (_trade.Action == TradeAction.ORDER)
                         {
                             var line = GetLinesForTradeReference(_trade.TradeReference).FirstOrDefault();
@@ -151,11 +149,14 @@ namespace AlgoTrader.Shared
                             (_trade.Action != TradeAction.ORDER && _trade.Action != TradeAction.ENTRY && _trade.Action != TradeAction.CLOSE)
                             )
                         {
+                            var line = AllLinesForSymbol.FirstOrDefault(x => x.TradeId == _trade.Id);
+                            if (line != null)
+                            {
+                                line.TradeId = null;
+                                SetUpdateRequest(line);
+                            }
                             SetUpdateRequest(_trade, TradeUpdateRequest.DELETE);
                         }
-
-
-
                     }
                 }
             });
@@ -204,6 +205,8 @@ namespace AlgoTrader.Shared
         
         internal void SetMarketOrderAtTime_UI_synchronised(DateTime timeStamp, double price, TradePosition position)
         {
+            return;
+
             Task.Run(() =>
             {
                 InitForDataContext(() =>
