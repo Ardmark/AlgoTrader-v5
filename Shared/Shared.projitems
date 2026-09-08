@@ -10,6 +10,7 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="$(MSBuildThisFileDirectory)DataContext.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Trading\TradeEngine\TradeEngineBinanceMargin.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)UI\DrawingBase.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)DataObjects\SymbolDataItem.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)DataObjects\Trade.cs" />

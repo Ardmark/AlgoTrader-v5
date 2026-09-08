@@ -1,6 +1,5 @@
 ﻿using AlgoTrader.Shared.Enums;
 using AlgoTrader.Shared.Windows;
-using System.Text.RegularExpressions;
 
 namespace AlgoTrader.Shared
 {
@@ -9,7 +8,6 @@ namespace AlgoTrader.Shared
      * */
     public partial class TradeEngine : DisplayPanel
     {
-
         #region MainViewModel-invoked methods
 
         //there is an unused method in MainObj to kill all orders on all trade engines simultaneously,
@@ -241,7 +239,7 @@ namespace AlgoTrader.Shared
                     var currentTradeIndicator = GetCurrentTradeIndicator(order);
 
                     //when a trade is changed, added or deleted, mark it with a TradeUpdateRequest and add to the trades list
-                    (bool hasEntered, bool tradeKilled) = EnterTrade(order, null);
+                    (bool hasEntered, bool tradeKilled) = ExecuteTradeEntryIfPossible(order, null);
                     if (tradeKilled)
                     {
                         order.ItemStatus = TradeItemStatus.CLOSED;
@@ -1016,7 +1014,7 @@ namespace AlgoTrader.Shared
                             {
                                 //order has entered
                                 _Trade oppositeOrder = USE_TESTNET ? GetOppositeOrder(order) : null;         
-                                CloseTrade(oppositeOrder); //cannot do a flip from a manually closed trade unless testing
+                                CloseTradeOnExchange(oppositeOrder); //cannot do a flip from a manually closed trade unless testing
 
                                 
                                 //no, even if it is local it still should close on the exchange
@@ -1238,7 +1236,6 @@ namespace AlgoTrader.Shared
                 }
             }
         }
-
 
         #region Get results
 

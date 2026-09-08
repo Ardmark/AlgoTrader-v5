@@ -3,11 +3,8 @@ using AlgoTrader.Shared.Logging;
 using AlgoTrader.Shared.MovingAverages;
 using OpenExchangeRates;
 using System.Data.Entity;
-using System.Diagnostics;
 using System.Windows.Controls;
-using System.Windows.Forms.VisualStyles;
 using System.Windows.Media;
-using System.Windows.Threading;
 using static AlgoTrader.Shared.BinanceAPI;
 using Brushes = System.Windows.Media.Brushes;
 
@@ -854,7 +851,7 @@ namespace AlgoTrader.Shared
                             {
                                 //not using the trigger, just an immediate exit instead
                                 LogTrades.WriteLine($"Exiting {posText} {Entry.SymbolName} on take profit cross at {DateTime.UtcNow}");
-                                CloseTrade();
+                                CloseTradeOnExchange();
                                 redrawRequired = true;
                                 return;
 
@@ -883,7 +880,7 @@ namespace AlgoTrader.Shared
                             if (stopExecuted)
                             {
                                 LogTrades.WriteLine($"Exiting {posText} {Entry.SymbolName} on stop cross at {DateTime.UtcNow}");
-                                CloseTrade();
+                                CloseTradeOnExchange();
                                 redrawRequired = true;
                                 return;//terminate in backtesting, will have already closed trade
                             }
@@ -939,7 +936,7 @@ namespace AlgoTrader.Shared
                     var currentTradeIndicator = GetCurrentTradeIndicator(order);
 
                     //when a trade is changed, added or deleted, mark it with a TradeUpdateRequest and add to the trades list
-                    (bool hasEntered, bool tradeKilled) = EnterTrade(order, currentTradeIndicator);
+                    (bool hasEntered, bool tradeKilled) = ExecuteTradeEntryIfPossible(order, currentTradeIndicator);
                     redrawRequired = hasEntered || tradeKilled;
                     if (tradeKilled)
                     {
@@ -979,7 +976,7 @@ namespace AlgoTrader.Shared
 
         #region Enter trade
 
-        protected (bool hasEntered, bool tradeKilled) EnterTrade(_Trade trade, Order currentTradeIndicator)
+        protected (bool hasEntered, bool tradeKilled) ExecuteTradeEntryIfPossible(_Trade trade, Order currentTradeIndicator)
         {
             bool canEnter =
                 trade.Type == TradeType.MARKET_ORDER ||
@@ -1047,7 +1044,7 @@ namespace AlgoTrader.Shared
                             if (Entry.Position == TradePosition.LONG && trade.Position == TradePosition.SHORT ||
                                 Entry.Position == TradePosition.SHORT && trade.Position == TradePosition.LONG)
                             {
-                                CloseTrade(Entry); //this will start the flip
+                                CloseTradeOnExchange(Entry); //this will start the flip
                             }
                             break;
                         }
@@ -1231,9 +1228,6 @@ namespace AlgoTrader.Shared
 
             //get the EF tracked trade - if this is a live entry, will be using a different data context to the one the parameter is running on
 
-
-            //set trade time, frame and price to entry point (line entry will be different from order position)
-            //enter trade on system here, but not active yet
             if (Entry == null)
             {
                 //if not trading live, will bypass exchange (if not using simulator) and come straight here, so no entry yet
@@ -1296,93 +1290,12 @@ namespace AlgoTrader.Shared
 
             tradeStatusChanged = true;
         }
-       
-        protected void EnterTradeOnSystem(double price, double executedQuantity, TradeExchangeStatus orderType)
-        {
-
-            //note, Quantity is double not decimal, as decimal has 18 digits and 2 decimal places only in db
-            try
-            {
-                hasSpiked = false;
-
-                var currentTradeIndicator = GetCurrentTradeIndicator(Order);
-
-                //get the EF tracked trade - if this is a live entry, will be using a different data context to the one the parameter is running on
-
-                Order.TradeExchangeStatus = orderType;
-
-                SetUpdateRequest(Order);
-
-                //set trade time, frame and price to entry point (line entry will be different from order position)
-                //enter trade on system here, but not active yet
-                if (Entry == null)
-                {
-                    //if not trading live, will bypass exchange (if not using simulator) and come straight here, so no entry yet
-                    Entry = Order.Clone();
-                    Entry.Action = TradeAction.ENTRY;
-                    Entry.Timestamp = GetTimeStamp();
-                    SetUpdateRequest(Entry);
-                }
-
-                Entry.Price = Order.Price = (double)price;
-                Entry.Quantity = Order.Quantity = executedQuantity; //set both the entry and order quantity, as either may be used when closing, etc.
-                Entry.TradeExchangeStatus = orderType;
-                Entry.TradeExecutionStatus = TradeExecutionStatus.OK;
-                SetUpdateRequest(Entry);
-
-                Order.ItemStatus = TradeItemStatus.CLOSED; //close the order, this is now an active trade
-                Order.TradeExecutionStatus = TradeExecutionStatus.OK;
-                SetUpdateRequest(Order);
-
-            }
-            catch (Exception e)
-            {
-                LogTrades.WriteLine($"Exception in EnterTradeOnSystem  at {DateTime.UtcNow} (1): {e}");
-            }
-        }
 
         #endregion
 
         #region Close trade
 
-        protected void CloseTrade(_Trade triggeringTrade = null)
-        {
-            if (Entry != null)
-            {
-                var price = currentDataItem != null ? currentDataItem.Close : Entry.Price;
-
-                //close on the exchange
-
-                if (Close != null) //pending or live close, so return
-                {
-                    LogTrades.WriteLine("Attempt to close trade whilst trade pending or live, exiting");
-                    return;
-                }
-
-                var s = USE_SIMULATED_EXCHANGE ? "SIMULATED EXCHANGE" : "LIVE EXCHANGE";
-                LogTrades.WriteSpacer();
-                LogTrades.WriteLine($"Closing {Entry.SymbolName} {Entry.TradeReference} at {DateTime.UtcNow}");
-
-                SetUpdateRequest(Order);
-                SetUpdateRequest(Entry);
-
-                //enter close on system here, it is required for closing order regardless of flip
-                Close = Order.Clone();
-                Close.ItemId = _Trade.GetNewTradeId(); //set the client-assigned Id (could wait for the binance-assigned one instead) but this way, can query status even if no confirmation yet received
-                Close.Action = TradeAction.CLOSE;
-                Close.Timestamp = GetTimeStamp();
-
-                SetUpdateRequest(Close); //update adds if there is no Id set
-
-                ResetLiveUpdateTimer();
-                CloseTradeOnExchange(triggeringTrade); //will remove stop and floor and do the flip, and will call CloseTradeOnSystem_Synchronised()
-
-                MainObj.DrawCurrentDispatcher();
-                return;
-           }
-        }
-
-        public virtual async void CloseTradeOnExchange(_Trade triggeringTrade)
+        public virtual async void CloseTradeOnExchange(_Trade triggeringTrade = null)
         {
             #region Test for OK to start close
 
@@ -1390,12 +1303,7 @@ namespace AlgoTrader.Shared
 
             if (Entry == null)
             {
-                return;
-            }
-            if (Close == null)
-            {
-                LogTrades.WriteLine($"No Close set in CLOSE_ORDER_SCRIPT for {symbolName}, cannot close trade, exiting OnExchangeDataReceived");
-                KillEntryOrCloseOrder(false);
+                LogTrades.WriteLine($"No Entry trade present for {symbolName}, cannot close trade, exiting OnExchangeDataReceived");
                 return;
             }
 
@@ -1406,11 +1314,11 @@ namespace AlgoTrader.Shared
             }
             #endregion
 
+            ResetLiveUpdateTimer();
+
             LogTrades.WriteLine("Cancelling open orders.");
 
             CancelOpenOrders();
-
-            bool canFlip = false;
 
             #region Get balance to trade
             //if the base asset balance is very small, assume the trade has exited on the exchange, so go no further
@@ -1421,29 +1329,37 @@ namespace AlgoTrader.Shared
 
             LogTrades.WriteLine($"Closing order for {symbolName}...");
 
+            double closePrice = currentDataItem.Close; //default value
+
             if (coinBalance == 0)
             {
                 LogTrades.WriteLine($"No {symbolName} to sell, trade has already closed on exchange.");
-                CloseTradeOnSystem(currentDataItem.Close);
-                canFlip = true; //will still attempt to flip though
             }
             else
             {
-                #region Place order
-
                 LogTrades.WriteLine($"Using received balance of {coinBalance} {_baseAsset}");
 
                 double amountToSell = AdjustCoinBalanceForFees(_baseAsset, coinBalance);
 
                 LogTrades.WriteLine($"Amount to sell is {amountToSell}");
 
+                #region Generate close order
+                if (Close == null)
+                {
+                    Close = Order.Clone();
+                    Close.ItemId = _Trade.GetNewTradeId(); //set the client-assigned Id (could wait for the binance-assigned one instead) but this way, can query status even if no confirmation yet received
+                    Close.Action = TradeAction.CLOSE;
+                    Close.Timestamp = GetTimeStamp();
+                }
                 Close.Quantity = GetCorrectPrecisionForTrade(amountToSell);
+                #endregion
 
+                #region Place order     
+                
                 LogTrades.WriteLine($"Placing sell order of {Close.Quantity}, adjusted for step size, at {DateTime.Now}...");
-                SetUpdateRequest(Close);
 
                 //TODO - does this return average price on TESTNET??
-                bool accepted = SendOrder(Close.Quantity, Side.SELL, Close.ItemId, out double averagePrice, out double executedQuantity);
+                bool accepted = SendOrder(Close.Quantity, Side.SELL, Close.ItemId, out closePrice, out double executedQuantity);
                 if (!accepted)
                 {
                     KillEntryOrCloseOrder(true);
@@ -1452,26 +1368,23 @@ namespace AlgoTrader.Shared
 
                 LogTrades.WriteLine($"{Entry.Position} Close order filled for {Entry.SymbolName} at {DateTime.UtcNow}");
 
-                //Set order on system
-                CloseTradeOnSystem(averagePrice);
-
                 #endregion
             }
+
+            CloseTradeOnSystem(closePrice);
 
             var entryItemId = Entry.ItemId; //save this since close on system will set Entry = null
             var closeItemId = Close.ItemId; //need this later for conversion rate
 
-            canFlip = true;
-
             #region Set flip from opposing trade
-            if (triggeringTrade != null && canFlip)
+            if (triggeringTrade != null)
             {
                 var triggeringTradeId = triggeringTrade.Id;
 
                 SaveChangesForDataContext();
                 ResetForDataContext();
 
-                //ActiveTrades is no loger valid, and this is used to get Order, Stop etc.
+                //ActiveTrades is no loger valid, and this is used to get Order, Stop etc., so refresh the Order
 
                 Order = AllTrades.FirstOrDefault(t => t.Id == triggeringTradeId);
                 LogTrades.WriteLine($"Flipping order if possible...");
@@ -1517,7 +1430,6 @@ namespace AlgoTrader.Shared
                 Close.Action = TradeAction.CLOSE;
                 Close.Timestamp = GetTimeStamp();
                 Close.ItemId = _Trade.GetNewTradeId(); //set the client-assigned Id (could wait for the binance-assigned one instead) but this way, can query status even if no confirmation yet received
-                SetUpdateRequest(Close);
             }
 
             Close.Price = (double)price;
@@ -1525,22 +1437,16 @@ namespace AlgoTrader.Shared
             Close.GlobalStatus = TradeGlobalStatus.STOPPED;
             (_, Close.Balance) = GetTotalEquity();
 
-            if (Entry != null)
+            if (Entry.Price != 0) //if so Result will be infinity and db.SaveChanges() will throw exception
             {
-                if (Entry.Price != 0) //if so Result will be infinity and db.SaveChanges() will throw exception
-                {
-                    //so there is at least an entry trade here, so can close the trade and set the close price
-                    //if aborted, this is just a backtest which has hit an interruption, or a line trade which has not entered
-                    double price_pc = -MainObj.GetPriceDiff(Entry.Price, Close.Price, Close.Position) * 100;
+                //so there is at least an entry trade here, so can close the trade and set the close price
+                //if aborted, this is just a backtest which has hit an interruption, or a line trade which has not entered
+                double price_pc = -MainObj.GetPriceDiff(Entry.Price, Close.Price, Close.Position) * 100;
 
-                    Close.Result = Entry.Result = AdjustResultForFees(price_pc); //set result on order for correct color display
+                Close.Result = Entry.Result = AdjustResultForFees(price_pc); //set result on order for correct color display
 
-                    SetUpdateRequest(Close);
-
-                    LogTrades.WriteLine(string.Format("Result: {0} {1:F2}%", Close.SymbolName, Close.Result));
-
-                }
-            }
+                LogTrades.WriteLine(string.Format("Result: {0} {1:F2}%", Close.SymbolName, Close.Result));
+            }         
 
             //change type to STOPPED for all the trades
             foreach (_Trade t in ActiveTrades)
@@ -1560,11 +1466,13 @@ namespace AlgoTrader.Shared
                 DetachTradeFromLine_UI_synchronised(Order);
             }
 
+            SetUpdateRequest(Entry);
+            SetUpdateRequest(Close);
+
             Order = null;
 
             Leverage = DEFAULT_LEVERAGE; //always set this as a default since it is an integer and 1 will be no use for a long anyway.
-            MainObj.SetLeverageMenuState((int)Leverage); //NOTE, calling Application.Current.Dispatcher.Invoke() within this thread causes a lock condition
-            
+            MainObj.SetLeverageMenuState((int)Leverage); //NOTE, calling Application.Current.Dispatcher.Invoke() within this thread causes a lock condition    
         }
 
         protected void KillEntryOrCloseOrder(bool entry)
