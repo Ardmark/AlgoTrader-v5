@@ -92,7 +92,6 @@
     <Compile Include="$(MSBuildThisFileDirectory)Trading\Trade systems manual\Order_PriceBreakHMA.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Trading\Trade systems manual\Order_PriceBreakMACD.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Trading\Trade systems manual\Order_PricetBreak.cs" />
-    <Compile Include="$(MSBuildThisFileDirectory)Trading\TradeEngine\TradeEngine - Exchange trade.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Trading\TradeEngine\TradeEngine - UI.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Trading\TradeEngine\TradeEngine.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)ActiveTradeSummary.cs" />

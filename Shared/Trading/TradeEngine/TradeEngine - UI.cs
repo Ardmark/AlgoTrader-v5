@@ -205,8 +205,6 @@ namespace AlgoTrader.Shared
         
         internal void SetMarketOrderAtTime_UI_synchronised(DateTime timeStamp, double price, TradePosition position)
         {
-            return;
-
             Task.Run(() =>
             {
                 InitForDataContext(() =>
@@ -243,7 +241,7 @@ namespace AlgoTrader.Shared
                     var currentTradeIndicator = GetCurrentTradeIndicator(order);
 
                     //when a trade is changed, added or deleted, mark it with a TradeUpdateRequest and add to the trades list
-                    (bool hasEntered, bool tradeKilled) = EnterIfPossible_synchronised(order, null);
+                    (bool hasEntered, bool tradeKilled) = EnterTrade(order, null);
                     if (tradeKilled)
                     {
                         order.ItemStatus = TradeItemStatus.CLOSED;
@@ -1018,7 +1016,7 @@ namespace AlgoTrader.Shared
                             {
                                 //order has entered
                                 _Trade oppositeOrder = USE_TESTNET ? GetOppositeOrder(order) : null;         
-                                CloseTradeLive_synchronised(oppositeOrder); //cannot do a flip from a manually closed trade unless testing
+                                CloseTrade(oppositeOrder); //cannot do a flip from a manually closed trade unless testing
 
                                 
                                 //no, even if it is local it still should close on the exchange

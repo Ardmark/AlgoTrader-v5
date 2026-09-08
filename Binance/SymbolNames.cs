@@ -105,22 +105,22 @@ namespace AlgoTrader.Shared
         public static string GetCurrencyForSymbol(string symbolName)
         {
             var v = SYMBOL_NAMES.Where(x => x.baseAsset + x.quoteAsset == symbolName).Select(x => x.currency).FirstOrDefault();
-            return v != null ? v : null;
+            return v ?? null;
         }
         public static string GetQuoteAssetForSymbol(string symbolName)
         {
             var v = SYMBOL_NAMES.Where(x => x.baseAsset + x.quoteAsset == symbolName).Select(x => x.quoteAsset).FirstOrDefault();
-            return v != null ? v : null;
+            return v ?? null;
         }
         public static string GetBaseAssetForSymbol(string symbolName)
         {
             var v = SYMBOL_NAMES.Where(x => x.baseAsset + x.quoteAsset == symbolName).Select(x => x.baseAsset).FirstOrDefault();
-            return v != null ? v : null;
+            return v ?? null;
         }
         public static string GetQuoteAssetForBaseAsset(string baseAsset) //e.g. for STEEM, will return USDT if that is the trading pair
         {
             var v = SYMBOL_NAMES.Where(x => x.baseAsset == baseAsset).Select(x => x.quoteAsset).FirstOrDefault();
-            return v != null ? v : null;
+            return v ?? null;
         }
         public static int GetTickSizeForSymbol(string symbolName) //e.g. for STEEM, will return USDT if that is the trading pair
         {

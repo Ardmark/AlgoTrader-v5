@@ -16,7 +16,7 @@ namespace AlgoTrader.Windows
             //testnet
             TradeEngine.TESTNET_KEY =    "rssumaVWFRJ6b1Uh3n6E87CXwKz3UytIfpkaGngMVx21ukjCl0Mtik8VwAePt99K";
             TradeEngine.TESTNET_SECRET = "9vTXpWsL5mSVWAb6piM40kLb9qXumu6wxYFhXwLW4OTZt8YIXc5nhGEHhtzkrK35";
-            TradeEngine.USE_TESTNET = false;
+            TradeEngine.USE_TESTNET = true;
 
             #endregion
 

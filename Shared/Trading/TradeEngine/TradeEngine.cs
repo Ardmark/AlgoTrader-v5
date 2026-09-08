@@ -1,18 +1,18 @@
 using AlgoTrader.Shared.Enums;
 using AlgoTrader.Shared.Logging;
 using AlgoTrader.Shared.MovingAverages;
+using OpenExchangeRates;
 using System.Data.Entity;
+using System.Diagnostics;
 using System.Windows.Controls;
+using System.Windows.Forms.VisualStyles;
 using System.Windows.Media;
 using System.Windows.Threading;
+using static AlgoTrader.Shared.BinanceAPI;
 using Brushes = System.Windows.Media.Brushes;
 
 namespace AlgoTrader.Shared
 {
-    public class ExchangeEventArgs : EventArgs
-    {
-        public object Result { get; set; }
-    }
     public abstract partial class TradeEngine : DisplayPanel
     {
         #region Trade engine parameters
@@ -38,8 +38,6 @@ namespace AlgoTrader.Shared
                 return (int)TimeZoneInfo.Local.GetAdjustmentRules()[0].DaylightDelta.TotalHours;
             }
         }
-
-        #region Trading parameters
         public static string LIVE_KEY { get; set; }
         public static string LIVE_SECRET { get; set; }
         public static string TESTNET_KEY { get; set; }
@@ -97,9 +95,12 @@ namespace AlgoTrader.Shared
 
         #endregion
 
-        #endregion
-
         #region Fields
+        System.Timers.Timer timer = null;
+        protected bool isManualSynch = false;
+        public const double TIMEOUT_SECONDS = 15; //timeout for exchange data
+        public const double CHECK_EXCHANGE_INTERVAL_SECONDS = 15;
+        public static ExchangeId EXCHANGE;
         public static double Leverage = 1;
         public static bool showBalancesDialog = false; //Binance can't really set the balance on a specific trade as it is obtained asynchronously, this is just to only show the dialog when manually requested
 
@@ -489,7 +490,6 @@ namespace AlgoTrader.Shared
                 }
             }
         }
-
         public void ResetForDataContext()
         {
             //must clear everything, or next time the lists will still be attached to the previous (nulled) DataContext so won't propagate
@@ -673,18 +673,56 @@ namespace AlgoTrader.Shared
             currentDataItem = item;
 
             //synchronise the trades with any UI changes
-            RunTrade_synchronised(results.Count - 1, itemAdded);
+            RunOrders_synchronised(results.Count - 1, itemAdded);
 
             
         }
 
         #endregion
 
-        #region Execute trade
+        #region Exchange-specific overridden methods
+        public virtual void Test() { }
         public abstract void SynchStopsWithExchange_synchronised();
+        public abstract void SetStopOnExchange_Synchronised();
+        public abstract void ShowAccountBalances();
+        protected abstract bool SendStopToExchange_Synchronised(bool isUpdating);
+        protected abstract bool RemoveStopFromExchange_Synchronised();
+        protected abstract bool CancelOpenOrders();
+        protected abstract void UpdateLiveState();
+        protected abstract double GetLastPrice();
+        protected abstract double GetBalanceToTrade(double freeBalance, double lastQuoteValue);
+        protected abstract bool SendOrder(double orderQuantity, Side side, string orderId, out double averagePrice, out double executedQuantity);
+        protected abstract double GetCorrectPrecisionForTrade(double balanceToTrade);
+        protected abstract (double freeBalance, double totalEquity) GetTotalEquity();
+        protected abstract double GetFreeBaseAssetBalance(string symbol);
+        protected abstract double AdjustCoinBalanceForFees(string baseAsset, double coinBalance);
+        protected abstract bool InitForEntry();
+        protected abstract bool InitForClose(_Trade triggeringTrade);
+
+        public virtual double AdjustResultForFees(double result) { return result - FEE; }
+
+        protected double GetValueForSymbol(string baseAsset, string quoteAsset)
+        {
+            return GetValueForSymbol(baseAsset + quoteAsset);
+        }
+
+        protected virtual double GetValueForSymbol(string symbolName)
+        {
+            if (currentDataItem == null)
+            {
+                LogTrades.WriteLine($"Waiting for connection on {symbolName}");
+                return 0;
+            }
+
+            return currentDataItem.Close;
+        }
+
+        #endregion
+
+        #region Run orders
 
         //return param is only for backtesting
-        public bool RunTrade_synchronised(int currentFrame, bool itemAdded)
+        public bool RunOrders_synchronised(int currentFrame, bool itemAdded)
         {
             //when called directly from ItemUpdated, this will run live trade
             //when called for backtesting, will exit the test session when this returns false
@@ -694,7 +732,6 @@ namespace AlgoTrader.Shared
             this.currentFrame = currentFrame;
 
             double timeoutSeconds = USE_SIMULATED_EXCHANGE ? 1000 : TIMEOUT_SECONDS;
-
 
             InitForDataContext(() =>
             {
@@ -724,7 +761,7 @@ namespace AlgoTrader.Shared
                             {
                                 LogTrades.WriteLine("Attempting to close order without removing stops first...");
                                 hasFailedToClose = true;
-                                StartClose_Synchronised(null);
+                                CloseTradeOnExchange(null);
                             }
                             else
                             {
@@ -739,8 +776,6 @@ namespace AlgoTrader.Shared
                                 SetUpdateRequest(Entry);
                                 SetUpdateRequest(Order);
                                 SetUpdateRequest(Close);
-
-                                //  StartEntryOrClose_Synchronised();
                             }
 
                             return;
@@ -796,57 +831,6 @@ namespace AlgoTrader.Shared
                     }
                     #endregion
 
-                    #region Ceiling
-                    /*
-                    if (Ceiling != null && Ceiling.ExchangeMethodScript == null)
-                    {
-                        //take profit can only execute on price, no line etc. so handle it here
-                        var low = tradeEngine.GetLow(Ceiling);
-                        var high = tradeEngine.GetHigh(Ceiling);
-                        var p = Order.Position == TradePosition.LONG ? "Long" : "Short";
-                        //if (Ceiling.Stop != TradeStop.CEILING_TRIGGERED)
-                        //{
-                        //this will execute first, so if the trigger percent is zero, the ceiling will execute immediately
-                        if (Order.Position == TradePosition.LONG
-                                                    ? high >= Ceiling.Price
-                                                    : high <= Ceiling.Price)
-                        {
-                            //Ceiling.Stop = TradeStop.CEILING_TRIGGERED;
-                            //SetUpdateRequest(Ceiling);
-                            LogTrades.WriteLineOrder($"Exiting {p} {Entry.SymbolName} on ceiling cross at {DateTime.UtcNow}");
-
-                            //not using the trigger, just an immediate exit instead
-                            CloseTradeLive_synchronised(false);
-                            redrawRequired = true;
-                            return;
-                            //MainObj.PlaySound(MainObj.ALERT_SOUND);
-                        }
-                        //}
-                        #region Unused (ceiling trigger)
-
-                        //    if (Ceiling.Stop == TradeStop.CEILING_TRIGGERED) //not an else clause, so it will execute straight away
-                        //    {
-                        //        //ceiling has been hit, exit when price falls to an arbitrary level
-                        //        var ceilingPrice = Order.Position == TradePosition.LONG
-                        //            ? Ceiling.Price * (1 - TradeEngine.CEILING_TRIGGER_PERCENT / 100)
-                        //            : Ceiling.Price * (1 + TradeEngine.CEILING_TRIGGER_PERCENT / 100);
-
-                        //        if (Order.Position == TradePosition.LONG
-                        //           ? low <= ceilingPrice
-                        //           : high >= ceilingPrice)
-                        //            {
-                        //                LogTrades.WriteLine($"Exiting {Entry.SymbolName} on ceiling cross");
-                        //                CloseTradeLive_synchronised();
-                        //                redrawRequired = true;
-                        //                return;
-                        //            }
-                        //    }
-                        #endregion
-
-                    }
-                    */
-                    #endregion
-
                     #region Take Profit
 
                     //just a simplified version of the stop logic, no need for a separate order object to do this
@@ -870,7 +854,7 @@ namespace AlgoTrader.Shared
                             {
                                 //not using the trigger, just an immediate exit instead
                                 LogTrades.WriteLine($"Exiting {posText} {Entry.SymbolName} on take profit cross at {DateTime.UtcNow}");
-                                CloseTradeLive_synchronised();
+                                CloseTrade();
                                 redrawRequired = true;
                                 return;
 
@@ -883,27 +867,6 @@ namespace AlgoTrader.Shared
                     }
 
 
-                    #endregion
-
-                    #region Floor
-                    /*
-                    if (Floor != null && Entry != null) //will happen if adding a stop before trade is entered
-                    {
-                        //indicator can trail floor, etc. (floor trail is abandoned)
-                        (bool floorExecuted, bool updateFloor) = currentTradeIndicator.ExecuteFloor_synchronised(itemAdded);
-                        if (updateFloor)
-                        {
-                            SetUpdateRequest(Floor);
-                        }
-                        if (floorExecuted)
-                        {
-                            LogTrades.WriteLineOrder($"Exiting {posText} {Entry.SymbolName} on floor cross at {DateTime.UtcNow}");
-                            CloseTradeLive_synchronised(false);
-                            redrawRequired = true;
-                            return;
-                        }
-                    }
-                    */
                     #endregion
 
                     #region Stop(s)
@@ -920,16 +883,7 @@ namespace AlgoTrader.Shared
                             if (stopExecuted)
                             {
                                 LogTrades.WriteLine($"Exiting {posText} {Entry.SymbolName} on stop cross at {DateTime.UtcNow}");
-                                CloseTradeLive_synchronised();
-                                
-                                //if (Close != null)//which it will be on a flip
-                                //{
-
-                                //    Close.ItemStatus = TradeItemStatus.OPEN;
-                                //    Close.GlobalStatus = TradeGlobalStatus.ACTIVE;
-                                //    SetUpdateRequest(Close); //need to keep this open to stop adding more if not synchronised with exchange, which can happen with Binance
-                                //}
-                                
+                                CloseTrade();
                                 redrawRequired = true;
                                 return;//terminate in backtesting, will have already closed trade
                             }
@@ -944,65 +898,6 @@ namespace AlgoTrader.Shared
                         ExtendLineToCurrentTime_synchronised(Stop);
                     }
 
-                    //update any flip stop price to the attached line price here
-                    //var flipStops = AllTrades.Where(x => x.TradeReference == Order.TradeReference && x.Action == TradeAction.WAITING_STOP);
-                    //foreach (var flipStop in flipStops)
-                    //{
-                    //    if (flipStop != null)
-                    //    {
-                    //        var line = tradeEngine.ActiveLines.GetLineForTrade(flipStop);
-                    //        if (line != null)
-                    //        {
-                    //            (flipStop.Price, _) = line.GetPriceAtTime(currentDataItem.Timestamp, true);
-                    //            SetUpdateRequest(flipStop);
-                    //        }
-                    //    }
-                    //}
-
-                    #endregion
-
-                    #region Break Even (unused)
-                    //if (BreakEven != null)
-                    //{
-                    //    //just a simplified version of the stop logic, no need for a separate order object to do this
-
-                    //    var low = tradeEngine.GetLow(BreakEven);
-                    //    var high = tradeEngine.GetHigh(BreakEven);
-                    //    //check if be price is crossed now price is set from line
-                    //    if (Entry.Position == TradePosition.LONG
-                    //                   ? high >= BreakEven.Price
-                    //                   : high <= BreakEven.Price)
-                    //    {
-                    //        //if no floor, add one at b/e
-                    //        //var breakEvenPrice = AlgoTrader.Shared.Order.GetBreakEvenPrice(Entry, this);
-                    //        var mult = BREAK_EVEN_PERCENT / 100;
-                    //        var breakEvenPrice = (currentDataItem.Close - Entry.Price) * mult + Entry.Price;
-                    //        if (Floor == null)
-                    //        {
-                    //            Floor = Order.Clone();
-                    //            Floor.Action = TradeAction.FLOOR;
-                    //            Floor.Timestamp = currentDataItem.Timestamp;
-                    //            Floor.Price = breakEvenPrice;
-                    //            Floor.ActionValue = 0;
-                    //            Floor.ItemId = null; //need a new ID for this as it is a new order.
-                    //            Floor.ExchangeStatus = TradeExchangeStatus.ENTERING_ON_EXCHANGE;
-                    //            SetStopOnExchange_Synchronised(Floor);
-                    //        }
-                    //        else
-                    //        {
-                    //            //if floor set below b/e, move it - but don't move if above!!
-                    //            if ((Entry.Position == TradePosition.LONG && Floor.Price < breakEvenPrice) ||
-                    //                 Entry.Position == TradePosition.SHORT && Floor.Price > breakEvenPrice)
-                    //            {
-                    //                Floor.Price = breakEvenPrice;
-                    //            }
-                    //        }
-                    //        BreakEven.ItemStatus = TradeItemStatus.CLOSED;
-                    //        tradeEngine.SetUpdateRequest(BreakEven);
-                    //        tradeEngine.SetUpdateRequest(Floor);              
-                    //        redrawRequired = true;
-                    //    }
-                    //}
                     #endregion
 
                     #region Timeout and Update Time for stops
@@ -1035,36 +930,33 @@ namespace AlgoTrader.Shared
                         }
                     }
                     #endregion
-                    //}
+
                 }
                 #region Test for trade entry
-                //else
-                //{
-                    foreach (var order in WaitingOrders)
+
+                foreach (var order in WaitingOrders)
+                {
+                    var currentTradeIndicator = GetCurrentTradeIndicator(order);
+
+                    //when a trade is changed, added or deleted, mark it with a TradeUpdateRequest and add to the trades list
+                    (bool hasEntered, bool tradeKilled) = EnterTrade(order, currentTradeIndicator);
+                    redrawRequired = hasEntered || tradeKilled;
+                    if (tradeKilled)
                     {
-                        var currentTradeIndicator = GetCurrentTradeIndicator(order);
-
-                        //when a trade is changed, added or deleted, mark it with a TradeUpdateRequest and add to the trades list
-                        (bool hasEntered, bool tradeKilled) = EnterIfPossible_synchronised(order, currentTradeIndicator);
-                        redrawRequired = hasEntered || tradeKilled;
-                        if (tradeKilled)
-                        {
-                            //order has failed to enter, so don't want to keep retrying especially with market orders as this will just show endless dialogs
-                            order.ItemStatus = TradeItemStatus.CLOSED;
-                            order.GlobalStatus = TradeGlobalStatus.STOPPED;
-                            order.TradeExecutionStatus = TradeExecutionStatus.OK;
-                            SetUpdateRequest(order);
-                            redrawRequired = true;
-                        }
-                        if (hasEntered)
-                        {
-                            Order = order;
-                            hasFailedToClose = false;
-                            break;
-                        }
+                        //order has failed to enter, so don't want to keep retrying especially with market orders as this will just show endless dialogs
+                        order.ItemStatus = TradeItemStatus.CLOSED;
+                        order.GlobalStatus = TradeGlobalStatus.STOPPED;
+                        order.TradeExecutionStatus = TradeExecutionStatus.OK;
+                        SetUpdateRequest(order);
+                        redrawRequired = true;
                     }
-                //}
-
+                    if (hasEntered)
+                    {
+                        Order = order;
+                        hasFailedToClose = false;
+                        break;
+                    }
+                }
 
                 #endregion
 
@@ -1082,15 +974,12 @@ namespace AlgoTrader.Shared
             return ret;
 
         }
- 
 
-        /*
-         * Test for trade entry based on trade type, line break etc.
-         * But also take into account the number of concurrent trades and number of recent trades.
-         * The former needs to be done on a per-quote asset basis
-         * This has nothing to do with base-to-quote asset trading, only for market or break orders
-         * */
-        protected (bool hasEntered, bool tradeKilled) EnterIfPossible_synchronised(_Trade trade, Order currentTradeIndicator)
+        #endregion
+
+        #region Enter trade
+
+        protected (bool hasEntered, bool tradeKilled) EnterTrade(_Trade trade, Order currentTradeIndicator)
         {
             bool canEnter =
                 trade.Type == TradeType.MARKET_ORDER ||
@@ -1158,14 +1047,14 @@ namespace AlgoTrader.Shared
                             if (Entry.Position == TradePosition.LONG && trade.Position == TradePosition.SHORT ||
                                 Entry.Position == TradePosition.SHORT && trade.Position == TradePosition.LONG)
                             {
-                                CloseTradeLive_synchronised(Entry); //this will start the flip
+                                CloseTrade(Entry); //this will start the flip
                             }
                             break;
                         }
                         else
                         {
                             Order = trade;
-                            StartEntry_Synchronised();
+                            EnterTradeOnExchange();
                         }
                         if (Entry != null)
                         {
@@ -1179,9 +1068,433 @@ namespace AlgoTrader.Shared
             return (false, false);
         }
 
-        protected abstract void EnterTradeOnSystem_synchronised(double price, double quantity, TradeExchangeStatus orderType);
+        public virtual async void EnterTradeOnExchange()
+        {
+            #region Test for OK to start entry
+            
+            if (!USE_TESTNET && !dataReady) return;
 
-        internal void CloseTradeOnSystem_synchronised(double price)
+            //if this has just restarted, will try to enter any trades immediately but the price won't be available from the websocket yet.
+            //so use the REST api instead
+            var lastQuoteValue = GetLastPrice();
+            if (lastQuoteValue == 0)
+            {
+                LogTrades.WriteLine("Could not get symbol price");
+                KillEntryOrCloseOrder(true);
+                return;
+            }
+            var diff = Math.Abs(MainObj.GetPriceDiff(Order.Price, lastQuoteValue, Order.Position) * 100);
+
+            LogTrades.WriteLine($"Price diff. between entry and current price is {diff}%");
+
+            //determine if this is within an acceptable range
+            if (diff > (USE_TESTNET ? 1000 : MAX_ENTRY_DIFF_PERCENT))
+            {
+                LogTrades.WriteLine("Did not enter trade as price difference between Order and current price was too great");
+                return;
+            }
+
+            //make sure there are no orphaned stops 
+            bool openOrdersCancelled = false;
+            try
+            {
+                openOrdersCancelled = CancelOpenOrders();
+            }
+            catch (Exception ex)
+            {
+                LogTrades.WriteLine($"Failed to deserialize CancelAllOpenOrders(...): {ex}");
+            }
+            if (openOrdersCancelled == false)
+            {
+                LogTrades.WriteLine("Failed to cancel open orders (OCO), exiting new trade");
+                KillEntryOrCloseOrder(true);
+                return;
+            }
+
+            if (!InitForEntry())
+            {
+                KillEntryOrCloseOrder(true);
+                return;
+            }
+            #endregion
+
+            ResetLiveUpdateTimer();
+
+            LogTrades.WriteLine($"Starting new {Order.Position} order:");
+
+            #region Get balance to trade
+            LogTrades.WriteLine("Getting equity...");
+            (var freeBalance, var totalEquity) = GetTotalEquity(); //equity is in $, only used for a record in the Entry object
+            if (freeBalance <= 0)
+            {
+                LogTrades.WriteLine($"Could not get free balance for {symbolName}, exiting StartEntryOrClose_Synchronised");
+                KillEntryOrCloseOrder(true);
+                return;
+            }
+            #endregion
+
+            #region Generate Entry
+            Entry = Order.Clone(); //item status will be open
+            Entry.ItemId = _Trade.GetNewTradeId(); //set the client-assigned Id (could wait for the binance-assigned one instead) but this way, can query status even if no confirmation yet received
+            Entry.Action = TradeAction.ENTRY;
+            Entry.Price = lastQuoteValue;
+            Entry.TradeExchangeStatus = TradeExchangeStatus.ENTERED_OFF_EXCHANGE; //only set live when it actually returns from exchange
+            Entry.Timestamp = GetTimeStamp();
+            Entry.Id = 0; //so it will get added
+            Entry.Balance = freeBalance;
+            Entry.Equity = totalEquity;
+            Entry.TradeReference = Order.TradeReference;//shared with all trades in this group
+            SetUpdateRequest(Entry);
+            #endregion
+
+            #region Calculate stop and take profit prices
+
+            //need the closest of the current stop or opposing trade. If neither found, use the minimum stop value
+            double stopPercent = GetValueForTimeframe(STOP_MIN_VALUE);
+            double stopPrice = 0;
+
+            //get the existing line break stop if it exists
+            var stop = AllTrades.FirstOrDefault(x => x.TradeReference == Order.TradeReference && x.Action == TradeAction.STOP);
+            if (stop != null)
+            {
+                Stop = stop;
+            }
+            var takeProfit = AllTrades.FirstOrDefault(x => x.TradeReference == Order.TradeReference && x.Action == TradeAction.TAKE_PROFIT);
+            if (takeProfit != null)
+            {
+                TakeProfit = takeProfit;
+            }
+
+            //even if this comes from a flip, the stop will still be found as the data context has been refreshed for the new order
+            if (Stop != null)
+            {
+                stopPrice = Stop.Price;
+
+                var stopLine = AllLinesForSymbol.FirstOrDefault(x => x.TradeId == Stop.Id);
+                if (stopLine != null)
+                {
+                    (stopPrice, _) = stopLine.GetPriceAtTime(DateTime.UtcNow, true);
+                    stopPercent = MainObj.GetPriceDiffPercent(currentDataItem, stopPrice, Order.Position) * 100;
+                }
+            }
+            else //if there is no stop, take the opposing order as one instead
+            {
+                var _oppOrder = GetOppositeOrder(Order);
+                if (_oppOrder != null)
+                {
+                    stopPercent = _oppOrder.Price;
+                    var orderLine = AllLinesForSymbol.FirstOrDefault(x => x.TradeId == _oppOrder.Id);
+                    if (orderLine != null)
+                    {
+                        LogTrades.WriteLine("Taking opposite order as stop");
+                        (var oppOrderPrice, _) = orderLine.GetPriceAtTime(DateTime.UtcNow, true);
+                        stopPercent = MainObj.GetPriceDiffPercent(currentDataItem, oppOrderPrice, Order.Position) * 100;
+                    }
+                }
+            }
+
+            #endregion
+
+            #region Calculate Leverage
+
+            //if a stop line is present, the leverage will be calculated from that, base on the range of stop values and leverages
+            // for the timeframe. If no stop line is present, the leverage will be whatever is currently set in the UI
+            Leverage = Stop != null ? CalculateLeverageFromPercent(stopPercent, Entry.Position) : Leverage;
+
+            //save the calculated leverage, even if we are not using it
+            Order.Leverage = Entry.Leverage = Leverage;
+
+            #endregion
+
+            #region Place order
+
+            Order.TradeExchangeStatus = Entry.TradeExchangeStatus = TradeExchangeStatus.ENTERING_ON_EXCHANGE;
+
+            var tradeAmount = GetBalanceToTrade(freeBalance, lastQuoteValue);
+
+            LogTrades.WriteLine($"Placing buy order of {tradeAmount}, adjusted for step size, at {DateTime.Now}...");
+
+            bool accepted = SendOrder(tradeAmount, Side.BUY, Entry.ItemId, out double averagePrice, out double executedQuantity);
+            if (!accepted)
+            {
+                KillEntryOrCloseOrder(true);
+                return;
+            }
+
+            LogTrades.WriteLine($"{Entry.Position} order FILLED for {Entry.SymbolName} at {DateTime.UtcNow}");
+
+            //at this point, trade is entered live
+
+            hasSpiked = false;
+
+            var currentTradeIndicator = GetCurrentTradeIndicator(Order);
+
+            //get the EF tracked trade - if this is a live entry, will be using a different data context to the one the parameter is running on
+
+
+            //set trade time, frame and price to entry point (line entry will be different from order position)
+            //enter trade on system here, but not active yet
+            if (Entry == null)
+            {
+                //if not trading live, will bypass exchange (if not using simulator) and come straight here, so no entry yet
+                Entry = Order.Clone();
+                Entry.Action = TradeAction.ENTRY;
+                Entry.Timestamp = GetTimeStamp();
+            }
+
+            Entry.Price = Order.Price = averagePrice;
+            Entry.Quantity = Order.Quantity = executedQuantity; //set both the entry and order quantity, as either may be used when closing, etc.
+            Entry.TradeExchangeStatus = TradeExchangeStatus.ENTERED_ON_EXCHANGE;
+            Entry.TradeExecutionStatus = TradeExecutionStatus.OK;
+
+            Order.ItemStatus = TradeItemStatus.CLOSED; //close the order, this is now an active trade
+            Order.TradeExecutionStatus = TradeExecutionStatus.OK;
+            Order.TradeExchangeStatus = TradeExchangeStatus.ENTERED_ON_EXCHANGE;
+
+            #endregion
+
+            #region Set stop
+
+            //Stop has already been pulled from AllTrades
+            if (Stop != null)
+            {
+                LogTrades.WriteLine("Using existing stop.");
+                Stop.Price = Stop.Result = stopPrice; //this is the line price at this time, if a line is present, otherwise the stop price is used
+            }
+            else
+            {
+                LogTrades.WriteLine($"Setting stop at {stopPercent}%");
+
+                Stop = Entry.Clone();
+                Stop.Price = Stop.Result = MainObj.GetStopPriceFromPercent(Entry.Price, stopPercent, Order.Position); 
+                Stop.Action = TradeAction.STOP;
+                Stop.ItemId = null; //need a new ID for this as it is a new order.
+                AddLineToTrade_synchronised(Stop, DateTime.UtcNow.AddMinutes(-1));
+            }
+
+            Stop.Quantity = Entry.Quantity;
+            Stop.TradeExchangeStatus = TradeExchangeStatus.ENTERING_ON_EXCHANGE;
+
+            LogTrades.WriteLine("Sending stop to exchange");
+            SetStopOnExchange_Synchronised();
+
+            SetUpdateRequest(Stop);
+            SetUpdateRequest(Order);
+            SetUpdateRequest(Entry);
+
+            #endregion
+
+            #region Get exchange rate
+            //cannot have any synched objects after this as synchronisation will exit before this method completes
+            LogTrades.WriteLine("Getting exchange conversion rate...");
+            var gbp = await GetConversionRate(Entry.ItemId);
+            LogTrades.WriteLine($"Conversion rate received of {gbp.ToString("F2")}, Entry complete!");
+            #endregion
+
+            //No more access to Entry, Close etc. after call to async GetConversionRate()!!!
+            MainObj.DrawCurrentDispatcher();
+
+            tradeStatusChanged = true;
+        }
+       
+        protected void EnterTradeOnSystem(double price, double executedQuantity, TradeExchangeStatus orderType)
+        {
+
+            //note, Quantity is double not decimal, as decimal has 18 digits and 2 decimal places only in db
+            try
+            {
+                hasSpiked = false;
+
+                var currentTradeIndicator = GetCurrentTradeIndicator(Order);
+
+                //get the EF tracked trade - if this is a live entry, will be using a different data context to the one the parameter is running on
+
+                Order.TradeExchangeStatus = orderType;
+
+                SetUpdateRequest(Order);
+
+                //set trade time, frame and price to entry point (line entry will be different from order position)
+                //enter trade on system here, but not active yet
+                if (Entry == null)
+                {
+                    //if not trading live, will bypass exchange (if not using simulator) and come straight here, so no entry yet
+                    Entry = Order.Clone();
+                    Entry.Action = TradeAction.ENTRY;
+                    Entry.Timestamp = GetTimeStamp();
+                    SetUpdateRequest(Entry);
+                }
+
+                Entry.Price = Order.Price = (double)price;
+                Entry.Quantity = Order.Quantity = executedQuantity; //set both the entry and order quantity, as either may be used when closing, etc.
+                Entry.TradeExchangeStatus = orderType;
+                Entry.TradeExecutionStatus = TradeExecutionStatus.OK;
+                SetUpdateRequest(Entry);
+
+                Order.ItemStatus = TradeItemStatus.CLOSED; //close the order, this is now an active trade
+                Order.TradeExecutionStatus = TradeExecutionStatus.OK;
+                SetUpdateRequest(Order);
+
+            }
+            catch (Exception e)
+            {
+                LogTrades.WriteLine($"Exception in EnterTradeOnSystem  at {DateTime.UtcNow} (1): {e}");
+            }
+        }
+
+        #endregion
+
+        #region Close trade
+
+        protected void CloseTrade(_Trade triggeringTrade = null)
+        {
+            if (Entry != null)
+            {
+                var price = currentDataItem != null ? currentDataItem.Close : Entry.Price;
+
+                //close on the exchange
+
+                if (Close != null) //pending or live close, so return
+                {
+                    LogTrades.WriteLine("Attempt to close trade whilst trade pending or live, exiting");
+                    return;
+                }
+
+                var s = USE_SIMULATED_EXCHANGE ? "SIMULATED EXCHANGE" : "LIVE EXCHANGE";
+                LogTrades.WriteSpacer();
+                LogTrades.WriteLine($"Closing {Entry.SymbolName} {Entry.TradeReference} at {DateTime.UtcNow}");
+
+                SetUpdateRequest(Order);
+                SetUpdateRequest(Entry);
+
+                //enter close on system here, it is required for closing order regardless of flip
+                Close = Order.Clone();
+                Close.ItemId = _Trade.GetNewTradeId(); //set the client-assigned Id (could wait for the binance-assigned one instead) but this way, can query status even if no confirmation yet received
+                Close.Action = TradeAction.CLOSE;
+                Close.Timestamp = GetTimeStamp();
+
+                SetUpdateRequest(Close); //update adds if there is no Id set
+
+                ResetLiveUpdateTimer();
+                CloseTradeOnExchange(triggeringTrade); //will remove stop and floor and do the flip, and will call CloseTradeOnSystem_Synchronised()
+
+                MainObj.DrawCurrentDispatcher();
+                return;
+           }
+        }
+
+        public virtual async void CloseTradeOnExchange(_Trade triggeringTrade)
+        {
+            #region Test for OK to start close
+
+            if (!USE_TESTNET && !dataReady) return;
+
+            if (Entry == null)
+            {
+                return;
+            }
+            if (Close == null)
+            {
+                LogTrades.WriteLine($"No Close set in CLOSE_ORDER_SCRIPT for {symbolName}, cannot close trade, exiting OnExchangeDataReceived");
+                KillEntryOrCloseOrder(false);
+                return;
+            }
+
+            if (!InitForClose(triggeringTrade))
+            {
+                KillEntryOrCloseOrder(true);
+                return;
+            }
+            #endregion
+
+            LogTrades.WriteLine("Cancelling open orders.");
+
+            CancelOpenOrders();
+
+            bool canFlip = false;
+
+            #region Get balance to trade
+            //if the base asset balance is very small, assume the trade has exited on the exchange, so go no further
+            var _baseAsset = SymbolNames.GetBaseAssetForSymbol(symbolName);
+
+            var coinBalance = GetFreeBaseAssetBalance(_baseAsset);
+            #endregion
+
+            LogTrades.WriteLine($"Closing order for {symbolName}...");
+
+            if (coinBalance == 0)
+            {
+                LogTrades.WriteLine($"No {symbolName} to sell, trade has already closed on exchange.");
+                CloseTradeOnSystem(currentDataItem.Close);
+                canFlip = true; //will still attempt to flip though
+            }
+            else
+            {
+                #region Place order
+
+                LogTrades.WriteLine($"Using received balance of {coinBalance} {_baseAsset}");
+
+                double amountToSell = AdjustCoinBalanceForFees(_baseAsset, coinBalance);
+
+                LogTrades.WriteLine($"Amount to sell is {amountToSell}");
+
+                Close.Quantity = GetCorrectPrecisionForTrade(amountToSell);
+
+                LogTrades.WriteLine($"Placing sell order of {Close.Quantity}, adjusted for step size, at {DateTime.Now}...");
+                SetUpdateRequest(Close);
+
+                //TODO - does this return average price on TESTNET??
+                bool accepted = SendOrder(Close.Quantity, Side.SELL, Close.ItemId, out double averagePrice, out double executedQuantity);
+                if (!accepted)
+                {
+                    KillEntryOrCloseOrder(true);
+                    return;
+                }
+
+                LogTrades.WriteLine($"{Entry.Position} Close order filled for {Entry.SymbolName} at {DateTime.UtcNow}");
+
+                //Set order on system
+                CloseTradeOnSystem(averagePrice);
+
+                #endregion
+            }
+
+            var entryItemId = Entry.ItemId; //save this since close on system will set Entry = null
+            var closeItemId = Close.ItemId; //need this later for conversion rate
+
+            canFlip = true;
+
+            #region Set flip from opposing trade
+            if (triggeringTrade != null && canFlip)
+            {
+                var triggeringTradeId = triggeringTrade.Id;
+
+                SaveChangesForDataContext();
+                ResetForDataContext();
+
+                //ActiveTrades is no loger valid, and this is used to get Order, Stop etc.
+
+                Order = AllTrades.FirstOrDefault(t => t.Id == triggeringTradeId);
+                LogTrades.WriteLine($"Flipping order if possible...");
+                EnterTradeOnExchange(); //and that's all there is to it.
+            }
+            #endregion
+
+            ShowAccountBalances(); //will log balance
+
+            #region Get exchange rate
+            //this will cause synchronisation to exit BEFORE this awaitable method completes,
+            // so CANNOT have any synched objects accessed after this (like Close, etc.)
+            LogTrades.WriteLine("Getting exchange conversion rate...");
+            var gbp = await GetConversionRate(closeItemId);
+            LogTrades.WriteLine($"Conversion rate received of {gbp.ToString("F2")}, trade close complete!");
+            #endregion
+
+            MainObj.DrawCurrentDispatcher();
+
+            tradeStatusChanged = true;
+        }
+
+        protected void CloseTradeOnSystem(double price)
         {
             //close a trade, this is a close request with no further intent
             //trade could be an order for a manual close, or a close if system is synching with exchange
@@ -1254,262 +1567,89 @@ namespace AlgoTrader.Shared
             
         }
 
-        //entry point for trade closure from local system, not called when exchange closes trade
-        internal void CloseTradeLive_synchronised(_Trade triggeringTrade = null)
+        protected void KillEntryOrCloseOrder(bool entry)
         {
-            if (Entry != null)
+            //kill order only applies to new entry being abandoned prior to submitting order request to exchange, or if it is rejected by exchange
+            // - so only the Entry will actually have the script name, etc., but this saves a test for NULL on that if calling EndScript()
+            foreach (var trade in ActiveTrades)
             {
-                var price = currentDataItem != null ? currentDataItem.Close : Entry.Price;
-
-                //close on the exchange
-
-                if (Close != null) //pending or live close, so return
-                {
-                    LogTrades.WriteLine("Attempt to close trade whilst trade pending or live, exiting");
-                    return;
-                }
-
-                var s = USE_SIMULATED_EXCHANGE ? "SIMULATED EXCHANGE" : "LIVE EXCHANGE";
-                LogTrades.WriteSpacer();
-                LogTrades.WriteLine($"Closing {Entry.SymbolName} {Entry.TradeReference} at {DateTime.UtcNow}");
-
-                SetUpdateRequest(Order);
-                SetUpdateRequest(Entry);
-
-                //enter close on system here, it is required for closing order regardless of flip
-                Close = Order.Clone();
-                Close.ItemId = _Trade.GetNewTradeId(); //set the client-assigned Id (could wait for the binance-assigned one instead) but this way, can query status even if no confirmation yet received
-                Close.Action = TradeAction.CLOSE;
-                Close.Timestamp = GetTimeStamp();
-
-                SetUpdateRequest(Close); //update adds if there is no Id set
-
-                //if (!allowFlip)
-                //{
-                //    //remove the flip stop in case it is close enough to price to trigger another order!!!
-                //    var flipStop = AllTrades.FirstOrDefault(x => x.Action == TradeAction.STOP && x.Type == TradeType.FLIP_ORDER);
-                //    if (flipStop != null)
-                //    {
-                //        SetUpdateRequest(flipStop, TradeUpdateRequest.DELETE);
-                //        AllTrades.Remove(flipStop); //in case this is pulled later
-                //        Stop = null;
-                //    }
-                //}
-
-                ResetLiveUpdateTimer();
-                StartClose_Synchronised(triggeringTrade); //will remove stop and floor and do the flip, and will call CloseTradeOnSystem_Synchronised()
-
-                MainObj.DrawCurrentDispatcher();
-                return;
-
-            }
-        }
-        public abstract (double freeBalance, double totalEquity) GetTotalEquity();
-        public abstract double GetFreeBalance(string symbol);
-
-        public void UpdateAccountEquityForTrade(string entryRef)
-        {
-            var timer = new DispatcherTimer(); //need this type of timer as the code affects the UI thread here (display of results)
-            timer.Tick += new EventHandler(async (source, eventArgs) =>
-            {
-                if (timer.IsEnabled) //it will run again immediately after it has stopped, because it is counting down again??
-                {
-                    timer.IsEnabled = false;
-                    timer.Stop();
-                    try
-                    {
-                        var _baseAsset = SymbolNames.GetBaseAssetForSymbol(symbolName);
-                        if (_baseAsset != null)
-                        {
-                            (var freeBalance, var totalEquity) = GetTotalEquity();
-                            if (freeBalance != 0)
-                            {
-                                using (DataContext db = new())
-                                {
-                                    var closedTrade = db.Trades.FirstOrDefault(x => x.TradeReference == entryRef && x.Action == TradeAction.CLOSE);
-                                    if (closedTrade != null)
-                                    {
-                                        closedTrade.Balance = freeBalance;
-                                        closedTrade.Equity = totalEquity;
-                                        db.SaveChanges();
-                                        LogTrades.WriteLine($"Saving final closing balance of {freeBalance}");
-                                    }
-                                }
-                                await ActiveTradeSummary.Update(this);
-                            }
-                        }
-                    }
-                    finally
-                    {
-                    }
-                }
-            });
-            timer.Interval = new TimeSpan(0, 0, 2); //wait for db to propagate changes
-            timer.Start();
-        }
-        protected virtual void DoFlip_Synchronised() { }
-
-        //private bool CanDeleteTrade_synchronised(_Trade trade, _Trade entry)
-        //{
-        //    switch (trade.Action)
-        //    {
-        //        case TradeAction.ORDER:
-        //        case TradeAction.ENTRY:
-        //        case TradeAction.CLOSE:
-        //        case TradeAction.STOP:
-        //        case TradeAction.TAKE_PROFIT:
-        //            //can only delete if trade not live
-        //            return entry == null || entry.GlobalStatus == TradeGlobalStatus.STOPPED;
-        //    }
-        //    return false;
-        //}
-        #endregion
-
-        #region Utility methods
-
-        public virtual void Test() { }
-
-        internal _Trade GetTradeForTradeReference(TradeAction action, string reference = null)
-        {
-            var _reference = reference ?? currentTradeSetReference;
-            return AllTrades.FirstOrDefault(x =>
-                        x.Action == action &&
-                        x.TradeReference == _reference);
-        }
-
-        protected virtual double GetCorrectPrecisionForPrice(double balanceToTrade) { return balanceToTrade; }
-
-        internal bool IsActiveTrade(_Trade trade)
-        {
-            return (Order != null && Order.TradeReference == trade.TradeReference);
-        }
-
-        public virtual double GetValueForSymbol(string baseAsset, string quoteAsset)
-        {
-            return GetValueForSymbol(baseAsset + quoteAsset);
-        }
-
-        public virtual double GetValueForSymbol(string symbolName)
-        {
-            if (currentDataItem == null)
-            {
-                LogTrades.WriteLine($"Waiting for connection on {symbolName}");
-                return 0;
-            }
-           
-            return currentDataItem.Close;
-        }
-
-        public void ExtendLineToCurrentTime_synchronised(_Trade trade)
-        {
-            var line = ActiveLines.GetLineForTrade(trade);
-            if (line != null)
-            {
-                if (line.EndTimeStamp < DateTime.UtcNow)
-                {
-                    (var price, _) = line.GetPriceAtTime(DateTime.UtcNow, true);
-                    line.EndTimeStamp = DateTime.UtcNow;
-                    line.EndPrice = price;
-                    SetUpdateRequest(line);
-                }
-            }
-        }
-        
-        public double takerFee = 0; //retain this, so no need to get it when the trade closes (can assume it is still the same)
-
-        internal void AddLineToTrade_synchronised(_Trade trade, DateTime timeStamp)
-        { 
-            var line = new _ChartLine
-            {
-                StartTimeStamp = timeStamp,
-                EndTimeStamp = MainObj.GetNextInterval_UI(timeStamp, currentDataItem),
-                StartPrice = trade.Price,
-                EndPrice = trade.Price,
-                SymbolName = symbolName,
-                Trade = trade,
-                TradeReference = trade.TradeReference,
-                Type = LineType.BREAK,
-                TradeId = trade.Id
-            };
-            currentTradeSetReference = trade.TradeReference;
-            SetUpdateRequest(line);
-        }
-        
-        public virtual double AdjustResultForFees(double result) { return result - FEE; }// - 0.2;  } //default of 0.1% * 2, bitmex does it properly
-
-        protected void AdjustStopPriceToMinimum_Synchronised(_Trade entry, _Trade _floorStop, double minVal)
-        {
-            if (minVal > 0)
-            {
-                double stopPrice = _floorStop.Price;
-                var line = ActiveLines.FirstOrDefault(x => x.Trade == _floorStop);
-                if (line != null)
-                {
-                    (stopPrice, _) = line.GetPriceAtTime(_floorStop.Timestamp, true);
-                }
-
-                //ensure floor is not too close to entry price
-                var high = GetHigh(entry);
-                var v = MainObj.GetPriceDiff(high, stopPrice, _floorStop.Position) * 100; //the position may be different from Entry position, if this is a flip stop waiting
-                if (v < minVal)
-                {
-                    LogTrades.WriteLine($"Stop too close to order price. Stop price was adjusted");
-
-                    var prevPrice = stopPrice;
-
-                    _floorStop.Price = MainObj.GetStopPriceFromPercent(entry.Price, minVal, _floorStop.Position);
-
-                    _floorStop.Timestamp = GetTimeStamp();
-                    SetUpdateRequest(_floorStop);
-
-                    if (line != null)
-                    {
-                        var priceDiff = _floorStop.Price - prevPrice;
-
-                        line.StartPrice += priceDiff;
-                        line.EndPrice += priceDiff;
-                        SetUpdateRequest(line);
-                    }
-                }
-            }
-        }
-
-        private bool CheckForTimeout_Synchronised(_Trade trade)
-        {
-            bool ret = DateTime.UtcNow.Subtract(trade.Timestamp).TotalSeconds > (USE_SIMULATED_EXCHANGE ? 1000 : TIMEOUT_SECONDS);
-            if (ret)
-            {
-                trade.Timestamp = DateTime.UtcNow; //or it will restart every loop until the issue is resolved
+                trade.ItemStatus = TradeItemStatus.CLOSED;
+                trade.GlobalStatus = TradeGlobalStatus.STOPPED;
+                trade.TradeExecutionStatus = TradeExecutionStatus.OK;
+                trade.ItemStatus = TradeItemStatus.CLOSED;
+                trade.GlobalStatus = TradeGlobalStatus.STOPPED;
+                trade.TradeExchangeStatus = entry ? TradeExchangeStatus.NEVER_ENTERED : TradeExchangeStatus.NO_WARNING;
                 SetUpdateRequest(trade);
             }
-            return ret;
-        }
-
-        internal DateTime GetTimeStamp()
-        {
-            return DateTime.UtcNow; //because currentdataitem is always at 59 secs so cannot be used for timeouts, etc.
-        }
-
-        protected Order GetCurrentTradeIndicator(_Trade trade)
-        {
-            if (trade == null)
+            if (Entry != null)
             {
-                return null;
+                Entry.TradeExecutionStatus = TradeExecutionStatus.OK;
+                Entry.ItemStatus = TradeItemStatus.CLOSED;
+                Entry.GlobalStatus = TradeGlobalStatus.STOPPED;
+                Entry.TradeExchangeStatus = entry ? TradeExchangeStatus.NEVER_ENTERED : TradeExchangeStatus.NO_WARNING;
             }
-            switch (trade.Type)
+            if (Order != null)
             {
-                case TradeType.HMA_BREAK_ORDER:
-                    return hmaPriceBreakOrderIndicator;
-                case TradeType.LINE_BREAK_ORDER:
-                    return priceBreakOrderIndicator;
-                //case TradeType.MACD_LINE_BREAK_ORDER:
-                //    return macdOrderIndicator;
-                // case TradeType.AUTO_ORDER:
-                //     return autoOrderIndicator;
-                default:
-                    return priceBreakOrderIndicator;
+                Order.TradeExecutionStatus = TradeExecutionStatus.OK;
+                Order.TradeExchangeStatus = entry ? TradeExchangeStatus.NEVER_ENTERED : TradeExchangeStatus.NO_WARNING;
+                Order.ItemStatus = TradeItemStatus.CLOSED;
+                Order.GlobalStatus = TradeGlobalStatus.STOPPED;
+            }
+            if (Stop != null)
+            {
+                Stop.TradeExecutionStatus = TradeExecutionStatus.OK;
+                Stop.ItemStatus = TradeItemStatus.CLOSED;
+                Stop.GlobalStatus = TradeGlobalStatus.STOPPED;
+                Stop.TradeExchangeStatus = entry ? TradeExchangeStatus.NEVER_ENTERED : TradeExchangeStatus.NO_WARNING;
             }
         }
+
+        #endregion
+
+        #region Update live state from exchange 
+
+        internal void InitLiveUpdateTimer()
+        {
+            //return; //because live state update uses InitForDataContext and this does not always work in an asynch loop
+            if (timer == null)
+            {
+                try
+                {
+                    timer = new System.Timers.Timer(CHECK_EXCHANGE_INTERVAL_SECONDS * 1000)
+                    {
+                        Enabled = true
+                    };
+                    timer.Elapsed += new System.Timers.ElapsedEventHandler(Timer_Elapsed);
+
+                }
+                catch { }
+            }
+            else
+            {
+                if (timer.Enabled == false)
+                {
+                    timer.Start(); //won't hurt in case it stopped for some reason
+                }
+            }
+        }
+
+        protected void Timer_Elapsed(object sender, System.Timers.ElapsedEventArgs e)
+        {
+            UpdateLiveState();
+        }
+
+        protected void ResetLiveUpdateTimer()
+        {
+            if (timer != null)
+            {
+                timer.Stop();
+                timer.Dispose();
+                timer = null;
+            }
+            InitLiveUpdateTimer();
+        }
+
+        #endregion
 
         #region Leverage 
 
@@ -1666,6 +1806,156 @@ namespace AlgoTrader.Shared
         //}
 
         #endregion
+ 
+        #region Conversion rate
+        //NOTE on use of async:
+        //If you want to call the method outside of an async method:
+        // You can only use Result if the method has a return type (obvious), BUT it will call the method on the same thread which
+        // will completely block execution. Not sure why but the BinanceAPI methods all use ConfigureAwaiter(false) which seems to stop the problem
+        // but that only causes the return type to be an awaitable Task. The BinanceAPI methods then retrieve content from that and nothing seems 
+        // to block but that does not work here. Just leave everything async.
+        async Task<double> GetConversionRate(string tradeId)
+        {
+            try
+            {
+                using var client = new OpenExchangeRatesClient("51581f4479b84a29921ca25369900524");
+                var latestRatesResponse = await client.GetLatestRatesAsync();
+                var gbp = latestRatesResponse.Rates.FirstOrDefault(x => x.Key == "GBP").Value;
+
+                using DataContext db = new(); //Close can drop out of context after the await method call above
+                var trade = db.Trades.FirstOrDefault(x => x.ItemId == tradeId);
+                if (trade != null)
+                {
+                    trade.ExchangeRate = (double)gbp;
+                    db.SaveChanges();
+                }
+
+                return (double)gbp;
+            }
+            catch (Exception ex)
+            {
+                LogTrades.WriteLine($"Failed to get currency conversion rate: {ex}");
+                return 0;
+            }
+        }
+        #endregion
+
+        #region Utility methods
+
+        public _Trade GetTradeForTradeReference(TradeAction action, string reference = null)
+        {
+            var _reference = reference ?? currentTradeSetReference;
+            return AllTrades.FirstOrDefault(x =>
+                        x.Action == action &&
+                        x.TradeReference == _reference);
+        }
+
+        public void ExtendLineToCurrentTime_synchronised(_Trade trade)
+        {
+            var line = ActiveLines.GetLineForTrade(trade);
+            if (line != null)
+            {
+                if (line.EndTimeStamp < DateTime.UtcNow)
+                {
+                    (var price, _) = line.GetPriceAtTime(DateTime.UtcNow, true);
+                    line.EndTimeStamp = DateTime.UtcNow;
+                    line.EndPrice = price;
+                    SetUpdateRequest(line);
+                }
+            }
+        }
+
+        public void AddLineToTrade_synchronised(_Trade trade, DateTime timeStamp)
+        { 
+            var line = new _ChartLine
+            {
+                StartTimeStamp = timeStamp,
+                EndTimeStamp = MainObj.GetNextInterval_UI(timeStamp, currentDataItem),
+                StartPrice = trade.Price,
+                EndPrice = trade.Price,
+                SymbolName = symbolName,
+                Trade = trade,
+                TradeReference = trade.TradeReference,
+                Type = LineType.BREAK,
+                TradeId = trade.Id
+            };
+            currentTradeSetReference = trade.TradeReference;
+            SetUpdateRequest(line);
+        }  
+
+        protected void AdjustStopPriceToMinimum_Synchronised(_Trade entry, _Trade _floorStop, double minVal)
+        {
+            if (minVal > 0)
+            {
+                double stopPrice = _floorStop.Price;
+                var line = ActiveLines.FirstOrDefault(x => x.Trade == _floorStop);
+                if (line != null)
+                {
+                    (stopPrice, _) = line.GetPriceAtTime(_floorStop.Timestamp, true);
+                }
+
+                //ensure floor is not too close to entry price
+                var high = GetHigh(entry);
+                var v = MainObj.GetPriceDiff(high, stopPrice, _floorStop.Position) * 100; //the position may be different from Entry position, if this is a flip stop waiting
+                if (v < minVal)
+                {
+                    LogTrades.WriteLine($"Stop too close to order price. Stop price was adjusted");
+
+                    var prevPrice = stopPrice;
+
+                    _floorStop.Price = MainObj.GetStopPriceFromPercent(entry.Price, minVal, _floorStop.Position);
+
+                    _floorStop.Timestamp = GetTimeStamp();
+                    SetUpdateRequest(_floorStop);
+
+                    if (line != null)
+                    {
+                        var priceDiff = _floorStop.Price - prevPrice;
+
+                        line.StartPrice += priceDiff;
+                        line.EndPrice += priceDiff;
+                        SetUpdateRequest(line);
+                    }
+                }
+            }
+        }
+
+        private bool CheckForTimeout_Synchronised(_Trade trade)
+        {
+            bool ret = DateTime.UtcNow.Subtract(trade.Timestamp).TotalSeconds > (USE_SIMULATED_EXCHANGE ? 1000 : TIMEOUT_SECONDS);
+            if (ret)
+            {
+                trade.Timestamp = DateTime.UtcNow; //or it will restart every loop until the issue is resolved
+                SetUpdateRequest(trade);
+            }
+            return ret;
+        }
+
+        public DateTime GetTimeStamp()
+        {
+            return DateTime.UtcNow; //because currentdataitem is always at 59 secs so cannot be used for timeouts, etc.
+        }
+
+        protected Order GetCurrentTradeIndicator(_Trade trade)
+        {
+            if (trade == null)
+            {
+                return null;
+            }
+            switch (trade.Type)
+            {
+                case TradeType.HMA_BREAK_ORDER:
+                    return hmaPriceBreakOrderIndicator;
+                case TradeType.LINE_BREAK_ORDER:
+                    return priceBreakOrderIndicator;
+                //case TradeType.MACD_LINE_BREAK_ORDER:
+                //    return macdOrderIndicator;
+                // case TradeType.AUTO_ORDER:
+                //     return autoOrderIndicator;
+                default:
+                    return priceBreakOrderIndicator;
+            }
+        }
 
         public double GetHigh(_Trade trade)
         {
@@ -1685,14 +1975,11 @@ namespace AlgoTrader.Shared
         {
             return GetOppositePosition(trade.Position);
         }
+        
         public TradePosition GetOppositePosition(TradePosition position)
         {
             return position == TradePosition.LONG ? TradePosition.SHORT : TradePosition.LONG;
         }
-
-        #endregion
-
-        #region Draw
 
         public void UpdateCurrentTradeSetReference(DataContext db)
         {
@@ -1712,6 +1999,10 @@ namespace AlgoTrader.Shared
                 currentTradeSetReference = order == null ? null : order.TradeReference;
             }
         }
+
+        #endregion
+
+        #region Draw
 
         public override void Draw(bool shallow)
         {
