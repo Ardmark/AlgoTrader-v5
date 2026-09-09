@@ -689,7 +689,7 @@ namespace AlgoTrader.Shared
         protected abstract double GetLastPrice();
         protected abstract double GetBalanceToTrade(double freeBalance, double lastQuoteValue);
         protected abstract bool SendOrder(double orderQuantity, Side side, string orderId, out double averagePrice, out double executedQuantity);
-        protected abstract double GetCorrectPrecisionForTrade(double balanceToTrade);
+        protected abstract double GetCorrectPrecisionForBaseAssetTrade(double balanceToTrade);
         protected abstract (double freeBalance, double totalEquity) GetTotalEquity();
         protected abstract double GetFreeBaseAssetBalance(string symbol);
         protected abstract double AdjustCoinBalanceForFees(string baseAsset, double coinBalance);
@@ -1351,7 +1351,7 @@ namespace AlgoTrader.Shared
                     Close.Action = TradeAction.CLOSE;
                     Close.Timestamp = GetTimeStamp();
                 }
-                Close.Quantity = GetCorrectPrecisionForTrade(amountToSell);
+                Close.Quantity = GetCorrectPrecisionForBaseAssetTrade(amountToSell);
                 #endregion
 
                 #region Place order     

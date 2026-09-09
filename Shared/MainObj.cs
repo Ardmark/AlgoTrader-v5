@@ -304,9 +304,10 @@ namespace AlgoTrader.Shared
 
                     switch (TradeEngine.EXCHANGE)
                     {
-                        case ExchangeId.BINANCE:
+                        case ExchangeId.BINANCE_SPOT:
+                        case ExchangeId.BINANCE_MARGIN:
 
-                            processName = "node_binance"; //nothing specific to binance, this is just a duplicated executable
+                        processName = "node_binance"; //nothing specific to binance, this is just a duplicated executable
                             break;
  
                     }
@@ -342,9 +343,13 @@ namespace AlgoTrader.Shared
                         //case ExchangeId.BITMEX:
                         //    AddPanel(tradeEngine = new TradeEngineBitmex(s, 0), panels); //must be added before market and auto order panels, so as to get active trade before other panels are added
                         //    break;
-                        case ExchangeId.BINANCE:
+                        case ExchangeId.BINANCE_SPOT:
                             AddPanel(tradeEngine = new TradeEngineBinance(s, 0), panels); //must be added before market and auto order panels, so as to get active trade before other panels are added
                             break;
+                        case ExchangeId.BINANCE_MARGIN:
+                            AddPanel(tradeEngine = new TradeEngineBinanceMargin(s, 0), panels); //must be added before market and auto order panels, so as to get active trade before other panels are added
+                            break;
+
                     }
 
                     AddPanel(chart = new Chart(s, 0, tradeEngine, panelsContainer), panels);

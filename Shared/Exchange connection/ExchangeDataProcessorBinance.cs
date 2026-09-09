@@ -109,7 +109,7 @@ namespace AlgoTrader.Shared.ExchangeConnection
         #endregion
 
         #region Init
-        public ExchangeDataProcessorBinance() : base(ExchangeId.BINANCE)
+        public ExchangeDataProcessorBinance() : base(ExchangeId.BINANCE_SPOT)
         {
             connectorPath = string.Format(@"""{0}""", System.IO.Path.Combine(projectDirectory, "Binance connectors", "csharpconnector", "connector.js"));    //note the escaped " to allow spaces
 

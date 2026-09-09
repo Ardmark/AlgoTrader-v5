@@ -8,17 +8,8 @@ namespace AlgoTrader.Shared
         [Key]
         [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
         public int Id { get; set; }
-
         public string SymbolName { get; set; }
-        public Enums.ExchangeId ExchangeId
-        {
-            get
-            {
-                return TradeEngine.EXCHANGE;
-            }
-        }
         public string TradeReference { get; set; }
-
         public bool IsVisible { get; set; } = true;
         public double Opacity { get; set; } = 1;
 

@@ -257,7 +257,9 @@ namespace AlgoTrader.Shared
 
                             switch (TradeEngine.EXCHANGE)
                             {
-                                case ExchangeId.BINANCE:
+                                case ExchangeId.BINANCE_SPOT:
+                                case ExchangeId.BINANCE_MARGIN:
+
                                     entryEquity = entry.Quantity * entry.Price;
                                     closeEquity = close.Quantity * close.Price;
                                     break;

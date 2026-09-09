@@ -8,12 +8,33 @@ namespace AlgoTrader.Shared
     {
         public static T GetPanelByType<T>(this List<T> panels, Type panelType)
         {
-            var ret = panels.Where(x => x.GetType().BaseType == panelType).FirstOrDefault();
-            if (ret != null)
+            //do this so the base TradeEngine will be returned from n-depth derived class
+            foreach (var panel in panels)
             {
-                return ret;
+                var ret = GetBaseType(panel.GetType());
+                if (ret)
+                {
+                    return panel;
+                }  
             }
-            return panels.Where(x => x.GetType() == panelType).FirstOrDefault();
+
+            return default;
+
+            bool GetBaseType(Type t)
+            {
+                if (t == panelType)
+                {
+                    return true;
+                }
+                else if (t == null)
+                {
+                    return false;
+                }
+                else
+                {
+                    return GetBaseType(t.BaseType);
+                }
+            }
         }
 
         //see notes in UIDrawingBase about why the Trade is attached to the Line, and not vice-versa

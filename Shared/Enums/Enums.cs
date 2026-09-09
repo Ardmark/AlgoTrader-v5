@@ -14,8 +14,10 @@ namespace AlgoTrader.Shared.Enums
 
     public enum ExchangeId
     {
-        [Display(Name = "Binance")]
-        BINANCE = 1,
+        [Display(Name = "Binance Spot")]
+        BINANCE_SPOT = 1,
+        [Display(Name = "Binance Margin")]
+        BINANCE_MARGIN
     }
 
     //Order frequency - used to ensure only a certain number of trades can run each 24 hours, and whether a trade can run live or not

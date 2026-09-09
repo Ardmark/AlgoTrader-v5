@@ -11,6 +11,8 @@ namespace AlgoTrader.Shared
     {
 
         #region Strings
+        public const string TRUE = "true";
+        public const string FALSE = "false";
         public const string SYMBOL = "symbol";
         public const string BTCUSDT = "BTCUSDT";
         public const string CLIENT_ORDER_ID_ORIGINAL = "origClientOrderId";
@@ -32,10 +34,10 @@ namespace AlgoTrader.Shared
         public const string IMMEDIATE_OR_CANCEL = "IOC";
         public const string TIMEOUT_MS = "recvWindow"; //this defaults to 5000ms. It is recommended to use this value or less, cannot go beyond 60000
         public const string ORIG_CLIENT_ORDER_ID = "origClientOrderId";
-        public const string BUY = "buy";
-        public const string SELL = "sell";
-        public const string LIMIT = "limit";
-        public const string MARKET = "market";
+        public const string BUY = "BUY";
+        public const string SELL = "SELL";
+        public const string LIMIT = "LIMIT";
+        public const string MARKET = "MARKET";
         public const string STOP_LOSS = "STOP_LOSS";
         public const string STOP_LOSS_LIMIT = "STOP_LOSS_LIMIT";
         public const string LIMIT_MAKER = "LIMIT_MAKER";
@@ -57,6 +59,16 @@ namespace AlgoTrader.Shared
         public const string CANCEL_REPLACE_MODE = "cancelReplaceMode";
         public const string ALLOW_FAILURE = "ALLOW_FAILURE";
         public const string STOP_ON_FAILURE = "STOP_ON_FAILURE";
+
+        //margin specific
+        public const string IS_ISOLATED = "isIsolated";
+        public const string AUTO_REPAY_AT_CANCEL = "autoRepayAtCancel";
+        public const string SIDE_EFFECT_TYPE = "sideEffectType";
+        public const string NO_SIDE_EFFECT = "NO_SIDE_EFFECT";
+        public const string MARGIN_BUY = "MARGIN_BUY";
+        public const string AUTO_REPAY = "AUTO_REPAY";
+        public const string AUTO_BORROW_REPAY = "AUTO_BORROW_REPAY"; //this will repay any liabilitites as well as borrow to buy or sell.
+
         #endregion
 
         #region Enums
@@ -432,11 +444,25 @@ namespace AlgoTrader.Shared
             SetTimestamp(query);
             return MakeRequestAsync(query, "sapi/v1/margin/isolatedMarginData", "SIGNED", HttpMethod.Get, 0, cancellationToken);
         }
-        public Task<JsonNode> QueryMaxBorrowAsync(string asset, CancellationToken cancellationToken = default)
+        public Task<JsonNode> QueryMaxBorrowAsync(Dictionary<string, string> query, CancellationToken cancellationToken = default)
         {
-            var query = new Dictionary<string, string> { ["asset"] = asset };
             SetTimestamp(query);
             return MakeRequestAsync(query, "sapi/v1/margin/maxBorrowable", "SIGNED", HttpMethod.Get, 0, cancellationToken);
+        }
+        public Task<JsonNode> SetMarginBorrowRepay(Dictionary<string, string> query, CancellationToken cancellationToken = default)
+        {
+            SetTimestamp(query);
+            return MakeRequestAsync(query, "sapi/v1/margin/borrow-repay", "SIGNED", HttpMethod.Post, 0, cancellationToken);
+        }
+        public Task<JsonNode> AdjustCrossMarginMaxLeveradgeAsync(Dictionary<string, string> query, CancellationToken cancellationToken = default)
+        {     
+            SetTimestamp(query);
+            return MakeRequestAsync(query, "sapi/v1/margin/max-leverage", "SIGNED", HttpMethod.Post, 0, cancellationToken);
+        }
+        public Task<JsonNode> NewMarginOrderAsync(Dictionary<string, string> query, CancellationToken cancellationToken = default)
+        {
+            SetTimestamp(query);
+            return MakeRequestAsync(query, "sapi/v1/margin/order", "SIGNED", HttpMethod.Post, 0, cancellationToken);
         }
 
         #region not much use

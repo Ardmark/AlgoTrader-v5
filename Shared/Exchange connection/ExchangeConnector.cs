@@ -36,7 +36,8 @@ namespace AlgoTrader.Shared.ExchangeConnection
         {
             switch (TradeEngine.EXCHANGE)
             {
-                case ExchangeId.BINANCE:
+                case ExchangeId.BINANCE_SPOT:
+                case ExchangeId.BINANCE_MARGIN:
                     {
                         exchangeDataProcessor = new ExchangeDataProcessorBinance();
                         break;

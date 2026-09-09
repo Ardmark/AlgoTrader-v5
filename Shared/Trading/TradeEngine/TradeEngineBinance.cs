@@ -593,6 +593,14 @@ namespace AlgoTrader.Shared
         #region Price info
         protected override double GetLastPrice()
         {
+            //difference between currentDataItem.Close and TickerPriceAsync(...) is 0 to 0.02%
+
+            if (currentDataItem != null)
+            {
+                return currentDataItem.Close;
+            }
+
+            //this takes about a second to execute so it is better not to do this unless necessary
             JsonNode response = binanceAPI.TickerPriceAsync(symbolName).Result;
             try
             {
@@ -843,8 +851,8 @@ namespace AlgoTrader.Shared
                 if (!isUpdating || RemoveStopFromExchange_Synchronised())
                 { 
                     //it is vital that the precision is correct, in case this has been missed in the UI somewhere do it here as well
-                    var stopPrice = GetCorrectPrecisionForPrice(Stop.Price);
-                    var takeProfitPrice = GetCorrectPrecisionForPrice(TakeProfit.Price);
+                    var stopPrice = GetCorrectPrecisionForQuoteAssetTrade(Stop.Price);
+                    var takeProfitPrice = GetCorrectPrecisionForQuoteAssetTrade(TakeProfit.Price);
                     var orderStop = SendOCO(Entry.Quantity, stopPrice, Stop.ItemId, takeProfitPrice, TakeProfit.ItemId);
 
                     if (orderStop == null)
@@ -1003,7 +1011,7 @@ namespace AlgoTrader.Shared
         //All trades are in base asset, both sell and buy (e.g. BTC)
         protected override double GetBalanceToTrade(double freeBalance, double lastQuoteValue)
         {
-            var balanceToTrade = RESTRICTED_TRADE_VALUE > 0 ? RESTRICTED_TRADE_VALUE : freeBalance * 0.95; //this will just be a 95% order for now
+            var balanceToTrade = RESTRICTED_TRADE_VALUE > 0 ? RESTRICTED_TRADE_VALUE : freeBalance; 
             if (RESTRICTED_TRADE_VALUE > 0) //get the minimum tradeable amount of the quote asset expressed in base asset (i.e. BTC -> USDT)
             {
                 var _minValue = 0.0001; //no idea where this comes from, not in exchange info etc. but it is the minimum trade amount BTC
@@ -1017,15 +1025,15 @@ namespace AlgoTrader.Shared
 
             var fiatAmount = balanceToTrade / lastQuoteValue;
 
-            return GetCorrectPrecisionForTrade(fiatAmount);       
+            return GetCorrectPrecisionForBaseAssetTrade(fiatAmount);       
         }
 
-        //Get the correct precision for a trade and return the amended amount, this is for the base asset
+        //Get the correct precision for a base asset trade and return the amended amount, this is for the base asset
         //Note, the symbol will be BTCUSDT, all the symbols are trading pairs
-        //All trades are in base asset, both sell and buy (e.g. BTC)
-        protected override double GetCorrectPrecisionForTrade(double balanceToTrade)
+        //NOTE, at time of trade execution, all trades are in base asset, both sell and buy (e.g. BTC)
+        protected override double GetCorrectPrecisionForBaseAssetTrade(double coinBalanceToTrade)
         {
-            if (balanceToTrade > 0) //just in case there are too many active trades for some reason, which would present a negative value
+            if (coinBalanceToTrade > 0) //just in case there are too many active trades for some reason, which would present a negative value
             {
 
                 var exchangeInfo = GetExchangeInfo();
@@ -1046,7 +1054,7 @@ namespace AlgoTrader.Shared
                         return -1;
                     }
                     var stepSize = lotSize.StepSize;
-                    var ret = (int)(balanceToTrade / stepSize) * stepSize;
+                    var ret = (int)(coinBalanceToTrade / stepSize) * stepSize;
                     var p = (int)Math.Log10(stepSize);
                     ret = Math.Round(ret, -p);
                     return ret;
@@ -1056,9 +1064,10 @@ namespace AlgoTrader.Shared
         }
 
         //as above, but this is for the quote asset (USDT)
-        protected double GetCorrectPrecisionForPrice(double balanceToTrade)
+        //use this to set stops at the correct price, although this may not be necessary
+        protected double GetCorrectPrecisionForQuoteAssetTrade(double fiatBalanceToTrade)
         {
-            if (balanceToTrade > 0) //just in case there are too many active trades for some reason, which would present a negative value
+            if (fiatBalanceToTrade > 0) //just in case there are too many active trades for some reason, which would present a negative value
             {
                 var exchangeInfo = GetExchangeInfo();
 
@@ -1080,7 +1089,7 @@ namespace AlgoTrader.Shared
                     var stepSize = priceFilter.TickSize;
                     if (stepSize > 0)
                     {
-                        var ret = (int)(balanceToTrade / stepSize) * stepSize;
+                        var ret = (int)(fiatBalanceToTrade / stepSize) * stepSize;
                         var p = (int)Math.Log10(stepSize);
                         ret = Math.Round(ret, -p);
                         return ret;
@@ -1088,7 +1097,7 @@ namespace AlgoTrader.Shared
 
                 }
                 //just in case, just round it down
-                return Math.Round(balanceToTrade, 2);
+                return Math.Round(fiatBalanceToTrade, 2);
             }
             return -1;
         }
@@ -1102,7 +1111,7 @@ namespace AlgoTrader.Shared
             {
                 coinBalance *= (1 - RETAINED_BNB_PERCENTAGE / 100);
                 LogTrades.WriteLine($"Retaining {RETAINED_BNB_PERCENTAGE}% of BNB");
-                return GetCorrectPrecisionForTrade(coinBalance);
+                return GetCorrectPrecisionForBaseAssetTrade(coinBalance);
             }
             else
             {
