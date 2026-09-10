@@ -7,7 +7,6 @@ namespace AlgoTrader.Windows
         private static void SetupConstants()
         {
             #region Exchange
-            TradeEngine.EXCHANGE = Shared.Enums.ExchangeId.BINANCE_MARGIN;
             
             //live (keys are OK but commented to be safe)
             TradeEngine.LIVE_KEY =    "vVo1RvHqDbC07mA7QTaj8Q7dtF6qE7mCrTBztdHOidQLml5dhdk4v1nLDwlzHyZ6"; // also, should enable only trusted IP addresses on Binance - have not done this yet
@@ -17,11 +16,14 @@ namespace AlgoTrader.Windows
             TradeEngine.TESTNET_KEY =    "rssumaVWFRJ6b1Uh3n6E87CXwKz3UytIfpkaGngMVx21ukjCl0Mtik8VwAePt99K";
             TradeEngine.TESTNET_SECRET = "9vTXpWsL5mSVWAb6piM40kLb9qXumu6wxYFhXwLW4OTZt8YIXc5nhGEHhtzkrK35";
             TradeEngine.USE_TESTNET = false;
+            
+            //margin trading not available on testnet
+            TradeEngine.EXCHANGE = TradeEngine.USE_TESTNET ? Shared.Enums.ExchangeId.BINANCE_SPOT : Shared.Enums.ExchangeId.BINANCE_MARGIN;
 
             #endregion
 
             #region Test trading
-            TradeEngine.RESTRICTED_TRADE_VALUE = 0; //if set to 1, the minimum will be used which 0.0001 BTC or about $8
+            TradeEngine.RESTRICTED_TRADE_VALUE = 20; //if set to 1, the minimum will be used which 0.0001 BTC or about $8
             #endregion
 
             #region Connection

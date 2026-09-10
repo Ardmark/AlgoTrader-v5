@@ -1,17 +1,93 @@
 ﻿using AlgoTrader.Shared.Enums;
 using AlgoTrader.Shared.Logging;
 using Newtonsoft.Json;
+using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Nodes;
 using static AlgoTrader.Shared.BinanceAPI;
 using static AlgoTrader.Shared.ExchangeConnection.ExchangeDataProcessorBinance;
+using static AlgoTrader.Shared.TradeEngine;
 
 namespace AlgoTrader.Shared
 {
     public class TradeEngineBinance : TradeEngine
     {
+        #region Strings
+        public const string TRUE = "true";
+        public const string FALSE = "false";
+        public const string SYMBOL = "symbol";
+        public const string BTCUSDT = "BTCUSDT";
+        public const string CLIENT_ORDER_ID_ORIGINAL = "origClientOrderId";
+        public const string CLIENT_ORDER_ID_NEW = "newClientOrderId";
+        public const string LIST_CLIENT_ORDER_ID = "listClientOrderId";
+        public const string EXCHANGE_ORDER_ID = "orderId";
+        public const string SIDE = "side";
+        public const string ORDER_TYPE = "type"; //LIMIT, MARKET, STOP_LOSS, STOP_LOSS_LIMIT, TAKE_PROFIT, TAKE_PROFIT_LIMIT, LIMIT_MAKER
+        public const string QUOTE_ORDER_QTY = "quoteOrderQty";
+        public const string QUANTITY = "quantity";
+        public const string ORIG_QUANTITY = "origQty";
+        public const string ICEBERG_QUANTITY = "icebergQty";
+        public const string PRICE = "price";
+        public const string STOP_PRICE = "stopPrice";
+        public const string RESPONSE_TYPE = "newOrderRespType";
+        public const string TIME_IN_FORCE = "timeInForce";
+        public const string GOOD_TILL_CANCELLED = "GTC";
+        public const string FILL_OR_KILL = "FOK";
+        public const string IMMEDIATE_OR_CANCEL = "IOC";
+        public const string TIMEOUT_MS = "recvWindow"; //this defaults to 5000ms. It is recommended to use this value or less, cannot go beyond 60000
+        public const string ORIG_CLIENT_ORDER_ID = "origClientOrderId";
+        public const string BUY = "BUY";
+        public const string SELL = "SELL";
+        public const string LIMIT = "LIMIT";
+        public const string MARKET = "MARKET";
+        public const string STOP_LOSS = "STOP_LOSS";
+        public const string STOP_LOSS_LIMIT = "STOP_LOSS_LIMIT";
+        public const string LIMIT_MAKER = "LIMIT_MAKER";
+        public const string TAKE_PROFIT = "TAKE_PROFIT";
+        public const string TAKE_PROFIT_LIMIT = "TAKE_PROFIT_LIMIT";
+        public const string ABOVE_TYPE = "aboveType"; //STOP_LOSS_LIMIT, STOP_LOSS, LIMIT_MAKER - limit maker should trigger the actual stop loss limit, presumable at the above stop price
+        public const string ABOVE_PRICE = "abovePrice";
+        public const string ABOVE_STOP_PRICE = "aboveStopPrice";
+        public const string ABOVE_CLIENT_ORDER_ID = "aboveClientOrderId";
+        public const string ABOVE_TIMEINFORCE = "aboveTimeInForce";
+        public const string BELOW_TYPE = "belowType";
+        public const string BELOW_PRICE = "belowPrice";
+        public const string BELOW_STOP_PRICE = "belowStopPrice";
+        public const string BELOW_TIMEINFORCE = "belowTimeInForce";
+        public const string BELOW_CLIENT_ORDER_ID = "belowClientOrderId";
+        public const string ACK = "ACK";
+        public const string RESULT = "RESULT";
+        public const string FULL = "FULL";
+        public const string CANCEL_REPLACE_MODE = "cancelReplaceMode";
+        public const string ALLOW_FAILURE = "ALLOW_FAILURE";
+        public const string STOP_ON_FAILURE = "STOP_ON_FAILURE";
+
+        #endregion
+
+        #region Enums
+        public enum OrderTypes
+        {
+            [Display(Name = "LIMIT")]
+            LIMIT,
+            [Display(Name = "MARKET")]
+            MARKET,
+            [Display(Name = "STOP_LOSS")]
+            STOP_LOSS,
+            [Display(Name = "STOP_LOSS_LIMIT")]
+            STOP_LOSS_LIMIT,
+            [Display(Name = "TAKE_PROFIT")]
+            TAKE_PROFIT,
+            [Display(Name = "TAKE_PROFIT_LIMIT")]
+            TAKE_PROFIT_LIMIT,
+            [Display(Name = "LIMIT_MAKER")]
+            LIMIT_MAKER
+        }
+
+
+        #endregion
+        
         public override async void Test()
         {
-
+            CancelOpenOrders();
         }
 
         /*
@@ -36,7 +112,6 @@ namespace AlgoTrader.Shared
             return JsonConvert.DeserializeObject<T>(jsonNode.ToString());
         }
 
-
         #region Exchange info data
         //ExchangeInfo, global
         public class ExchangeInfoData
@@ -50,38 +125,38 @@ namespace AlgoTrader.Shared
             }
             public class ExchangeFilterData
             {
-                public string FilterType { get; set; }
+                public bool ApplyToMarket { get; set; }
                 public long MaxNumOrders { get; set; }
                 public long MaxNumAlgoOrders { get; set; }
+                public long AvgPriceMins { get; set; }
                 public double MinQty { get; set; }
                 public double MaxQty { get; set; }
                 public double StepSize { get; set; }
                 public double MinNotional { get; set; }
-                public bool ApplyToMarket { get; set; }
-                public long AvgPriceMins { get; set; }
                 public double TickSize { get; set; }
+                public string FilterType { get; set; }
             }
             public class SymbolData
             {
-                public string Symbol { get; set; }
-                public string Status { get; set; }
-                public string QuoteAsset { get; set; } //this would be BTC for example, in ETHBTC
                 public List<string> OrderTypes { get; set; }
+                public List<string> permissions { get; set; }
+                public List<ExchangeFilterData> Filters { get; set; }
                 public bool OcoAllowed { get; set; }
                 public bool IsSpotTradingAllowed { get; set; }
                 public bool IsMarginTradingAllowed { get; set; }
-                public List<string> permissions { get; set; }
-                public List<ExchangeFilterData> Filters { get; set; }
-                #region Unused properties
-                //public bool QuoteOrderQtyMarketAllowed { get; set; }
-                //public bool IcebergAllowed { get; set; }
-
+                public string Symbol { get; set; }
+                public string Status { get; set; }
+                public string QuoteAsset { get; set; } //this would be BTC for example, in ETHBTC
                 public string BaseAsset { get; set; } //this would be ETH for example in ETHBTC
                 public long BaseAssetPrecision { get; set; }
                 public long QuotePrecision { get; set; } // will be removed in future api versions (v4+)
                 public long QuoteAssetPrecision { get; set; }
                 public long BaseCommissionPrecision { get; set; }
                 public long QuoteCommissionPrecision { get; set; }
+
+                #region Unused properties
+                //public bool QuoteOrderQtyMarketAllowed { get; set; }
+                //public bool IcebergAllowed { get; set; }
                 #endregion
             }
 
@@ -139,18 +214,17 @@ namespace AlgoTrader.Shared
                 public double Free { get; set; }
                 public double Locked { get; set; }
             }
+            public List<BalanceData> Balances { get; set; }
+            public List<string> Permissions { get; set; }
             public bool CanTrade { get; set; }
             public bool MakerCommission { get; set; }
-            public List<BalanceData> Balances { get; set; }
+            public string AccountType { get; set; }
 
             //unused here so not filled
             public bool TakerCommission { get; set; }
             public bool CanWidthdraw { get; set; }
             public bool CanDeposit { get; set; }
             public long UpdateTime { get; set; } //won't convert to DateTime from javascript format
-
-            public string AccountType { get; set; }
-            public List<string> Permissions { get; set; }
 
             public DateTime UpdateTimeAsDateTime
             {
@@ -175,29 +249,32 @@ namespace AlgoTrader.Shared
         {
             public long OrderId { get; set; }
             public long OrderListId { get; set; }
+            public long Time { get; set; }
+            public long UpdateTime { get; set; }
+            public long TransactTime { get; set; }
+            public long OrigClientOrderId { get; set; } //this is for a cancel order, not sure if the OrderId prop. gets populated or this one
             public double Price { get; set; }
             public double OrigQty { get; set; }
             public double ExecutedQty { get; set; }
             public double CummulativeQuoteQty { get; set; }
-
-            //status:
-            //Order: NEW, PARTIALLY_FILLED, FILLED, CANCELED, PENDING_CANCEL, REJECTED, EXPIRED (PENDING_CANCEL is currenty Unused)
-            //there are some additional enum strings for OCO's
-            public string Status { get; set; }
+            public double StopPrice { get; set; }
+            public double OrigQuoteOrderQty { get; set; }
+            public double IcebergQty { get; set; }
+            public string Status { get; set; } //Order: NEW, PARTIALLY_FILLED, FILLED, CANCELED, PENDING_CANCEL, REJECTED, EXPIRED (PENDING_CANCEL is currenty Unused) - there are some additional enum strings for OCO's
             public string TimeInForce { get; set; } //e.g. GTC
             public string Type { get; set; } //LIMIT, MARKET, STOP_LOSS, STOP_LOSS_LIMIT, TAKE_PROFIT, TAKE_PROFIT_LIMIT, LIMIT_MAKER
             public string Side { get; set; } //BUY or SELL
-            public double StopPrice { get; set; }
-            public double IcebergQty { get; set; }
-            public long Time { get; set; }
-            public long UpdateTime { get; set; }
-            public long TransactTime { get; set; }
-            public bool IsWorking { get; set; }
-            public double OrigQuoteOrderQty { get; set; }
-            public long OrigClientOrderId { get; set; } //this is for a cancel order, not sure if the OrderId prop. gets populated or this one
             public string ListClientOrderId { get; set; } //for stops
             public string AboveClientOrderId { get; set; } //for stops
             public string BelowClientOrderId { get; set; } //for stops
+            public bool IsWorking { get; set; }
+
+            //Margin trading
+            public string SideEffectType { get; set; }
+            public string AutoRepayAtCancel { get; set; }
+            public bool IsIsolated { get; set; }
+
+            //properties to do conversions, etc.
             public DateTime TimeAsDateTime
             {
                 get
@@ -269,22 +346,21 @@ namespace AlgoTrader.Shared
             public class OrdersData
             {
                 public string Symbol { get; set; }
-                public long OrderId { get; set; }
                 public string ClientOrderId { get; set; }
+                public long OrderId { get; set; }
             }
 
+            public List<OrderReportsData> OrderReports { get; set; }
+            public List<OrderData> Orders { get; set; }
             public long OrderListId { get; set; }
             public string ListClientOrderId { get; set; } 
             public string ContingencyType { get; set; } //e.g. "OCO"
             public string ListStatusType { get; set; } //e.g. "EXEC_STARTED"
             public string ListOrderStatus { get; set; } //e.g. "EXECUTING"
-
-            public List<OrderReportsData> OrderReports { get; set; }
-            public List<OrderData> Orders { get; set; }
         }
 
         //order lists returns JSON with an anonymous array so can't deserialize it to a specific type
-        public List<OrderData> DeserializeToList(System.Text.Json.Nodes.JsonArray jsonArray)
+        public List<OrderData> DeserializeToList(JsonArray jsonArray)
         {
             List<OrderData> orders = [];
             foreach (var v in jsonArray)
@@ -293,7 +369,20 @@ namespace AlgoTrader.Shared
             }
             return orders;
         }
-        
+
+        //keep as a note on how to do this as a generic return type
+        /*public List<T> DeserializeToList<T>(JsonArray jsonArray)
+        {
+            List<T> orders = [];
+            foreach (var v in jsonArray)
+            {
+                orders.Add(JsonConvert.DeserializeObject<T>(v.ToString()));
+            }
+            return orders;
+        }
+        */
+
+        /* unused */
         public List<OrderData> GetAllOrders()
         {
             try
@@ -303,11 +392,11 @@ namespace AlgoTrader.Shared
             catch (Exception ex)
             {
                 LogTrades.WriteLine($"Failed to deserialize GetAllOrders(...): {ex}");
-                return [];
+                return null;
             }
         }
 
-        public List<OrderData> GetOpenOrders()
+        protected List<OrderData> GetOpenOrders()
         {
             try 
             { 
@@ -316,7 +405,7 @@ namespace AlgoTrader.Shared
             catch (Exception ex)
             {
                 LogTrades.WriteLine($"Failed to deserialize GetOpenOrders(...): {ex}");
-                return [];
+                return null;
             }
         }
 
@@ -324,10 +413,6 @@ namespace AlgoTrader.Shared
 
         #endregion
 
-        #region API URLs
-        const string TESTNET_URL = "https://testnet.binance.vision/";
-        const string LIVE_URL = "https://api.binance.com/";
-        #endregion
 
         #region Trading parameters
         public static double RETAINED_BNB_PERCENTAGE { get; set; }
@@ -336,34 +421,44 @@ namespace AlgoTrader.Shared
         #region Fields
         DateTime lastExchangeInfoRequest = new DateTime();
         ExchangeInfoData exchangeInfoData = null;
-        protected BinanceAPI binanceAPI;
+
+        //not perfect but would need to use dependency injection to separate the base and derived classes completely,
+        // the derived class here is just to make implementation easier without using override methods everywhere to call the 
+        // appropriate API method
+        public BinanceMarginAPI binanceAPI { get; set; }
+        
         #endregion
 
         #region Init
-        public TradeEngineBinance(string symbolName, int timeInterval) : base(symbolName, timeInterval) => binanceAPI = USE_TESTNET
+        public TradeEngineBinance(string symbolName, int timeInterval) : base(symbolName, timeInterval)
+        {
+            binanceAPI = USE_TESTNET
 
-                ? new BinanceAPI(
-                    TESTNET_KEY,
-                    TESTNET_SECRET,
-                    null,
-                    15000,
-                    true,
-                    TESTNET_URL
-                )
-                : new BinanceAPI(
-                    LIVE_KEY,
-                    LIVE_SECRET,
-                    null,
-                    15000,
-                    true,
-                    LIVE_URL
-                 );
+               ? new BinanceMarginAPI(
+                   TESTNET_KEY,
+                   TESTNET_SECRET,
+                   null,
+                   15000,
+                   true,
+                   "https://testnet.binance.vision/"
+               )
+               : new BinanceMarginAPI(
+                   LIVE_KEY,
+                   LIVE_SECRET,
+                   null,
+                   15000,
+                   true,
+                   "https://api.binance.com/"
+                );
+
+            GetExchangeInfo(); //takes about 2 seconds so don't want to do this when entering a trade
+         }
         #endregion
 
         #region Send REST requests
 
         #region Account info
-        AccountData GetAccountInfo()
+        internal AccountData GetAccountInfo()
         {
             try 
             {
@@ -431,20 +526,9 @@ namespace AlgoTrader.Shared
                     }
                     else if (v.Free + v.Locked > 0)
                     {
-                        //e.g. BTC, so get the price of BTC in USDT and calculate the total equity in USDT
-                        try
-                        {
-                            //get the current average price, rather than just look for the last price on the system, since we may not be
-                            // actually trading the asset.
-                            var priceData = Deserialize<QuoteData>(binanceAPI.TickerPriceAsync(v.Asset + SymbolNames.FIAT_ASSET).Result);
-                            var price = priceData.Price;
-                            totalEquity += (v.Free + v.Locked) * price;
-                            freeEquity += v.Free * price;
-                        }
-                        catch
-                        {
-                            LogTrades.WriteLine($"Could not get price for {v.Asset}{SymbolNames.FIAT_ASSET}, skipping in total equity calculation");
-                        }
+                        var price = GetLastPrice();
+                        totalEquity += (v.Free + v.Locked) * price;
+                        freeEquity += v.Free * price;
                     }
                 }
                 
@@ -482,18 +566,32 @@ namespace AlgoTrader.Shared
         #endregion
 
         #region Orders
-        protected override bool SendOrder(double orderQuantity, Side side, string orderId, out double averagePrice, out double executedQuantity)
+        protected virtual Dictionary<string, string> GetOrderData(TradePosition position, double orderQuantity, Side side, string orderId)
         {
-            averagePrice = executedQuantity = 0;
-            var data = new Dictionary<string, string>
+            string sideValue = string.Empty;
+            switch (side)
+            {
+                case Side.ENTER:
+                    sideValue = BUY;
+                    break;
+                case Side.CLOSE:
+                    sideValue = SELL;
+                    break;
+            }
+            return new Dictionary<string, string>
             {
                 {SYMBOL, symbolName },
-                {SIDE, side.ToString()},
+                {SIDE, sideValue.ToString()},
                 {ORDER_TYPE, MARKET },
                 {QUANTITY, orderQuantity.ToString() },
                 {CLIENT_ORDER_ID_NEW, orderId },
                 {RESPONSE_TYPE, FULL }
             };
+        }
+        protected override bool SendOrder(TradePosition position, double orderQuantity, string orderId, Side side, out double averagePrice, out double executedQuantity)
+        {
+            averagePrice = executedQuantity = 0;
+            var data = GetOrderData(position, orderQuantity, side, orderId);
             try
             {
                 var result = Deserialize<NewOrderData>(binanceAPI.NewOrderAsync(data).Result);
@@ -526,9 +624,9 @@ namespace AlgoTrader.Shared
             }
         }
 
-        public NewOCOData SendOCO(double orderQuantity, double belowPrice, string stopId, double abovePrice, string TPId)
+        protected virtual Dictionary<string, string> GetOCOData(TradePosition position, double orderQuantity, double belowPrice, string stopId, double abovePrice, string TPId)
         {
-            var data = new Dictionary<string, string>
+            return new Dictionary<string, string>
             {
                 { SYMBOL, symbolName},
                 { SIDE, SELL},
@@ -536,7 +634,7 @@ namespace AlgoTrader.Shared
                 { ABOVE_STOP_PRICE, abovePrice.ToString()},
                 { ABOVE_CLIENT_ORDER_ID, TPId },
                 { BELOW_CLIENT_ORDER_ID, stopId },
-                { QUANTITY, orderQuantity.ToString()},        
+                { QUANTITY, orderQuantity.ToString()},
                 { BELOW_TYPE, STOP_LOSS},
                 { BELOW_STOP_PRICE, belowPrice.ToString()},      
 
@@ -546,7 +644,11 @@ namespace AlgoTrader.Shared
                 //{RESPONSE_TYPE, FULL}
                 //{TIME_IN_FORCE, GTC}- default anyway
             };
+        }
 
+        public NewOCOData SendOCO(TradePosition position, double orderQuantity, double belowPrice, string stopId, double abovePrice, string TPId)
+        {
+            var data = GetOCOData(position, orderQuantity, belowPrice, stopId, abovePrice, TPId);
             try
             {
                 var ret = Deserialize<NewOCOData>(binanceAPI.NewOcoAsync(data).Result);
@@ -591,6 +693,7 @@ namespace AlgoTrader.Shared
         #endregion
 
         #region Price info
+
         protected override double GetLastPrice()
         {
             //difference between currentDataItem.Close and TickerPriceAsync(...) is 0 to 0.02%
@@ -618,12 +721,14 @@ namespace AlgoTrader.Shared
             }
 
         }
+        
         #endregion
 
         #endregion
 
         #region Enter and close trades
-        protected override bool InitForEntry()
+
+        protected override bool InitForEntryOrClose() 
         {
             if (GetExchangeInfo() == null)
             {
@@ -632,208 +737,39 @@ namespace AlgoTrader.Shared
             }
             return true;
         }
-        protected override bool InitForClose(_Trade triggeringTrade) 
-        {
-            if (GetExchangeInfo() == null)
-            {
-                KillEntryOrCloseOrder(true);
-                return false;
-            }
-            return true;
-        }
-        
+  
         protected override bool CancelOpenOrders()
         {
-            bool ret = false;
+            //so will return true if:
+            // 1) there are no open orders
+            // 2) orders have been cancelled and there are no orders returning status of CANCELED
+            // 3) CancelOpenOrdersAsync returns a list of length zero, indicating no failure
+
             var openOrders = GetOpenOrders();
-            if (openOrders.Count == 0)
+            if (openOrders != null && openOrders.Count == 0)
             {
-                ret = true;
+                //if there are no open orders to cancel this will throw an exception hence the n
+                return true;
             }
             else
             {
-                //if there are no orders to cancel then this will throw an exception with 'unknown order sent' hence need to check for open orders first
-                //generally when null is returned the operation has failed so assume null is a fail to cancel the orders for some reason without exception or error
-                var v = DeserializeToList(binanceAPI.CancelOpenOrdersAsync(symbolName).Result.AsArray());
-                if (v != null)
+                try
                 {
-                    if (v.Count != 0)
-                    {
-                        //if any order does not have cancelled status, then assume stops not removed
-                        if (!v.Any(x => x.Status != null && x.Status != "CANCELED"))
-                        {
-                            ret = true;
-                        }
-                    }
+                    var v = DeserializeToList(binanceAPI.CancelOpenOrdersAsync(symbolName).Result.AsArray());
+                    return v != null && (v.Count == 0 || !v.Any(x => x.Status != null && x.Status != "CANCELED"));
+                }
+                catch (Exception ex)
+                {
+                     LogTrades.WriteLine($"Failed to deserialize CancelAllOpenOrders(...): {ex}");
+                    return false;
                 }
             }
-
-            return ret;
         }
 
         #endregion
 
         #region Stop and Take Profit (OCO)
-        public override void SynchStopsWithExchange_synchronised()
-        {
-            InitForDataContext(() =>
-            {
-                if (Entry != null)
-                {
-                    if (Stop != null)
-                    {
-                        isManualSynch = true;
-                        SetStopOnExchange_Synchronised();
-
-                        //do a timed check to make sure this has synchronised correctly
-                        var timer = new System.Timers.Timer(2000)
-                        {
-                            AutoReset = false
-                        };
-                        timer.Start();
-                        timer.Elapsed += (o, e) =>
-                        {
-                            if (isManualSynch)
-                            {
-                                LogTrades.WriteLine("Failed to synchronise OCO with exchange");
-                                isManualSynch = false;
-                            }
-                        };
-                    }
-                }
-                else
-                {
-                    LogTrades.WriteLine("Not entered on exchange - cannot synchronise stops with exchange.");
-                }
-            });
-        }
-
-        // will create a new TakeProfit if one is not already set
-        public override void SetStopOnExchange_Synchronised()
-        {
-            if (
-                USE_SIMULATED_EXCHANGE ||
-                Entry == null ||
-                Entry.TradeExchangeStatus != TradeExchangeStatus.ENTERED_ON_EXCHANGE ||
-                Stop == null
-                )
-            {
-                return;
-            }
-
-            double lastPrice;
-            lastPrice = GetValueForSymbol(symbolName);
-            
-            if (lastPrice == 0)
-            {
-                LogTrades.WriteLine($"Could not get price for Stop, Stop not set");
-                return;
-            }
-
-            if (Stop.TradeExchangeStatus == TradeExchangeStatus.ENTERED_OFF_EXCHANGE) // && Stop.Type != TradeType.STOP_WAITING)
-            {
-                LogTrades.WriteLine($"Did not set Stop on exchange, exchange status was {Stop.TradeExchangeStatus} - you need to add a new stop!");
-                Stop.TradeExchangeStatus = TradeExchangeStatus.NO_WARNING;
-                SetUpdateRequest(Stop);
-                return;
-            }
-
-            if (
-                Stop.Position == TradePosition.SHORT && Stop.Price < lastPrice || 
-                Stop.Position == TradePosition.LONG && Stop.Price > lastPrice
-                )
-            {
-                LogTrades.WriteLine($"Did not set Stop on exchange, Stop price was wrong side of candle data");
-                return;
-            }
-
-            //check take profit price as well, if it is set
-            if ( TakeProfit != null &&
-                (TakeProfit.Position == TradePosition.SHORT && TakeProfit.Price > lastPrice ||
-                TakeProfit.Position == TradePosition.LONG && TakeProfit.Price < lastPrice)
-                )
-            {
-                LogTrades.WriteLine($"Did not set Take Profit on exchange, Take Profit price was wrong side of candle data");
-                return;
-            }
-
-            //will add a Take Profit since Binance require an OCO
-            if (TakeProfit == null)
-            {
-                TakeProfit = Entry.Clone();
-                TakeProfit.Action = TradeAction.TAKE_PROFIT;
-                TakeProfit.Timestamp = GetTimeStamp();
-                TakeProfit.Price =
-                    Entry.Position == TradePosition.LONG
-                        ? lastPrice * (1 + INITIAL_TAKE_PROFIT_PERCENT_MARKET / 100)
-                        : lastPrice * (1 - INITIAL_TAKE_PROFIT_PERCENT_MARKET / 100);
-                TakeProfit.Result = TakeProfit.Price;   
-
-                AddLineToTrade_synchronised(TakeProfit, DateTime.UtcNow.AddMinutes(-1));
-                SetUpdateRequest(TakeProfit);
-            }
-
-            Stop.ItemId ??= _Trade.GetNewTradeId();
-            TakeProfit.ItemId ??= _Trade.GetNewTradeId();
-
-            if (Stop.Quantity == 0 && Entry != null && Order.ActionValue != 0)
-            {
-                //this will be called from Order when setting stops automatically
-                Stop.Quantity = TakeProfit.Quantity = Entry.Quantity;
-                LogTrades.WriteLine($"Stop quantity was zero, Stop not yet set, setting Stop...");
-            }
-
-            if (Stop.TradeExchangeStatus == TradeExchangeStatus.ENTERING_ON_EXCHANGE)
-            {
-                //trade is entering, run synchronously and allow enclosing InitForDataContext() to save changes
-                Stop.TradeExecutionStatus = TakeProfit.TradeExecutionStatus = TradeExecutionStatus.EXCHANGE_NOT_SYNCHED;
-
-                if (SendStopToExchange_Synchronised(false)) //not updating, so will not remove OCO first
-                {
-                    LogConnection.WriteLine("OCO order accepted.");
-                    Stop.TradeExchangeStatus = TakeProfit.TradeExchangeStatus = TradeExchangeStatus.ENTERED_ON_EXCHANGE;
-                    Stop.TradeExecutionStatus = TakeProfit.TradeExecutionStatus = TradeExecutionStatus.OK;
-                }
-                else
-                {
-                    LogConnection.WriteLine("OCO order NOT accepted.");
-                }
-            }
-            else
-            {
-                //trade is running, update stop
-                //however, we don't want to send updates unless the stop price or take profit price has actually changed
-                //can just use the Result property to save the previous price
-                if (Stop.Price !=  Stop.Result || TakeProfit.Price != TakeProfit.Result)
-                {
-                    //can assume this is a new stop if either the stop or take profit has no result, since this will be zero
-                    // for a new stop or TP. This would happen if the stop or TP had been force-removed in error
-                    bool isUpdating = Stop.Result != 0 && TakeProfit.Result != 0;
-
-                    Stop.Result = Stop.Price;
-                    TakeProfit.Result = TakeProfit.Price;
-
-                    Stop.TradeExecutionStatus = TakeProfit.TradeExecutionStatus = TradeExecutionStatus.EXCHANGE_NOT_SYNCHED;
-
-                    LogConnection.WriteLine("Sending OCO...");
-                    if (SendStopToExchange_Synchronised(true)) 
-                    {
-                        LogConnection.WriteLine("OCO order accepted.");
-                        Stop.TradeExchangeStatus = TakeProfit.TradeExchangeStatus = TradeExchangeStatus.ENTERED_ON_EXCHANGE;
-                        Stop.TradeExecutionStatus = TakeProfit.TradeExecutionStatus = TradeExecutionStatus.OK;
-
-                    }
-                    else
-                    {
-                        LogConnection.WriteLine("OCO order NOT accepted.");
-                    }
-                }
-            }
-
-            SetUpdateRequest(Stop);
-            SetUpdateRequest(TakeProfit);
-
-        }
+        
 
         //could not get a stop order to work, there is no API call for this specifically and a trade set as a stop just won't be accepted
         protected override bool SendStopToExchange_Synchronised(bool isUpdating)
@@ -853,7 +789,7 @@ namespace AlgoTrader.Shared
                     //it is vital that the precision is correct, in case this has been missed in the UI somewhere do it here as well
                     var stopPrice = GetCorrectPrecisionForQuoteAssetTrade(Stop.Price);
                     var takeProfitPrice = GetCorrectPrecisionForQuoteAssetTrade(TakeProfit.Price);
-                    var orderStop = SendOCO(Entry.Quantity, stopPrice, Stop.ItemId, takeProfitPrice, TakeProfit.ItemId);
+                    var orderStop = SendOCO(Entry.Position, Entry.Quantity, stopPrice, Stop.ItemId, takeProfitPrice, TakeProfit.ItemId);
 
                     if (orderStop == null)
                     {
@@ -911,7 +847,7 @@ namespace AlgoTrader.Shared
             return true;
         }
 
-        #endregion
+        #endregion 
 
         #region Update state from server
         protected override void UpdateLiveState()
@@ -968,17 +904,6 @@ namespace AlgoTrader.Shared
             return base.AdjustResultForFees(result);
         }
 
-        protected override double GetValueForSymbol(string symbolName)
-        {
-            if (USE_TESTNET)
-            {
-                //this can run straight away after starting app
-                var priceData = Deserialize<QuoteData>(binanceAPI.TickerPriceAsync(symbolName).Result);
-                return priceData.Price;
-            }
-
-            return base.GetValueForSymbol(symbolName);
-        }
 
         bool IsTradeClosed()
         {
@@ -1006,12 +931,9 @@ namespace AlgoTrader.Shared
             return false;
         }
 
-        //Get the correct precision for a trade and return the amended amount, this is for the base asset (USDT)
-        //Note, the symbol will be BTCUSDT, all the symbols are trading pairs
-        //All trades are in base asset, both sell and buy (e.g. BTC)
-        protected override double GetBalanceToTrade(double freeBalance, double lastQuoteValue)
+        protected double GetRestrictedBalance(double balance, double lastQuoteValue)
         {
-            var balanceToTrade = RESTRICTED_TRADE_VALUE > 0 ? RESTRICTED_TRADE_VALUE : freeBalance; 
+            var balanceToTrade = RESTRICTED_TRADE_VALUE > 0 ? RESTRICTED_TRADE_VALUE : balance;
             if (RESTRICTED_TRADE_VALUE > 0) //get the minimum tradeable amount of the quote asset expressed in base asset (i.e. BTC -> USDT)
             {
                 var _minValue = 0.0001; //no idea where this comes from, not in exchange info etc. but it is the minimum trade amount BTC
@@ -1022,6 +944,14 @@ namespace AlgoTrader.Shared
                     balanceToTrade = RESTRICTED_TRADE_VALUE;
                 }
             }
+            return balanceToTrade;
+        }
+        //Get the correct precision for a trade and return the amended amount, this is for the base asset (USDT)
+        //Note, the symbol will be BTCUSDT, all the symbols are trading pairs
+        //All trades are in base asset, both sell and buy (e.g. BTC)
+        protected override double GetBalanceToEnterTrade(double freeBalance, double lastQuoteValue, TradePosition position = TradePosition.LONG)
+        {
+            var balanceToTrade = GetRestrictedBalance(freeBalance, lastQuoteValue);
 
             var fiatAmount = balanceToTrade / lastQuoteValue;
 

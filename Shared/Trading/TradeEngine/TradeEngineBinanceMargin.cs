@@ -1,4 +1,5 @@
 ﻿using AlgoTrader.Shared;
+using AlgoTrader.Shared.Enums;
 using AlgoTrader.Shared.Logging;
 using System;
 using System.Collections.Generic;
@@ -12,6 +13,18 @@ namespace AlgoTrader.Shared
 {
     public class TradeEngineBinanceMargin : TradeEngineBinance
     {
+
+        #region Strings
+        public const string IS_ISOLATED = "isIsolated";
+        public const string AUTO_REPAY_AT_CANCEL = "autoRepayAtCancel";
+        public const string SIDE_EFFECT_TYPE = "sideEffectType";
+        public const string NO_SIDE_EFFECT = "NO_SIDE_EFFECT";
+        public const string MARGIN_BUY = "MARGIN_BUY";
+        public const string AUTO_REPAY = "AUTO_REPAY";
+        public const string AUTO_BORROW_REPAY = "AUTO_BORROW_REPAY"; //this will repay any liabilitites as well as borrow to buy or sell.
+        #endregion
+
+        #region Binance data classes (JSON deserializes into these directly)
 
         public class MaxBorrowData
         {
@@ -35,7 +48,7 @@ namespace AlgoTrader.Shared
         }
 
         public class IsolatedMarginAccountData
-        {   
+        {
             public class BaseQuoteAssetData
             {
                 public string Asset { get; set; }
@@ -48,7 +61,7 @@ namespace AlgoTrader.Shared
                 public double NetAssetOfBTC { get; set; }
                 public bool RepayEnabled { get; set; }
                 public double TotalAsset { get; set; }
-            }            
+            }
             public class AssetData
             {
                 public BaseQuoteAssetData BaseAsset { get; set; }
@@ -92,6 +105,8 @@ namespace AlgoTrader.Shared
             }
         }
 
+        #endregion
+
         /*
          * ISOLATED MARGIN:
          * Leverage is set to 10X permanantly, you can't change that and there is no need because you just borrow what you need
@@ -111,21 +126,37 @@ namespace AlgoTrader.Shared
          * */
         public TradeEngineBinanceMargin(string symbolName, int timeInterval) : base(symbolName, timeInterval)
         {
-
+            binanceAPI = new BinanceMarginAPI(
+                   LIVE_KEY,
+                   LIVE_SECRET,
+                   null,
+                   15000,
+                   true,
+                   "https://api.binance.com/"
+                );
         }
+
+
 
         public override void Test()
         {
- 
+            var r = Deserialize<IsolatedMarginAccountData>(binanceAPI.QueryIsolateMarginAccountInfoAsync().Result);
+            if (r == null)
+            {
+                return;
+            }
+            var _baseAsset = r.GetBaseAsset(symbolName);
+            var _quoteAsset = r.GetQuoteAsset(symbolName);
 
-
+            return;
             var data1 = new Dictionary<string, string>
             {
                 { "asset", "BTC" },
                 { "isolatedSymbol", "BTCUSDT" }
             };
 
-            var response1 = Deserialize<MaxBorrowData>(binanceAPI.QueryMaxBorrowAsync(data1).Result);
+            var api = binanceAPI;
+            var response1 = Deserialize<MaxBorrowData>(api.QueryMaxBorrowAsync(data1).Result);
 
 
 
@@ -133,7 +164,7 @@ namespace AlgoTrader.Shared
             //todo - get the borrowed amount to pay back when closing
             try
             {
-                var response = Deserialize<IsolatedMarginAccountData>(binanceAPI.QueryIsolateMarginAccountInfoAsync().Result);
+                var response = Deserialize<IsolatedMarginAccountData>(api.QueryIsolateMarginAccountInfoAsync().Result);
                 if (response == null)
                 {
                     return;
@@ -147,8 +178,8 @@ namespace AlgoTrader.Shared
                 if (marginLevel < Leverage) marginLevel = Leverage;
 
                 var leveragedAmount = Leverage / marginLevel * quoteAsset.Free;
-                
-                double orderQuantityBuy = GetBalanceToTrade(leveragedAmount, GetLastPrice());
+
+                double orderQuantityBuy = GetBalanceToEnterTrade(leveragedAmount, GetLastPrice(), TradePosition.LONG);
 
                 var maxAmount = double.TryParse(response1.Amount, out var amount);
                 if (maxAmount && amount > 0)
@@ -194,7 +225,7 @@ namespace AlgoTrader.Shared
                     {RESPONSE_TYPE, FULL }
                 };
 
-                var result = Deserialize<NewOrderData>(binanceAPI.NewMarginOrderAsync(dataBuy).Result);
+                var result = Deserialize<NewOrderData>(api.NewOrderAsync(dataBuy).Result);
                 if (result == null)
                 {
                     var v = 0;
@@ -216,7 +247,7 @@ namespace AlgoTrader.Shared
                 var averagePrice = result.AveragePrice;
                 var executedQuantity = result.ExecutedQty;
 
-                response = Deserialize<IsolatedMarginAccountData>(binanceAPI.QueryIsolateMarginAccountInfoAsync().Result);
+                response = Deserialize<IsolatedMarginAccountData>(api.QueryIsolateMarginAccountInfoAsync().Result);
                 baseAsset = response.GetBaseAsset(symbolName);
                 quoteAsset = response.GetQuoteAsset(symbolName);
 
@@ -263,7 +294,7 @@ namespace AlgoTrader.Shared
 
             return;
             //contains interest / fee data
-            JsonNode response3 = binanceAPI.QueryIsolateMarginAccountFeeAsync(symbolName).Result;
+            JsonNode response3 = api.QueryIsolateMarginAccountFeeAsync(symbolName).Result;
             var d1 = Deserialize<List<IsolatedMarginFeeData>>(response3);
         }
 
@@ -272,11 +303,10 @@ namespace AlgoTrader.Shared
 
         public bool EnableIsolatedMargin()
         {
-            JsonNode response = binanceAPI.EnableIsolateMarginAsync(symbolName).Result;
             try
             {
-                string s = response["success"].ToString();
-                return s == "true";
+                JsonNode response = binanceAPI.EnableIsolateMarginAsync(symbolName).Result;
+                return response["success"].ToString() == "true";
             }
             catch (Exception e)
             {
@@ -297,5 +327,150 @@ namespace AlgoTrader.Shared
             }
         }
         #endregion
+
+        protected override double GetBalanceToEnterTrade(double freeBalance, double lastQuoteValue, TradePosition position)
+        {
+            var response = Deserialize<IsolatedMarginAccountData>(binanceAPI.QueryIsolateMarginAccountInfoAsync().Result);
+            if (response == null)
+            {
+                return 0;
+            }
+            var baseAsset = response.GetBaseAsset(symbolName);
+            var quoteAsset = response.GetQuoteAsset(symbolName);
+            var assetData = response.GetAssetData(symbolName);
+
+            //with margin trading, the balance is leverage-derived rather than setting a leverage value on the exchange
+            var marginLevel = assetData.MarginLevel; //assume this is the correct figure for margin              
+            if (marginLevel > 10) marginLevel = 10;
+            if (marginLevel < Leverage) marginLevel = Leverage;
+
+            var leveragedAmount = Leverage / marginLevel * quoteAsset.Free;
+
+            double orderQuantity = 0;
+            switch (position)
+            {
+                case TradePosition.LONG:
+
+                    double orderQuantityBuy = base.GetBalanceToEnterTrade(leveragedAmount, GetLastPrice());
+
+                    var data1 = new Dictionary<string, string>
+                    {
+                        { "asset", "BTC" },
+                        { "isolatedSymbol", "BTCUSDT" }
+                    };
+                    var response1 = Deserialize<MaxBorrowData>(binanceAPI.QueryMaxBorrowAsync(data1).Result);
+                    var maxAmount = double.TryParse(response1.Amount, out var amount);
+                    if (maxAmount && amount > 0)
+                    {
+                        orderQuantity = GetCorrectPrecisionForBaseAssetTrade(Math.Min(amount, orderQuantityBuy));
+                    }
+                    break;
+                case TradePosition.SHORT:
+                    orderQuantity = GetCorrectPrecisionForBaseAssetTrade(baseAsset.Free);
+                    break;
+            }
+
+            return orderQuantity;
+        }
+
+        protected override double GetFreeBaseAssetBalance(string symbol)
+        {
+
+        }
+
+        protected override (double freeBalance, double totalEquity) GetTotalEquity() //e.g. USDT, BTC
+        {
+            var response = Deserialize<IsolatedMarginAccountData>(binanceAPI.QueryIsolateMarginAccountInfoAsync().Result);
+            if (response == null)
+            {
+                return (0, 0);
+            }
+            var baseAsset = response.GetBaseAsset(symbolName);
+            var quoteAsset = response.GetQuoteAsset(symbolName);
+
+            var price = GetLastPrice();
+            var freeEquity = baseAsset.Free + quoteAsset.Free * price;
+            var totalEquity = baseAsset.TotalAsset + quoteAsset.TotalAsset * price;
+
+            return (Math.Round(freeEquity, 2), Math.Round(totalEquity, 2));
+        }
+
+        protected override Dictionary<string, string> GetOrderData(TradePosition position, double orderQuantity, Side side, string orderId)
+        {
+            //short: Enter: {SIDE, SELL}, {SIDE_EFFECT_TYPE, MARGIN_BUY}
+            //       Close: {SIDE, BUY},  {SIDE_EFFECT_TYPE, AUTO_REPAY}
+            //Long:  Enter: {SIDE, BUY},  {SIDE_EFFECT_TYPE, MARGIN_BUY}
+            //       Close: {SIDE, SELL}, {SIDE_EFFECT_TYPE, AUTO_REPAY}
+
+            string sideValue = string.Empty;
+            string sideEffectType = string.Empty;
+            switch (position)
+            {
+                case TradePosition.LONG:
+                    switch (side)
+                    {
+                        case Side.ENTER:
+                            sideValue = BUY;
+                            sideEffectType = MARGIN_BUY;
+                            break;
+                        case Side.CLOSE:
+                            sideValue = SELL;
+                            sideEffectType = AUTO_REPAY;
+                            break;
+                    }
+                    break;
+
+                case TradePosition.SHORT:
+                    switch (side)
+                    {
+                        case Side.ENTER:
+                            sideValue = SELL;
+                            sideEffectType = MARGIN_BUY;
+                            break;
+                        case Side.CLOSE:
+                            sideValue = BUY;
+                            sideEffectType = AUTO_REPAY;
+                            break;
+                    }
+                    break;
+
+            }
+            return new Dictionary<string, string>
+            {
+                {SYMBOL, symbolName },
+                {SIDE, sideValue},
+                {ORDER_TYPE, MARKET },
+                {QUANTITY, orderQuantity.ToString() },
+                {CLIENT_ORDER_ID_NEW, orderId },
+                {RESPONSE_TYPE, FULL },
+
+                //additional data for margin trade
+                //{AUTO_REPAY_AT_CANCEL, TRUE }, //not sure what this does unless you need to borrow to set a limit order?
+                {SIDE_EFFECT_TYPE, sideEffectType},
+                {IS_ISOLATED, TRUE }
+            };
+        }
+
+        //TODO
+        protected override Dictionary<string, string> GetOCOData(TradePosition position, double orderQuantity, double belowPrice, string stopId, double abovePrice, string TPId)
+        {
+            var sideEffectType = AUTO_REPAY; //NOT SURE ABOUT THIS WITH DIFFERENT POSITIONS??
+
+            return new Dictionary<string, string>
+            {
+                { SYMBOL, symbolName},
+                { SIDE, SELL},
+                { ABOVE_TYPE, TAKE_PROFIT},
+                { ABOVE_STOP_PRICE, abovePrice.ToString()},
+                { ABOVE_CLIENT_ORDER_ID, TPId },
+                { BELOW_CLIENT_ORDER_ID, stopId },
+                { QUANTITY, orderQuantity.ToString()},
+                { BELOW_TYPE, STOP_LOSS},
+                { BELOW_STOP_PRICE, belowPrice.ToString()},
+
+                {SIDE_EFFECT_TYPE, sideEffectType},
+                {IS_ISOLATED, TRUE }
+            };
+        }
     }
 }
