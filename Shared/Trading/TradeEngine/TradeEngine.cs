@@ -696,9 +696,10 @@ namespace AlgoTrader.Shared
         protected abstract bool SendOrder(TradePosition position, double orderQuantity, string orderId, Side side, out double averagePrice, out double executedQuantity);
         protected abstract double GetCorrectPrecisionForBaseAssetTrade(double balanceToTrade);
         protected abstract (double freeBalance, double totalEquity) GetTotalEquity();
-        protected abstract double GetFreeBaseAssetBalance(string symbol);
+        protected abstract double GetFreeBaseAssetBalance();
         protected abstract double AdjustCoinBalanceForFees(string baseAsset, double coinBalance);
         protected abstract bool InitForEntryOrClose();
+        protected abstract bool IsTradeClosed();
 
         public virtual double AdjustResultForFees(double result) { return result - FEE; }
 
@@ -1487,21 +1488,23 @@ namespace AlgoTrader.Shared
 
             #region Get balance to trade
             //if the base asset balance is very small, assume the trade has exited on the exchange, so go no further
-            var _baseAsset = SymbolNames.GetBaseAssetForSymbol(symbolName);
 
-            var coinBalance = GetFreeBaseAssetBalance(_baseAsset);
+            var coinBalance = GetFreeBaseAssetBalance();
             #endregion
 
             LogTrades.WriteLine($"Closing order for {symbolName}...");
 
             double closePrice = currentDataItem.Close; //default value
+            var _baseAsset = SymbolNames.GetBaseAssetForSymbol(symbolName);
 
-            if (coinBalance == 0)
+            if (IsTradeClosed())
             {
-                LogTrades.WriteLine($"No {symbolName} to sell, trade has already closed on exchange.");
+                LogTrades.WriteLine($"No {_baseAsset} to sell, trade has already closed on exchange.");
             }
             else
             {
+                //could coinbalance be very small after trade closed? The lot size may result in a small remainder.
+                //so will go ahead anyway with trade close and ignore any exceptions
                 LogTrades.WriteLine($"Using received balance of {coinBalance} {_baseAsset}");
 
                 double amountToSell = AdjustCoinBalanceForFees(_baseAsset, coinBalance);
@@ -1524,13 +1527,16 @@ namespace AlgoTrader.Shared
                 LogTrades.WriteLine($"Placing sell order of {Close.Quantity}, adjusted for step size, at {DateTime.Now}...");
 
                 bool accepted = SendOrder(Close.Position, Close.Quantity, Close.ItemId, Side.CLOSE, out closePrice, out double executedQuantity);
-                if (!accepted)
-                {
-                    KillEntryOrCloseOrder(true);
-                    return;
-                }
+                //if (!accepted)
+                //{
+                //    KillEntryOrCloseOrder(true);
+                //    return;
+                //}
 
-                LogTrades.WriteLine($"{Entry.Position} Close order filled for {Entry.SymbolName} at {DateTime.UtcNow}");
+                if (accepted)
+                {
+                    LogTrades.WriteLine($"{Entry.Position} Close order filled for {Entry.SymbolName} at {DateTime.UtcNow}");
+                }
 
                 #endregion
             }

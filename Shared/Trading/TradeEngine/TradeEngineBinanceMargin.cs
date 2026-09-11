@@ -1,18 +1,44 @@
-﻿using AlgoTrader.Shared;
-using AlgoTrader.Shared.Enums;
+﻿using AlgoTrader.Shared.Enums;
 using AlgoTrader.Shared.Logging;
-using System;
-using System.Collections.Generic;
-using System.Diagnostics;
-using System.Text;
+using AlgoTrader.Shared.Windows;
 using System.Text.Json.Nodes;
-using static AlgoTrader.Shared.BinanceAPI;
-using static System.Windows.Forms.VisualStyles.VisualStyleElement.TextBox;
 
 namespace AlgoTrader.Shared
-{
+{       
+    /*
+    * ISOLATED MARGIN:
+    * Leverage is set to 10X permanantly, you can't change that and there is no need because you just borrow what you need
+    * You can change the margin level in Cross margin but the API method AdjustCrossMarginMaxLeveradgeAsync() only accepts 3 or 5
+    *  - however there is an error saying you need to complete a questionaire if you want to go up to 10.
+    * Isolated is nothing to do with Spot, you only trade with your isolated balance.
+    * 
+    * Your total available borrowing is the amount of BTC + USDT, multiplied by leverage (always 10x with the API)
+    * 
+    * You can determine the amount to borrow from QueryMaxBorrowAsync()
+    * You can then either set the amount to borrow or repay with SetMarginBorrowRepay() or auto-borrow by setting
+    *  the sideEffectType parameter when submitting the buy order.
+    *  
+    *  MarginLevel will trigger liquidation when it is <= 1.05 (starts of at 999)
+    *  
+    * */
+
     public class TradeEngineBinanceMargin : TradeEngineBinance
     {
+        public override void Test()
+        {
+            JsonNode response3 = binanceAPI.QueryIsolateMarginAccountFeeAsync(symbolName).Result;
+            var d1 = Deserialize<List<IsolatedMarginFeeData>>(response3);
+
+            var r = Deserialize<IsolatedMarginAccountData>(binanceAPI.QueryIsolateMarginAccountInfoAsync().Result);
+            if (r == null)
+            {
+                return;
+            }
+            var _baseAsset = r.GetBaseAsset(symbolName);
+            var _quoteAsset = r.GetQuoteAsset(symbolName);
+
+            return;
+        }
 
         #region Strings
         public const string IS_ISOLATED = "isIsolated";
@@ -61,6 +87,7 @@ namespace AlgoTrader.Shared
                 public double NetAssetOfBTC { get; set; }
                 public bool RepayEnabled { get; set; }
                 public double TotalAsset { get; set; }
+
             }
             public class AssetData
             {
@@ -81,16 +108,7 @@ namespace AlgoTrader.Shared
             public double TotalAssetOfBtc { get; set; }
             public double TotalLiabilityOfBtc { get; set; }
             public double TotalNetAssetOfBtc { get; set; }
-            public double BorrowEnabled { get; set; }
-            public double MarginLevel { get; set; }
-            public double CollateralMarginLevel { get; set; }
-            public double TotalCollateralValueInUSDT { get; set; }
-            public double TradeEnabled { get; set; }
-            public double AccountType { get; set; }
-            public double TransferInEnabled { get; set; }
-            public double TransferOutEnabled { get; set; }
-
-
+           
             public BaseQuoteAssetData GetBaseAsset(string symbolName)
             {
                 return Assets.FirstOrDefault(x => x.Symbol == symbolName)?.BaseAsset;
@@ -107,23 +125,7 @@ namespace AlgoTrader.Shared
 
         #endregion
 
-        /*
-         * ISOLATED MARGIN:
-         * Leverage is set to 10X permanantly, you can't change that and there is no need because you just borrow what you need
-         * You can change the margin level in Cross margin but the API method AdjustCrossMarginMaxLeveradgeAsync() only accepts 3 or 5
-         *  - however there is an error saying you need to complete a questionaire if you want to go up to 10.
-         * Isolated is nothing to do with Spot, you only trade with your isolated balance.
-         * 
-         * Your total available borrowing is the amount of BTC + USDT, multiplied by leverage (always 10x with the API)
-         * 
-         * You can determine the amount to borrow from QueryMaxBorrowAsync()
-         * You can then either set the amount to borrow or repay with SetMarginBorrowRepay() or auto-borrow by setting
-         *  the sideEffectType parameter when submitting the buy order.
-         *  
-         *  MarginLevel will trigger liquidation when it is <= 1.05 (starts of at 999)
-         * 
-         *  
-         * */
+        #region Init
         public TradeEngineBinanceMargin(string symbolName, int timeInterval) : base(symbolName, timeInterval)
         {
             binanceAPI = new BinanceMarginAPI(
@@ -135,266 +137,9 @@ namespace AlgoTrader.Shared
                    "https://api.binance.com/"
                 );
         }
-
-
-
-        public override void Test()
-        {
-            var r = Deserialize<IsolatedMarginAccountData>(binanceAPI.QueryIsolateMarginAccountInfoAsync().Result);
-            if (r == null)
-            {
-                return;
-            }
-            var _baseAsset = r.GetBaseAsset(symbolName);
-            var _quoteAsset = r.GetQuoteAsset(symbolName);
-
-            return;
-            var data1 = new Dictionary<string, string>
-            {
-                { "asset", "BTC" },
-                { "isolatedSymbol", "BTCUSDT" }
-            };
-
-            var api = binanceAPI;
-            var response1 = Deserialize<MaxBorrowData>(api.QueryMaxBorrowAsync(data1).Result);
-
-
-
-            //todo - check free and locked assets, max borrow after orders
-            //todo - get the borrowed amount to pay back when closing
-            try
-            {
-                var response = Deserialize<IsolatedMarginAccountData>(api.QueryIsolateMarginAccountInfoAsync().Result);
-                if (response == null)
-                {
-                    return;
-                }
-                var baseAsset = response.GetBaseAsset(symbolName);
-                var quoteAsset = response.GetQuoteAsset(symbolName);
-                var assetData = response.GetAssetData(symbolName);
-
-                var marginLevel = assetData.MarginLevel; //assume this is the correct figure for margin              
-                if (marginLevel > 10) marginLevel = 10;
-                if (marginLevel < Leverage) marginLevel = Leverage;
-
-                var leveragedAmount = Leverage / marginLevel * quoteAsset.Free;
-
-                double orderQuantityBuy = GetBalanceToEnterTrade(leveragedAmount, GetLastPrice(), TradePosition.LONG);
-
-                var maxAmount = double.TryParse(response1.Amount, out var amount);
-                if (maxAmount && amount > 0)
-                {
-                    orderQuantityBuy = GetCorrectPrecisionForBaseAssetTrade(Math.Min(amount, orderQuantityBuy));
-                }
-                double orderQuantitySell = GetCorrectPrecisionForBaseAssetTrade(baseAsset.Free);
-
-                //orderQuantityBuy = GetCorrectPrecisionForBaseAssetTrade(16 / GetLastPrice());
-                var orderId = Guid.NewGuid().ToString();
-
-                //short: Enter: {SIDE, SELL}, {SIDE_EFFECT_TYPE, MARGIN_BUY}
-                //       Close: {SIDE, BUY},  {SIDE_EFFECT_TYPE, AUTO_REPAY}
-                //Long:  Enter: {SIDE, BUY},  {SIDE_EFFECT_TYPE, MARGIN_BUY}
-                //       Close: {SIDE, SELL}, {SIDE_EFFECT_TYPE, AUTO_REPAY}
-
-                //price calculations are the same but you are starting with USDT so this must be converted to BTC (GetCorrectPrecisionForBaseAssetTrade(...))
-
-                //this is setup for a short
-                var dataSell = new Dictionary<string, string>
-                {
-                    {SYMBOL, symbolName },
-                    {SIDE, SELL},
-                    {ORDER_TYPE, MARKET },
-                    {QUANTITY, orderQuantityBuy.ToString() },
-                    {CLIENT_ORDER_ID_NEW, orderId },
-                    //{AUTO_REPAY_AT_CANCEL, TRUE }, //not sure how this affects a market order??
-                    {SIDE_EFFECT_TYPE, MARGIN_BUY},
-                    {IS_ISOLATED, TRUE },
-                    {RESPONSE_TYPE, FULL }
-                };
-
-                var dataBuy = new Dictionary<string, string>
-                {
-                    {SYMBOL, symbolName },
-                    {SIDE, BUY},
-                    {ORDER_TYPE, MARKET },
-                    {QUANTITY, orderQuantityBuy.ToString() },
-                    {CLIENT_ORDER_ID_NEW, orderId },
-                    //{AUTO_REPAY_AT_CANCEL, TRUE }, //not sure how this affects a market order??
-                    {SIDE_EFFECT_TYPE, AUTO_REPAY},
-                    {IS_ISOLATED, TRUE },
-                    {RESPONSE_TYPE, FULL }
-                };
-
-                var result = Deserialize<NewOrderData>(api.NewOrderAsync(dataBuy).Result);
-                if (result == null)
-                {
-                    var v = 0;
-                }
-
-                if (!string.IsNullOrEmpty(result.Status) && result.Status != "FILLED")
-                {
-                    if (result.AveragePrice == 0)
-                    {
-                        LogTrades.WriteLine("Order returned zero average price");
-                    }
-                    if (result.ExecutedQty == 0)
-                    {
-                        LogTrades.WriteLine("Order returned zero executed quantity");
-                    }
-
-                }
-
-                var averagePrice = result.AveragePrice;
-                var executedQuantity = result.ExecutedQty;
-
-                response = Deserialize<IsolatedMarginAccountData>(api.QueryIsolateMarginAccountInfoAsync().Result);
-                baseAsset = response.GetBaseAsset(symbolName);
-                quoteAsset = response.GetQuoteAsset(symbolName);
-
-
-            }
-            catch (Exception ex)
-            {
-
-            }
-
-            return;
-            //var response6 = binanceAPI.AdjustCrossMarginMaxLeveradgeAsync(data).Result;
-            //var response7 = binanceAPI.EnableIsolateMarginAsync(symbolName).Result;
-            //var response0 = Deserialize<IsolatedMarginAccountData>(binanceAPI.QueryIsolateMarginAccountInfoAsync().Result);
-            //var baseAsset = response0.GetBaseAsset(symbolName);
-            //var quoteAsset = response0.GetQuoteAsset(symbolName);
-
-
-
-            //try
-            //{
-            //    if (double.TryParse(response["price"].ToString(), out double price))
-            //    {
-            //        return price;
-            //    }
-            //    LogTrades.WriteLine("Failed to get symbol price");
-            //    return 0;
-            //}
-            //catch (Exception e)
-            //{
-            //    LogTrades.WriteLine($"Error getting price info: {e.Message}");
-            //    return 0;
-            //}
-
-            //var data1 = new Dictionary<string, string>
-            //{
-            //    { "asset", "BTC" },
-            //    { "isolatedSymbol", "BTCUSDT" }
-            //};
-
-            //var response1 = binanceAPI.QueryMaxBorrowAsync(data1).Result;
-            ////var response2 = Deserialize<MaxBorrowData>(binanceAPI.QueryMaxBorrowAsync("USDT").Result);
-
-
-            return;
-            //contains interest / fee data
-            JsonNode response3 = api.QueryIsolateMarginAccountFeeAsync(symbolName).Result;
-            var d1 = Deserialize<List<IsolatedMarginFeeData>>(response3);
-        }
-
-
-        #region Send Margin REST requests
-
-        public bool EnableIsolatedMargin()
-        {
-            try
-            {
-                JsonNode response = binanceAPI.EnableIsolateMarginAsync(symbolName).Result;
-                return response["success"].ToString() == "true";
-            }
-            catch (Exception e)
-            {
-                LogTrades.WriteLine($"Error enabling isolated margin: {e.Message}");
-                return false;
-            }
-        }
-
-        public void QueryIsolatedMarginAccountInfo()
-        {
-            try
-            {
-                JsonNode response = binanceAPI.QueryIsolateMarginAccountInfoAsync().Result;
-            }
-            catch (Exception ex)
-            {
-
-            }
-        }
         #endregion
 
-        protected override double GetBalanceToEnterTrade(double freeBalance, double lastQuoteValue, TradePosition position)
-        {
-            var response = Deserialize<IsolatedMarginAccountData>(binanceAPI.QueryIsolateMarginAccountInfoAsync().Result);
-            if (response == null)
-            {
-                return 0;
-            }
-            var baseAsset = response.GetBaseAsset(symbolName);
-            var quoteAsset = response.GetQuoteAsset(symbolName);
-            var assetData = response.GetAssetData(symbolName);
-
-            //with margin trading, the balance is leverage-derived rather than setting a leverage value on the exchange
-            var marginLevel = assetData.MarginLevel; //assume this is the correct figure for margin              
-            if (marginLevel > 10) marginLevel = 10;
-            if (marginLevel < Leverage) marginLevel = Leverage;
-
-            var leveragedAmount = Leverage / marginLevel * quoteAsset.Free;
-
-            double orderQuantity = 0;
-            switch (position)
-            {
-                case TradePosition.LONG:
-
-                    double orderQuantityBuy = base.GetBalanceToEnterTrade(leveragedAmount, GetLastPrice());
-
-                    var data1 = new Dictionary<string, string>
-                    {
-                        { "asset", "BTC" },
-                        { "isolatedSymbol", "BTCUSDT" }
-                    };
-                    var response1 = Deserialize<MaxBorrowData>(binanceAPI.QueryMaxBorrowAsync(data1).Result);
-                    var maxAmount = double.TryParse(response1.Amount, out var amount);
-                    if (maxAmount && amount > 0)
-                    {
-                        orderQuantity = GetCorrectPrecisionForBaseAssetTrade(Math.Min(amount, orderQuantityBuy));
-                    }
-                    break;
-                case TradePosition.SHORT:
-                    orderQuantity = GetCorrectPrecisionForBaseAssetTrade(baseAsset.Free);
-                    break;
-            }
-
-            return orderQuantity;
-        }
-
-        protected override double GetFreeBaseAssetBalance(string symbol)
-        {
-
-        }
-
-        protected override (double freeBalance, double totalEquity) GetTotalEquity() //e.g. USDT, BTC
-        {
-            var response = Deserialize<IsolatedMarginAccountData>(binanceAPI.QueryIsolateMarginAccountInfoAsync().Result);
-            if (response == null)
-            {
-                return (0, 0);
-            }
-            var baseAsset = response.GetBaseAsset(symbolName);
-            var quoteAsset = response.GetQuoteAsset(symbolName);
-
-            var price = GetLastPrice();
-            var freeEquity = baseAsset.Free + quoteAsset.Free * price;
-            var totalEquity = baseAsset.TotalAsset + quoteAsset.TotalAsset * price;
-
-            return (Math.Round(freeEquity, 2), Math.Round(totalEquity, 2));
-        }
-
+        #region Data for order and OCO
         protected override Dictionary<string, string> GetOrderData(TradePosition position, double orderQuantity, Side side, string orderId)
         {
             //short: Enter: {SIDE, SELL}, {SIDE_EFFECT_TYPE, MARGIN_BUY}
@@ -451,7 +196,6 @@ namespace AlgoTrader.Shared
             };
         }
 
-        //TODO
         protected override Dictionary<string, string> GetOCOData(TradePosition position, double orderQuantity, double belowPrice, string stopId, double abovePrice, string TPId)
         {
             var sideEffectType = AUTO_REPAY; //NOT SURE ABOUT THIS WITH DIFFERENT POSITIONS??
@@ -471,6 +215,216 @@ namespace AlgoTrader.Shared
                 {SIDE_EFFECT_TYPE, sideEffectType},
                 {IS_ISOLATED, TRUE }
             };
+        }
+        
+        #endregion
+
+        #region Send REST requests
+
+        public bool EnableIsolatedMargin()
+        {
+            try
+            {
+                JsonNode response = binanceAPI.EnableIsolateMarginAsync(symbolName).Result;
+                return response["success"].ToString() == "true";
+            }
+            catch (Exception e)
+            {
+                LogTrades.WriteLine($"Error enabling isolated margin: {e.Message}");
+                return false;
+            }
+        }
+
+        public void QueryIsolatedMarginAccountInfo()
+        {
+            try
+            {
+                JsonNode response = binanceAPI.QueryIsolateMarginAccountInfoAsync().Result;
+            }
+            catch (Exception ex)
+            {
+
+            }
+        }
+        #endregion
+
+        protected override double GetFreeBaseAssetBalance()
+        {
+            var response = Deserialize<IsolatedMarginAccountData>(binanceAPI.QueryIsolateMarginAccountInfoAsync().Result);
+            if (response == null)
+            {
+                return 0;
+            }
+            var baseAsset = response.GetBaseAsset(symbolName);
+            return baseAsset != null ? baseAsset.Free : 0;
+        }
+
+        protected override double GetBalanceToEnterTrade(double freeBalance, double lastQuoteValue, TradePosition position)
+        {
+            var response = Deserialize<IsolatedMarginAccountData>(binanceAPI.QueryIsolateMarginAccountInfoAsync().Result);
+            if (response == null)
+            {
+                return 0;
+            }
+            var baseAsset = response.GetBaseAsset(symbolName);
+            var quoteAsset = response.GetQuoteAsset(symbolName);
+            var assetData = response.GetAssetData(symbolName);
+            if (baseAsset == null || quoteAsset == null || assetData == null)
+            {
+                return 0;
+            }
+
+            //with margin trading, the balance is leverage-derived rather than setting a leverage value on the exchange
+            var marginLevel = Math.Clamp(assetData.MarginLevel, Leverage, 10);
+
+            if (marginLevel < 10)
+            {
+                LogTrades.WriteLine($"*** Asset data margin level returned {marginLevel}, which is less than the assumed level of 10");
+            }
+
+            var leveragedAmount = Leverage / marginLevel * quoteAsset.Free;
+
+            double orderQuantity = 0;
+            switch (position)
+            {
+                case TradePosition.LONG:
+
+                    double orderQuantityBuy = base.GetBalanceToEnterTrade(leveragedAmount, GetLastPrice());
+
+                    var data1 = new Dictionary<string, string>
+                    {
+                        { "asset", "BTC" },
+                        { "isolatedSymbol", "BTCUSDT" }
+                    };
+
+                    //get the max borrow limit - this is not fixed, it is dependent on your current equity so get it each time
+                    double maxBorrowLimit = 0;
+                    var response1 = Deserialize<MaxBorrowData>(binanceAPI.QueryMaxBorrowAsync(data1).Result);
+                    if (response != null)
+                    {
+                        double.TryParse(response1.Amount, out maxBorrowLimit);
+                    }
+
+                    if (orderQuantityBuy > maxBorrowLimit)
+                    {
+                        LogTrades.WriteLine($"*** Max borrow limit EXCEEDED, required amount was ${orderQuantityBuy} but limit is ${maxBorrowLimit}");  
+                    }
+                    if (maxBorrowLimit > 0)
+                    {
+                        orderQuantity = GetCorrectPrecisionForBaseAssetTrade(Math.Min(maxBorrowLimit, orderQuantityBuy));
+                    }
+                    break;
+                case TradePosition.SHORT:
+                    orderQuantity = GetCorrectPrecisionForBaseAssetTrade(baseAsset.Free);
+                    break;
+            }
+
+            return orderQuantity;
+        }
+
+        protected override (double freeBalance, double totalEquity) GetTotalEquity() //e.g. USDT, BTC
+        {
+            var response = Deserialize<IsolatedMarginAccountData>(binanceAPI.QueryIsolateMarginAccountInfoAsync().Result);
+            if (response != null)
+            {
+                var baseAsset = response.GetBaseAsset(symbolName);
+                var quoteAsset = response.GetQuoteAsset(symbolName);
+
+                if (baseAsset != null && quoteAsset != null)
+                {
+                    var price = GetLastPrice();
+                    var freeEquity = baseAsset.Free + quoteAsset.Free * price;
+                    var totalEquity = baseAsset.TotalAsset + quoteAsset.TotalAsset * price;
+
+                    return (Math.Round(freeEquity, 2), Math.Round(totalEquity, 2));
+                }
+            }
+            return (0, 0);
+        }
+        
+        protected override bool IsTradeClosed()
+        {
+            var exchangeInfo = GetExchangeInfo();
+            if (exchangeInfo != null)
+            {
+                var __symbol = exchangeInfo.Symbols.Where(x => x.Symbol == symbolName).FirstOrDefault();
+                if (__symbol != null)
+                {
+                    var lotSize = __symbol.Filters.Where(x => x.FilterType == "LOT_SIZE").FirstOrDefault();
+                    if (lotSize != null)
+                    {
+                        var response = Deserialize<IsolatedMarginAccountData>(binanceAPI.QueryIsolateMarginAccountInfoAsync().Result);
+                        if (response != null)
+                        {
+                            var baseAsset = response.GetBaseAsset(symbolName);
+                            if (baseAsset != null)
+                            {
+                                var _minValue = lotSize.MinQty * 2; //it should always use the lot size notional value, same as MinQty, to calculate trade quantity so would only leave < MinQty but double this to be safe
+                                var _baseAssetBalanceFree = baseAsset.Free;
+                                var _baseAssetBalanceLocked = baseAsset.Locked;
+                                return _baseAssetBalanceLocked < _minValue && _baseAssetBalanceFree < _minValue; //i.e there is no BTC
+                            }
+                        }
+                    }
+                }
+                
+            }
+            return false;
+        }
+
+        public override void ShowAccountBalances()
+        {
+            string message = string.Empty;
+
+            var response = Deserialize<IsolatedMarginAccountData>(binanceAPI.QueryIsolateMarginAccountInfoAsync().Result);
+            if (response != null)
+            {
+                var baseAsset = response.GetBaseAsset(symbolName);
+                var quoteAsset = response.GetQuoteAsset(symbolName);
+                var asset = response.GetAssetData(symbolName);
+
+                if (baseAsset != null && quoteAsset != null && asset != null)
+                {
+                    message += "---------------------------------\n";
+                    message += "BTC:\n";
+                    message += $"Free:\t\t{baseAsset.Free}\n";
+                    message += $"Locked:\t\t{baseAsset.Locked}\n";
+                    message += $"Borrowed:\t{baseAsset.Borrowed}\n";
+                    message += $"Interest:\t\t{baseAsset.Interest}\n";
+
+
+                    message += "---------------------------------\n";
+                    message += "USDT:\n";
+                    message += $"Free:\t\t{quoteAsset.Free:F2}\n";
+                    message += $"Locked:\t\t{quoteAsset.Locked:F2}\n";
+                    message += $"Borrowed:\t{quoteAsset.Borrowed:F2}\n";
+                    message += $"Interest:\t\t{quoteAsset.Interest:F2}\n";
+
+                    message += "-------------------------------------------\n";
+
+                    message += $"Margin Level:\t\t{asset.MarginLevel}\n";
+                    message += $"Margin Level Status:\t{asset.MarginLevelStatus}\n";
+                    message += $"Margin Ratio:\t\t{asset.MarginRatio}\n";
+                    message += $"Liquidate Price:\t\t{asset.LiquidatePrice}\n";
+                    message += $"Liquidate Rate:\t\t{asset.LiquidateRate}\n";
+                    message += $"Index Price:\t\t{asset.IndexPrice:F4}\n";
+                    message += $"Trade Enabled:\t\t{asset.TradeEnabled}\n";
+                    message += $"Enabled:\t\t\t{asset.Enabled}\n";
+
+                    message += "-------------------------------------------\n";
+
+                    message += $"Total Asset BTC:\t\t {response.TotalAssetOfBtc}\n";
+                    message += $"Total Net Asset BTC:\t {response.TotalNetAssetOfBtc}\n";
+                    message += $"Total Liability BTC:\t\t {response.TotalLiabilityOfBtc}\n";
+
+                    message += "-------------------------------------------\n";
+                    
+                    AlertDialog.Show(message, "Account balances");
+                }
+            }
+
+
+                    
         }
     }
 }

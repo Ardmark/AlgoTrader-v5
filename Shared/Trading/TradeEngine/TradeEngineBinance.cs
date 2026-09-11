@@ -99,7 +99,6 @@ namespace AlgoTrader.Shared
          *  require 0.015 BNB to receive the specified amount of BTC, it will only sell 0.01 BNB
          * */
 
-        //TODO
         public override void ShowAccountBalances()
         {
 
@@ -166,18 +165,7 @@ namespace AlgoTrader.Shared
             public List<ExchangeFilterData> ExchangeFilters { get; set; }
             public List<SymbolData> Symbols { get; set; }
         }
-        //the exchange data, filtered out before passing back
-        public class ExchangeInfoDataFiltered
-        {
-            public long RequestWeightPerMin { get; set; } //the total request weights for all orders must not excede this in a minute
-            public long MaxOrdersPer10Secs { get; set; }
-            public long MaxOrdersPerDay { get; set; }
-            public long MaxOpenAlgoOrders { get; set; } //these are STOP_LOSS, STOP_LOSS_LIMIT, TAKE_PROFIT, and TAKE_PROFIT_LIMIT orders, not market orders
-
-            //all the trading pairs. The booleans are: spot trading allowed, margin trading allowed, oco allowed. There is also iceberg allowed, and some quote precision data available
-            //the tuples items are named (string SymbolName, bool SpotAllowed, bool MarginAllowed, bool OcoAllowed)
-            public List<(string, bool, bool, bool)> TradingPairs { get; set; }
-        }
+        
         #endregion
 
         #region Quote price data
@@ -413,14 +401,13 @@ namespace AlgoTrader.Shared
 
         #endregion
 
-
         #region Trading parameters
         public static double RETAINED_BNB_PERCENTAGE { get; set; }
         #endregion
 
         #region Fields
-        DateTime lastExchangeInfoRequest = new DateTime();
-        ExchangeInfoData exchangeInfoData = null;
+        protected DateTime lastExchangeInfoRequest = new DateTime();
+        protected ExchangeInfoData exchangeInfoData = null;
 
         //not perfect but would need to use dependency injection to separate the base and derived classes completely,
         // the derived class here is just to make implementation easier without using override methods everywhere to call the 
@@ -432,7 +419,7 @@ namespace AlgoTrader.Shared
         #region Init
         public TradeEngineBinance(string symbolName, int timeInterval) : base(symbolName, timeInterval)
         {
-            binanceAPI = USE_TESTNET
+            binanceAPI = EXCHANGE == ExchangeId.BINANCE_MARGIN
 
                ? new BinanceMarginAPI(
                    TESTNET_KEY,
@@ -455,6 +442,53 @@ namespace AlgoTrader.Shared
          }
         #endregion
 
+        #region Data for order and OCO
+        protected virtual Dictionary<string, string> GetOrderData(TradePosition position, double orderQuantity, Side side, string orderId)
+        {
+            string sideValue = string.Empty;
+            switch (side)
+            {
+                case Side.ENTER:
+                    sideValue = BUY;
+                    break;
+                case Side.CLOSE:
+                    sideValue = SELL;
+                    break;
+            }
+            return new Dictionary<string, string>
+            {
+                {SYMBOL, symbolName },
+                {SIDE, sideValue.ToString()},
+                {ORDER_TYPE, MARKET },
+                {QUANTITY, orderQuantity.ToString() },
+                {CLIENT_ORDER_ID_NEW, orderId },
+                {RESPONSE_TYPE, FULL }
+            };
+        }
+
+        protected virtual Dictionary<string, string> GetOCOData(TradePosition position, double orderQuantity, double belowPrice, string stopId, double abovePrice, string TPId)
+        {
+            return new Dictionary<string, string>
+            {
+                { SYMBOL, symbolName},
+                { SIDE, SELL},
+                { ABOVE_TYPE, TAKE_PROFIT},
+                { ABOVE_STOP_PRICE, abovePrice.ToString()},
+                { ABOVE_CLIENT_ORDER_ID, TPId },
+                { BELOW_CLIENT_ORDER_ID, stopId },
+                { QUANTITY, orderQuantity.ToString()},
+                { BELOW_TYPE, STOP_LOSS},
+                { BELOW_STOP_PRICE, belowPrice.ToString()},      
+
+                //{ABOVE_STOP_PRICE, 70000}, //so presumably this would be for a buy, not a sell
+                //{ABOVE_TIMEINFORCE, 1000},
+                //{TRADE_ID_NEW, Stop.ItemId} //generates -1104 if sent
+                //{RESPONSE_TYPE, FULL}
+                //{TIME_IN_FORCE, GTC}- default anyway
+            };
+        }
+        #endregion
+
         #region Send REST requests
 
         #region Account info
@@ -472,7 +506,7 @@ namespace AlgoTrader.Shared
         }
 
         //e.g. BTCUSDT - BTC is the base asset, USDT is the quote asset
-        protected override double GetFreeBaseAssetBalance(string symbol) 
+        protected override double GetFreeBaseAssetBalance() 
         {
             try
             {
@@ -482,6 +516,7 @@ namespace AlgoTrader.Shared
 
                 if (accountData != null)
                 {
+                    var symbol = SymbolNames.GetBaseAssetForSymbol(symbolName);
                     return (double)accountData?.Balances.FirstOrDefault(x => x.Asset == symbol)?.Free;
                 }
                 
@@ -543,7 +578,7 @@ namespace AlgoTrader.Shared
         #endregion
 
         #region Exchange info
-        ExchangeInfoData GetExchangeInfo()
+        protected virtual ExchangeInfoData GetExchangeInfo()
         {
             if (exchangeInfoData == null || DateTime.UtcNow.Subtract(lastExchangeInfoRequest).TotalDays > 1)
             {
@@ -565,29 +600,9 @@ namespace AlgoTrader.Shared
 
         #endregion
 
+
         #region Orders
-        protected virtual Dictionary<string, string> GetOrderData(TradePosition position, double orderQuantity, Side side, string orderId)
-        {
-            string sideValue = string.Empty;
-            switch (side)
-            {
-                case Side.ENTER:
-                    sideValue = BUY;
-                    break;
-                case Side.CLOSE:
-                    sideValue = SELL;
-                    break;
-            }
-            return new Dictionary<string, string>
-            {
-                {SYMBOL, symbolName },
-                {SIDE, sideValue.ToString()},
-                {ORDER_TYPE, MARKET },
-                {QUANTITY, orderQuantity.ToString() },
-                {CLIENT_ORDER_ID_NEW, orderId },
-                {RESPONSE_TYPE, FULL }
-            };
-        }
+
         protected override bool SendOrder(TradePosition position, double orderQuantity, string orderId, Side side, out double averagePrice, out double executedQuantity)
         {
             averagePrice = executedQuantity = 0;
@@ -624,27 +639,6 @@ namespace AlgoTrader.Shared
             }
         }
 
-        protected virtual Dictionary<string, string> GetOCOData(TradePosition position, double orderQuantity, double belowPrice, string stopId, double abovePrice, string TPId)
-        {
-            return new Dictionary<string, string>
-            {
-                { SYMBOL, symbolName},
-                { SIDE, SELL},
-                { ABOVE_TYPE, TAKE_PROFIT},
-                { ABOVE_STOP_PRICE, abovePrice.ToString()},
-                { ABOVE_CLIENT_ORDER_ID, TPId },
-                { BELOW_CLIENT_ORDER_ID, stopId },
-                { QUANTITY, orderQuantity.ToString()},
-                { BELOW_TYPE, STOP_LOSS},
-                { BELOW_STOP_PRICE, belowPrice.ToString()},      
-
-                //{ABOVE_STOP_PRICE, 70000}, //so presumably this would be for a buy, not a sell
-                //{ABOVE_TIMEINFORCE, 1000},
-                //{TRADE_ID_NEW, Stop.ItemId} //generates -1104 if sent
-                //{RESPONSE_TYPE, FULL}
-                //{TIME_IN_FORCE, GTC}- default anyway
-            };
-        }
 
         public NewOCOData SendOCO(TradePosition position, double orderQuantity, double belowPrice, string stopId, double abovePrice, string TPId)
         {
@@ -887,7 +881,6 @@ namespace AlgoTrader.Shared
                                 //mark the stop as not synchronised
                                 Stop.TradeExecutionStatus = TradeExecutionStatus.EXCHANGE_NOT_SYNCHED;
                                 SetUpdateRequest(Stop);
-                                LogTrades.WriteLine("No locked balance on exchange, assume stop cancelled, check exchange!!");
                             }
                         }
                     }
@@ -905,7 +898,7 @@ namespace AlgoTrader.Shared
         }
 
 
-        bool IsTradeClosed()
+        protected override bool IsTradeClosed()
         {
             var exchangeInfo = GetExchangeInfo();
             if (exchangeInfo != null)
