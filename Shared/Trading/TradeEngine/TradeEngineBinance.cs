@@ -61,6 +61,7 @@ namespace AlgoTrader.Shared
         public const string ALLOW_FAILURE = "ALLOW_FAILURE";
         public const string STOP_ON_FAILURE = "STOP_ON_FAILURE";
 
+
         #endregion
 
         #region Enums
@@ -101,7 +102,7 @@ namespace AlgoTrader.Shared
 
         public override void ShowAccountBalances()
         {
-
+            //never implemented in Binance spot, only Bitmex so nothing missing here
         }
 
         #region Binance data classes (JSON deserializes into these directly)
@@ -370,25 +371,12 @@ namespace AlgoTrader.Shared
         }
         */
 
-        /* unused */
-        public List<OrderData> GetAllOrders()
-        {
-            try
-            {
-                return DeserializeToList(binanceAPI.AllOrdersAsync(symbolName).Result.AsArray());
-            }
-            catch (Exception ex)
-            {
-                LogTrades.WriteLine($"Failed to deserialize GetAllOrders(...): {ex}");
-                return null;
-            }
-        }
 
         protected List<OrderData> GetOpenOrders()
         {
             try 
             { 
-                return DeserializeToList(binanceAPI.OpenOrdersAsync(symbolName).Result.AsArray());
+                return DeserializeToList(binanceAPI.OpenOrdersAsync(GetOpenOrderData()).Result.AsArray());
             }
             catch (Exception ex)
             {
@@ -485,6 +473,21 @@ namespace AlgoTrader.Shared
                 //{TRADE_ID_NEW, Stop.ItemId} //generates -1104 if sent
                 //{RESPONSE_TYPE, FULL}
                 //{TIME_IN_FORCE, GTC}- default anyway
+            };
+        }
+
+        protected virtual Dictionary<string, string> GetCancelOrderData()
+        {
+            return new Dictionary<string, string>
+            {
+                { SYMBOL, symbolName},
+            };
+        }
+        protected virtual Dictionary<string, string> GetOpenOrderData()
+        {
+            return new Dictionary<string, string>
+            {
+                { SYMBOL, symbolName},
             };
         }
         #endregion
@@ -600,7 +603,6 @@ namespace AlgoTrader.Shared
 
         #endregion
 
-
         #region Orders
 
         protected override bool SendOrder(TradePosition position, double orderQuantity, string orderId, Side side, out double averagePrice, out double executedQuantity)
@@ -642,6 +644,7 @@ namespace AlgoTrader.Shared
 
         public NewOCOData SendOCO(TradePosition position, double orderQuantity, double belowPrice, string stopId, double abovePrice, string TPId)
         {
+
             var data = GetOCOData(position, orderQuantity, belowPrice, stopId, abovePrice, TPId);
             try
             {
@@ -749,7 +752,7 @@ namespace AlgoTrader.Shared
             {
                 try
                 {
-                    var v = DeserializeToList(binanceAPI.CancelOpenOrdersAsync(symbolName).Result.AsArray());
+                    var v = DeserializeToList(binanceAPI.CancelOpenOrdersAsync(GetCancelOrderData()).Result.AsArray());
                     return v != null && (v.Count == 0 || !v.Any(x => x.Status != null && x.Status != "CANCELED"));
                 }
                 catch (Exception ex)

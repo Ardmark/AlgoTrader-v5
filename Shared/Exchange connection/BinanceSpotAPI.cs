@@ -96,9 +96,8 @@ namespace AlgoTrader.Shared
             return MakeRequestAsync(query, "api/v3/order", "SIGNED", HttpMethod.Post, 0, cancellationToken);
         }
         //cancel all open orders
-        public virtual Task<JsonNode> CancelOpenOrdersAsync(string symbol, CancellationToken cancellationToken = default)
+        public virtual Task<JsonNode> CancelOpenOrdersAsync(IDictionary<string, string> query, CancellationToken cancellationToken = default)
         {
-            var query = new Dictionary<string, string> { ["symbol"] = symbol };
             SetTimestamp(query);
             return MakeRequestAsync(query, "api/v3/openOrders", "SIGNED", HttpMethod.Delete, 0, cancellationToken);
         }        
@@ -119,7 +118,7 @@ namespace AlgoTrader.Shared
             SetTimestamp(query);
             return MakeRequestAsync(query, "api/v3/order", "SIGNED", HttpMethod.Get, 0, cancellationToken);
         }
-        public Task<JsonNode> NewOcoAsync(IDictionary<string, string> query, CancellationToken cancellationToken = default)
+        public virtual Task<JsonNode> NewOcoAsync(IDictionary<string, string> query, CancellationToken cancellationToken = default)
         {
             SetTimestamp(query);
             return MakeRequestAsync(query, "api/v3/orderList/oco", "SIGNED", HttpMethod.Post, 0, cancellationToken);
@@ -136,20 +135,11 @@ namespace AlgoTrader.Shared
             return MakeRequestAsync(query, "api/v3/order/test", "SIGNED", HttpMethod.Post, 0, cancellationToken);
         }
 
-        public Task<JsonNode> OpenOrdersAsync(string symbol, CancellationToken cancellationToken = default)
-        {
-            var query = new Dictionary<string, string> { ["symbol"] = symbol };
-            SetTimestamp(query);
-            return MakeRequestAsync(query, "api/v3/openOrders", "SIGNED", HttpMethod.Get, 0, cancellationToken);
-        }
-
-        public Task<JsonNode> OpenOrdersAsync(IDictionary<string, string> query, CancellationToken cancellationToken = default)
+        public virtual Task<JsonNode> OpenOrdersAsync(IDictionary<string, string> query, CancellationToken cancellationToken = default)
         {
             SetTimestamp(query);
             return MakeRequestAsync(query, "api/v3/openOrders", "SIGNED", HttpMethod.Get, 0, cancellationToken);
         }
-
-
 
         public Task<JsonNode> AllOrdersAsync(string symbol, CancellationToken cancellationToken = default)
         {

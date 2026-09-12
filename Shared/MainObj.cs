@@ -1204,12 +1204,14 @@ namespace AlgoTrader.Shared
                     
                 var timeDiff = (DateTime.UtcNow - item.Timestamp).TotalSeconds;
 
+#if !DEBUG
                 if (timeDiff > 10 && !isRefreshing)
                 {
                     isRefreshing = true;
                     RefreshConnector();
-                    LogTrades.WriteLine($"Data delay at {DateTime.UtcNow:g}, {timeDiff:0} seconds behind real time. Refreshing connection.");
+                    LogConnection.WriteLine($"Data delay at {DateTime.UtcNow:g}, {timeDiff:0} seconds behind real time. Refreshing connection.");
                 }
+#endif
             }
             catch (Exception ex)
             {

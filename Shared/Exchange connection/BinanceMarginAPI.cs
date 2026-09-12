@@ -53,10 +53,18 @@ namespace AlgoTrader.Shared
             SetTimestamp(query);
             return MakeRequestAsync(query, "sapi/v1/margin/order", "SIGNED", HttpMethod.Post, 0, cancellationToken);
         }
-        
-        public override Task<JsonNode> CancelOpenOrdersAsync(string symbol, CancellationToken cancellationToken = default)
+        public override Task<JsonNode> NewOcoAsync(IDictionary<string, string> query, CancellationToken cancellationToken = default)
         {
-            var query = new Dictionary<string, string> { ["symbol"] = symbol };
+            SetTimestamp(query);
+            return MakeRequestAsync(query, "sapi/v1/margin/order/oco", "SIGNED", HttpMethod.Post, 0, cancellationToken);
+        }
+        public override Task<JsonNode> CancelOpenOrdersAsync(IDictionary<string, string> query, CancellationToken cancellationToken = default)
+        {
+            SetTimestamp(query);
+            return MakeRequestAsync(query, "sapi/v1/margin/openOrders", "SIGNED", HttpMethod.Delete, 0, cancellationToken);
+        }
+        public override Task<JsonNode> OpenOrdersAsync(IDictionary<string, string> query, CancellationToken cancellationToken = default)
+        {
             SetTimestamp(query);
             return MakeRequestAsync(query, "sapi/v1/margin/openOrders", "SIGNED", HttpMethod.Get, 0, cancellationToken);
         }
