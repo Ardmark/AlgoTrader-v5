@@ -1014,7 +1014,8 @@ namespace AlgoTrader.Live.ViewModels
                         }
                         else
                         {
-                            AlertDialog.ShowCallback("This order will execute immediately!", "Set Long Market order?", (ret) =>
+                            var leverage = TradeEngine.Leverage;
+                            AlertDialog.ShowCallback($"This LONG order will execute immediately at user-defined leverage of {leverage}. Do you want to continue?", "Set Long Market order?", (ret) =>
                             {
                                 if (ret)
                                 {
@@ -1050,7 +1051,8 @@ namespace AlgoTrader.Live.ViewModels
                         }
                         else
                         {
-                            AlertDialog.ShowCallback("This order will execute immediately!", "Set Short Market order?", (ret) =>
+                            var leverage = TradeEngine.Leverage;
+                            AlertDialog.ShowCallback($"This SHORT order will execute immediately at user-defined leverage of {leverage}. Do you want to continue?", "Set Short Market order?", (ret) =>
                             {
                                 if (ret)
                                 {

@@ -1726,16 +1726,40 @@ namespace AlgoTrader.Shared
             var stopDiff = maxStop - minStop;
             var levDiff = maxLev - minLev; 
 
-            //could do this all on one line but this is easier to follow
             if (levDiff == 0)
             {
+                LogTrades.WriteLine($"No leverage range to use, leverage will be {maxLev}");
                 return maxLev; //no range, so just return the max (or min) value
             }
+            //could do this all on one line but this is easier to follow
             var stopScale = stopDiff / levDiff; //how much the stop changes per unit of leverage change
             var levReduction = (stopPC - minStop) / stopScale; //how much the leverage should be reduced from the max. value
             var leverage = maxLev - levReduction; //the leverage to use for this stop value
+            leverage = Math.Round(leverage, 2); //just too much precision to display otherwise
+            var v = Math.Clamp(leverage, position == TradePosition.LONG ? MIN_ALLOWED_LEVERAGE_LONG : MIN_ALLOWED_LEVERAGE_SHORT, MAX_ALLOWED_LEVERAGE);
+            LogTrades.WriteLine($"Stop is at {stopPC}%");
+            if (position == TradePosition.LONG)
+            {
+                if (leverage < MIN_ALLOWED_LEVERAGE_LONG)
+                {
+                    LogTrades.WriteLine($"Calculated leverage less than {MIN_ALLOWED_LEVERAGE_LONG}, will be clamped");
+                }
+            }
+            else
+            {
+                if (leverage < MIN_ALLOWED_LEVERAGE_SHORT)
+                {
+                    LogTrades.WriteLine($"Calculated leverage less {MIN_ALLOWED_LEVERAGE_SHORT}, will be clamped");
+                }
+            }
+            if (leverage > MAX_ALLOWED_LEVERAGE)
+            {
+                LogTrades.WriteLine($"Calculated leverage greater than {MAX_ALLOWED_LEVERAGE}, will be clamped");
+            }
+            LogTrades.WriteLine($"Leverage is {v}X");
 
-            return Math.Clamp(leverage, position == TradePosition.LONG ? MIN_ALLOWED_LEVERAGE_LONG : MIN_ALLOWED_LEVERAGE_SHORT, MAX_ALLOWED_LEVERAGE); 
+
+            return v;
 
             //This algorithm attempts to set the leverage so the maximum allowed loss is always the same.
             //For small initial stops, the leverage may be outside of the max. allowed leverage, so that will clamp the leverage and reduce the

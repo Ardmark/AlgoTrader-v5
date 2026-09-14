@@ -19,7 +19,7 @@ namespace AlgoTrader.Shared
      
         public override async void Test()
         {
-            //CancelOpenOrders();
+            var d = CalculateLeverageFromPercent(0.7, TradePosition.LONG);
         }
 
         #region Init

@@ -37,7 +37,7 @@ namespace AlgoTrader.Windows
             TradeEngine.USE_FIXED_LEVERAGE = false; //if true, will use the default leverage for all trades, otherwise will calculate leverage from stop
             TradeEngine.MIN_ALLOWED_LEVERAGE_SHORT = 1;
             TradeEngine.MIN_ALLOWED_LEVERAGE_LONG = 1.333;
-            TradeEngine.MAX_ALLOWED_LEVERAGE = 3; //leverage cannot excede this
+            TradeEngine.MAX_ALLOWED_LEVERAGE = 10; //leverage cannot excede this
 
             //these min and max values are just the arbitrary ranges which the leverages are calculated from.
             //The actual leverage value can be lower or higher than these values, but will never go outside MIN_ and MAX_ values above.
