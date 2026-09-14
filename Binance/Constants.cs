@@ -21,7 +21,7 @@ namespace AlgoTrader.Windows
             //TradeEngine.EXCHANGE = Shared.Enums.ExchangeId.BINANCE_SPOT;
             TradeEngine.EXCHANGE = Shared.Enums.ExchangeId.BINANCE_MARGIN;
 
-            TradeEngine.USE_TESTNET = false; //if true, must use spot as margin does not work on testnet
+            TradeEngine.USE_TESTNET = false; //if true, Spot exchange will be used instead of margin, regardless of TradeEngine.EXCHANGE setting
 
             //restrict balance on testnet network for now also no need to trade everything each time on testnet, this makes testing more difficult anyway
             //isolated margin is OK as it only has a testing balance initially but margin not available on testnet
@@ -37,7 +37,7 @@ namespace AlgoTrader.Windows
             TradeEngine.USE_FIXED_LEVERAGE = false; //if true, will use the default leverage for all trades, otherwise will calculate leverage from stop
             TradeEngine.MIN_ALLOWED_LEVERAGE_SHORT = 1;
             TradeEngine.MIN_ALLOWED_LEVERAGE_LONG = 1.333;
-            TradeEngine.MAX_ALLOWED_LEVERAGE = 10; //leverage cannot excede this
+            TradeEngine.MAX_ALLOWED_LEVERAGE = 3; //leverage cannot excede this
 
             //these min and max values are just the arbitrary ranges which the leverages are calculated from.
             //The actual leverage value can be lower or higher than these values, but will never go outside MIN_ and MAX_ values above.
@@ -89,7 +89,6 @@ namespace AlgoTrader.Windows
             TradeEngine.INITIAL_TAKE_PROFIT_PERCENT_MARKET = 6; //will auto-set ceiling to this value - and it is then used in the OCO (Binance) will default to 10% if set to zero here
             TradeEngine.ENTRY_LINE_PRICE_GAP_PC = 0; //percent to offset trade entry lines
             TradeEngine.STOP_LINE_PRICE_GAP_PC = 0; //percent to offset trade stop lines
-            TradeEngineBinance.RETAINED_BNB_PERCENTAGE = 10;
             TradeEngine.MINIMUM_TRADE_TIME = TradeEngine.USE_TESTNET ? 0 : 15; //3 bars on 5min, really need a dictionary for this
             #endregion
 

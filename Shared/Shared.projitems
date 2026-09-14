@@ -12,6 +12,8 @@
     <Compile Include="$(MSBuildThisFileDirectory)DataContext.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Exchange connection\BinanceMarginAPI.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Exchange connection\BinanceSpotAPI.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)interfaces\IBinanceAPI.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Trading\TradeEngine\TradeEngineBinance.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Trading\TradeEngine\TradeEngineBinanceMargin.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)UI\DrawingBase.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)DataObjects\SymbolDataItem.cs" />
@@ -68,7 +70,7 @@
     <Compile Include="$(MSBuildThisFileDirectory)interfaces\IMainViewModel.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)MainObj - UI.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)MainObj.cs" />
-    <Compile Include="$(MSBuildThisFileDirectory)Trading\TradeEngine\TradeEngineBinance.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Trading\TradeEngine\TradeEngineBinanceSpot.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)ViewModels\MainViewModel.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Moving averages\RMA.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Moving averages\EMA.cs" />

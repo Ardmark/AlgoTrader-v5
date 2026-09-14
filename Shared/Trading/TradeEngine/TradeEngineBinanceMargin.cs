@@ -24,6 +24,23 @@ namespace AlgoTrader.Shared
 
     public class TradeEngineBinanceMargin : TradeEngineBinance
     {
+        #region Strings
+        public const string TRUE = "true";
+        public const string FALSE = "false";
+        public const string PRICE = "price";
+        public const string STOP_PRICE = "stopPrice";
+        public const string STOP_CLIENT_ORDER_ID = "stopClientOrderId";
+        public const string LIMIT_CLIENT_ORDER_ID = "limitClientOrderId";
+        public const string IS_ISOLATED = "isIsolated";
+        public const string AUTO_REPAY_AT_CANCEL = "autoRepayAtCancel";
+        public const string SIDE_EFFECT_TYPE = "sideEffectType";
+        public const string NO_SIDE_EFFECT = "NO_SIDE_EFFECT";
+        public const string MARGIN_BUY = "MARGIN_BUY";
+        public const string AUTO_REPAY = "AUTO_REPAY";
+        public const string AUTO_BORROW_REPAY = "AUTO_BORROW_REPAY"; //this will repay any liabilitites as well as borrow to buy or sell.
+        public const string STOP_LIMIT_PRICE = "stopLimitPrice";    
+        #endregion
+
         public override void Test()
         {
             return;
@@ -44,20 +61,6 @@ namespace AlgoTrader.Shared
 
             return;
         }
-
-        #region Strings
-        public const string IS_ISOLATED = "isIsolated";
-        public const string AUTO_REPAY_AT_CANCEL = "autoRepayAtCancel";
-        public const string SIDE_EFFECT_TYPE = "sideEffectType";
-        public const string NO_SIDE_EFFECT = "NO_SIDE_EFFECT";
-        public const string MARGIN_BUY = "MARGIN_BUY";
-        public const string AUTO_REPAY = "AUTO_REPAY";
-        public const string AUTO_BORROW_REPAY = "AUTO_BORROW_REPAY"; //this will repay any liabilitites as well as borrow to buy or sell.
-        public const string STOP_CLIENT_ORDER_ID = "stopClientOrderId";
-        public const string STOP_LIMIT_PRICE = "stopLimitPrice";
-
-        
-        #endregion
 
         #region Binance data classes (JSON deserializes into these directly)
 
@@ -135,20 +138,43 @@ namespace AlgoTrader.Shared
         #endregion
 
         #region Init
-        public TradeEngineBinanceMargin(string symbolName, int timeInterval) : base(symbolName, timeInterval)
+        public TradeEngineBinanceMargin(string symbolName, int timeInterval) : base(symbolName, timeInterval) 
         {
-            binanceAPI = new BinanceMarginAPI(
-                   LIVE_KEY,
-                   LIVE_SECRET,
-                   null,
-                   15000,
-                   true,
-                   "https://api.binance.com/"
-                );
+            binanceAPI = new BinanceMarginAPI
+                         (
+                              LIVE_KEY,
+                              LIVE_SECRET,
+                              null,
+                              15000,
+                              true,
+                              "https://api.binance.com/"
+                         );
+
+            GetExchangeInfo(); //takes about 2 seconds so don't want to do this when entering a trade
         }
         #endregion
 
         #region Data for order and OCO
+
+        /*
+         * This works differently than the OCO for spot trading:
+         * The 2 orders are created, but they are as follows:
+         * 
+         * Order [0]
+         * side = SELL
+         * stopPrice = the stop price
+         * type = STOP_LOSS
+         * 
+         * Order [1]
+         * side = SELL
+         * price = the take profit price
+         * type = LIMIT_MAKER
+         * 
+         * HOWEVER, only the limit maker order shows in the web site, but if you cancel that then it cancels both orders.
+         * 
+         * 
+         * 
+         * */
         protected override Dictionary<string, string> GetOrderData(TradePosition position, double orderQuantity, Side side, string orderId)
         {
             //short: Enter: {SIDE, SELL}, {SIDE_EFFECT_TYPE, MARGIN_BUY}
@@ -204,26 +230,25 @@ namespace AlgoTrader.Shared
                 {IS_ISOLATED, TRUE }
             };
         }
-
-        /*
-         * This works differently than the OCO for spot trading:
-         * The 2 orders are created, but they are as follows:
-         * 
-         * Order [0]
-         * side = SELL
-         * stopPrice = the stop price
-         * type = STOP_LOSS
-         * 
-         * Order [1]
-         * side = SELL
-         * price = the take profit price
-         * type = LIMIT_MAKER
-         * 
-         * HOWEVER, only the limit maker order shows in the web site, but if you cancel that then it cancels both orders.
-         * 
-         * 
-         * 
-         * */
+        
+        protected override Dictionary<string, string> GetOpenOrderData()
+        {
+            return new Dictionary<string, string>
+            {
+                { SYMBOL, symbolName},
+                { IS_ISOLATED, TRUE }
+            };
+        }
+        
+        protected override Dictionary<string, string> GetCancelOrderData()
+        {
+            return new Dictionary<string, string>
+            {
+                { SYMBOL, symbolName},
+                { IS_ISOLATED, TRUE }
+            };
+        }
+        
         protected override Dictionary<string, string> GetOCOData(TradePosition position, double orderQuantity, double belowPrice, string stopId, double abovePrice, string TPId)
         {
             string sideValue = string.Empty;
@@ -253,62 +278,30 @@ namespace AlgoTrader.Shared
                 //{ BELOW_STOP_PRICE, belowPrice.ToString()},
                 //{ BELOW_CLIENT_ORDER_ID, stopId },
                 { PRICE, abovePrice.ToString() }, 
-                { STOP_PRICE, belowPrice.ToString() },  
+                { STOP_PRICE, belowPrice.ToString() },
+                { STOP_CLIENT_ORDER_ID, stopId },
+                { LIMIT_CLIENT_ORDER_ID, TPId },
 
                 {SIDE_EFFECT_TYPE, sideEffectType},
                 {IS_ISOLATED, TRUE }
             };
         }
-
-        protected override Dictionary<string, string> GetCancelOrderData()
+        
+        protected override Dictionary<string, string> GetCancelOCOData(string orderListId)
         {
             return new Dictionary<string, string>
             {
                 { SYMBOL, symbolName},
+                { LIST_CLIENT_ORDER_ID, orderListId },
                 { IS_ISOLATED, TRUE }
             };
-        }
-        protected override Dictionary<string, string> GetOpenOrderData()
-        {
-            return new Dictionary<string, string>
-            {
-                { SYMBOL, symbolName},
-                { IS_ISOLATED, TRUE }
-            };
-        }
-        #endregion
-
-        #region Send REST requests
-
-        public bool EnableIsolatedMargin()
-        {
-            try
-            {
-                JsonNode response = binanceAPI.EnableIsolateMarginAsync(symbolName).Result;
-                return response["success"].ToString() == "true";
-            }
-            catch (Exception e)
-            {
-                LogTrades.WriteLine($"Error enabling isolated margin: {e.Message}");
-                return false;
-            }
-        }
-
-        public void QueryIsolatedMarginAccountInfo()
-        {
-            try
-            {
-                JsonNode response = binanceAPI.QueryIsolateMarginAccountInfoAsync().Result;
-            }
-            catch (Exception ex)
-            {
-
-            }
         }
         #endregion
 
         protected override double GetFreeBaseAssetBalance()
         {
+            //e.g. BTCUSDT - BTC is the base asset, USDT is the quote asset
+
             var response = Deserialize<IsolatedMarginAccountData>(binanceAPI.QueryIsolateMarginAccountInfoAsync().Result);
             if (response == null)
             {
@@ -320,6 +313,8 @@ namespace AlgoTrader.Shared
 
         protected override double GetBalanceToEnterTrade(double freeBalance, double lastQuoteValue, TradePosition position)
         {
+            //Get the correct precision for a trade and return the amended amount, this is for the base asset (USDT)
+            //All trades are in base asset, both sell and buy (e.g. BTC)
             var response = Deserialize<IsolatedMarginAccountData>(binanceAPI.QueryIsolateMarginAccountInfoAsync().Result);
             if (response == null)
             {
@@ -425,8 +420,7 @@ namespace AlgoTrader.Shared
                             }
                         }
                     }
-                }
-                
+                }            
             }
             return false;
         }
@@ -475,7 +469,6 @@ namespace AlgoTrader.Shared
                             side = openOrders[1].Side;
                             price = openOrders[1].Side == BUY ? openOrders[1].StopPrice : openOrders[1].Price;
                             type = openOrders[1].Type;
-
                             message += $"{type}, {side}@{price} \n";
                         }
                     }
@@ -512,19 +505,48 @@ namespace AlgoTrader.Shared
                         { "asset", "BTC" },
                         { "isolatedSymbol", "BTCUSDT" }
                     };
+
                     var response1 = Deserialize<MaxBorrowData>(binanceAPI.QueryMaxBorrowAsync(data1).Result);
                     if (response1 != null)
                     {
                         double.TryParse(response1.Amount, out double amt);
-                        var USDT_amount = amt * currentPrice;
                         message += $"Max. borrowble amount:\t{amt} = ${amt*currentPrice:F2}\n";
                     }
                     message += "--------------------------------------------------------\n";
 
-
                     AlertDialog.Show(message, "Account balance and info:");
                 }
             }                
-        }       
+        }
+        
+        #region Margin-specific methods (unused)
+        public bool EnableIsolatedMargin()
+        {
+            try
+            {
+                JsonNode response = binanceAPI.EnableIsolateMarginAsync(symbolName).Result;
+                return response["success"].ToString() == "true";
+            }
+            catch (Exception e)
+            {
+                LogTrades.WriteLine($"Error enabling isolated margin: {e.Message}");
+                return false;
+            }
+        }
+
+        public void QueryIsolatedMarginAccountInfo()
+        {
+            try
+            {
+                JsonNode response = binanceAPI.QueryIsolateMarginAccountInfoAsync().Result;
+            }
+            catch (Exception ex)
+            {
+
+            }
+        }
+        #endregion
+
+
     }
 }

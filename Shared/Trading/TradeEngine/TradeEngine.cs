@@ -697,23 +697,8 @@ namespace AlgoTrader.Shared
         protected abstract double GetCorrectPrecisionForBaseAssetTrade(double balanceToTrade);
         protected abstract (double freeBalance, double totalEquity) GetTotalEquity();
         protected abstract double GetFreeBaseAssetBalance();
-        protected abstract double AdjustCoinBalanceForFees(string baseAsset, double coinBalance);
         protected abstract bool InitForEntryOrClose();
         protected abstract bool IsTradeClosed();
-
-        public virtual double AdjustResultForFees(double result) { return result - FEE; }
-
-        protected virtual double GetValueForSymbol(string symbolName)
-        {
-            if (currentDataItem == null)
-            {
-                LogTrades.WriteLine($"Waiting for connection on {symbolName}");
-                return 0;
-            }
-
-            return currentDataItem.Close;
-        }
-
         #endregion
 
         #region Run orders
@@ -1507,10 +1492,6 @@ namespace AlgoTrader.Shared
                 //so will go ahead anyway with trade close and ignore any exceptions
                 LogTrades.WriteLine($"Using received balance of {coinBalance} {_baseAsset}");
 
-                double amountToSell = AdjustCoinBalanceForFees(_baseAsset, coinBalance);
-
-                LogTrades.WriteLine($"Amount to sell is {amountToSell}");
-
                 #region Generate close order
                 if (Close == null)
                 {
@@ -1519,7 +1500,7 @@ namespace AlgoTrader.Shared
                     Close.Action = TradeAction.CLOSE;
                     Close.Timestamp = GetTimeStamp();
                 }
-                Close.Quantity = GetCorrectPrecisionForBaseAssetTrade(amountToSell);
+                Close.Quantity = GetCorrectPrecisionForBaseAssetTrade(coinBalance);
                 #endregion
 
                 #region Place order     
@@ -1561,8 +1542,6 @@ namespace AlgoTrader.Shared
                 EnterTradeOnExchange(); //and that's all there is to it.
             }
             #endregion
-
-            ShowAccountBalances(); //will log balance
 
             #region Get exchange rate
             //this will cause synchronisation to exit BEFORE this awaitable method completes,
@@ -1919,6 +1898,8 @@ namespace AlgoTrader.Shared
         #endregion
 
         #region Utility methods
+
+        public double AdjustResultForFees(double result) { return result - FEE; }
 
         public _Trade GetTradeForTradeReference(TradeAction action, string reference = null)
         {

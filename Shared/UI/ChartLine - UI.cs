@@ -112,7 +112,7 @@ namespace AlgoTrader.Shared
                             }
 
                             //line up the line start with the order or entry
-                            if (trade != null)
+                            if (trade != null && trade.TradeExchangeStatus == TradeExchangeStatus.ENTERED_ON_EXCHANGE)
                             {
                                 var _gradient = (chartLine.EndPrice - chartLine.StartPrice) / (chartLine.EndTimeStamp - chartLine.StartTimeStamp).Ticks;
                                 var _timediff = (chartLine.EndTimeStamp - chartLine.StartTimeStamp).Ticks;
@@ -154,89 +154,66 @@ namespace AlgoTrader.Shared
                             var lines = tradeEngine.GetLinesForTradeReference(chartLine.Trade.TradeReference);
                             var order = tradeEngine.GetTradeForTradeReference(TradeAction.ORDER, chartLine.Trade.TradeReference);
                             var entry = tradeEngine.GetTradeForTradeReference(TradeAction.ENTRY, chartLine.Trade.TradeReference);
-                            var order_entry = entry != null ? entry : order;
+                            var order_entry = entry ?? order;
 
                             if (order != null)
                             {
                                 var orderLine = lines.FirstOrDefault(x => x.TradeId == order.Id);
 
-                                bool isClose = true;
-                                bool isWrongSide = true;
+                                (bool isClose, bool isWrongSide) = tradeEngine.CanSetTrade(orderLine, this, Trade.Price, Trade.Action, entry, order.Position);
 
-                                // will allow changes before system fully connects
-                                //if (tradeEngine.currentDataItem != null)
-                                //{
-                                //    if (Trade.Type != TradeType.STOP_WAITING)
-                                //    {
-                                        (isClose, isWrongSide) = tradeEngine.CanSetTrade(orderLine, this, Trade.Price, Trade.Action, entry, order.Position);
-                                    //}
-                                    //else
-                                    //{
-                                    //    var flipOrder = tradeEngine.ActiveTrades.FirstOrDefault(x => x.Action == TradeAction.STOP && x.Type == TradeType.FLIP_ORDER);
-                                    //    if (flipOrder != null)
-                                    //    {
-                                    //        //var flipOrderLine = lines.FirstOrDefault(x => x.TradeId == chartLine.Trade.Id);
-                                    //        var flipLine = lines.FirstOrDefault(x => x.TradeId == flipOrder.Id);
-                                    //        var position = flipOrder.Position == TradePosition.SHORT ? TradePosition.LONG : TradePosition.SHORT;
-                                    //        if (flipLine != null)
-                                    //        {
-                                    //            (isClose, isWrongSide) = tradeEngine.CanSetTrade(flipLine, this, flipOrder.Price, chartLine.Trade.Action, entry, position);
-                                    //        }
-                                    //    }
-                                    //}
-
-                                    if (isClose)
+                                if (isClose)
+                                {
+                                    if (isWrongSide)
                                     {
-                                        if (isWrongSide)
-                                        {
-                                            AlertDialog.Show("Trade wrong side of price");
-                                            MainObj.DrawCurrentDispatcher(true);
-                                        }
-                                        else
-                                        {
-                                            //want the default condition to be moving the line to where it has been set with the mouse
-                                            CopyTo(chartLine);
-                                            tradeEngine.UpdateUIList(chartLine);
-                                            MainObj.DrawCurrentDispatcher(true);
-
-                                            AlertDialog.ShowCallback($"Trade would be too close to price and may trigger close.\nDo you wish to procede? ", $"Position may not be valid", (ret) =>
-                                            {
-                                                if (ret)
-                                                {
-                                                    //enclosing datacontext will be lost now
-                                                    Task.Run(() =>
-                                                    {
-                                                        tradeEngine.InitForDataContext(() =>
-                                                        {
-                                                            chartLine = tradeEngine.AllLinesForSymbol.FirstOrDefault(x => x.Id == Id);
-                                                            lines = tradeEngine.GetLinesForTradeReference(chartLine.Trade.TradeReference);
-                                                            order = tradeEngine.GetTradeForTradeReference(TradeAction.ORDER, chartLine.Trade.TradeReference);
-                                                            entry = tradeEngine.GetTradeForTradeReference(TradeAction.ENTRY, chartLine.Trade.TradeReference);
-                                                            SetPrice();
- 
-                                                            SetLineStartAndEnd(order_entry);
-                                                            tradeEngine.UpdateUIList(chartLine.Trade);
-                                                            tradeEngine.UpdateUIList(chartLine);
-                                                            MainObj.DrawCurrentDispatcher(true);
-                                                            return;
-                                                        });
-                                                    });
-                                                }
-
-                                                MainObj.DrawCurrentDispatcher(true);
-                                            });
-                                        }
+                                        AlertDialog.Show("Trade wrong side of price");
+                                        MainObj.DrawCurrentDispatcher(true);
                                     }
                                     else
                                     {
-                                        SetPrice();
-                                        SetLineStartAndEnd(order_entry);
-                                        tradeEngine.UpdateUIList(chartLine.Trade);
+                                        //want the default condition to be moving the line to where it has been set with the mouse
+                                        CopyTo(chartLine);
                                         tradeEngine.UpdateUIList(chartLine);
                                         MainObj.DrawCurrentDispatcher(true);
-                                        return;
+
+                                        AlertDialog.ShowCallback($"Trade would be too close to price and may trigger close.\nDo you wish to procede? ", $"Position may not be valid", (ret) =>
+                                        {
+                                            if (ret)
+                                            {
+                                                //enclosing datacontext will be lost now
+                                                Task.Run(() =>
+                                                {
+                                                    tradeEngine.InitForDataContext(() =>
+                                                    {
+                                                        chartLine = tradeEngine.AllLinesForSymbol.FirstOrDefault(x => x.Id == Id);
+                                                        lines = tradeEngine.GetLinesForTradeReference(chartLine.Trade.TradeReference);
+                                                        order = tradeEngine.GetTradeForTradeReference(TradeAction.ORDER, chartLine.Trade.TradeReference);
+                                                        entry = tradeEngine.GetTradeForTradeReference(TradeAction.ENTRY, chartLine.Trade.TradeReference);
+                                                        SetPrice();
+ 
+                                                        SetLineStartAndEnd(order_entry);
+                                                        tradeEngine.UpdateUIList(chartLine.Trade);
+                                                        tradeEngine.UpdateUIList(chartLine);
+                                                        MainObj.DrawCurrentDispatcher(true);
+                                                        return;
+                                                    });
+                                                });
+                                            }
+
+                                            MainObj.DrawCurrentDispatcher(true);
+                                        });
                                     }
-                                //}
+                                }
+                                else
+                                {
+                                    SetLineStartAndEnd(order_entry);
+                                    SetPrice();
+                                    tradeEngine.UpdateUIList(chartLine.Trade);
+                                    tradeEngine.UpdateUIList(chartLine);
+                                    MainObj.DrawCurrentDispatcher(true);
+                                    return;
+                                }
+                                
 
                                 void SetPrice()
                                 {

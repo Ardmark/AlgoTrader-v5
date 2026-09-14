@@ -3,6 +3,7 @@ using System.Net;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json.Nodes;
+using System.Net.Http;//Backtest requires this
 
 namespace AlgoTrader.Shared
 {
@@ -20,6 +21,16 @@ namespace AlgoTrader.Shared
         private System.Threading.Timer _syncTimer;
         #endregion
 
+        #region Shared endpoints
+
+        public Task<JsonNode> ExchangeInfoAsync(CancellationToken cancellationToken = default) =>
+            MakeRequestAsync(new Dictionary<string, string>(), "api/v1/exchangeInfo", null, HttpMethod.Get, 0, cancellationToken);
+
+        public Task<JsonNode> TickerPriceAsync(string symbol = null, CancellationToken cancellationToken = default) =>
+            MakeRequestAsync(string.IsNullOrEmpty(symbol) ? [] : new Dictionary<string, string> { ["symbol"] = symbol }, "api/v3/ticker/price", null, HttpMethod.Get, 0, cancellationToken);
+
+        #endregion
+
         #region Constructor
         public BinanceAPI(
             string key = null,
@@ -27,7 +38,7 @@ namespace AlgoTrader.Shared
             long? recvWindow = null, //number of milliseconds after timestamp the request is valid for, defaults to 5000
             int timeoutMs = 15000,
             bool handleDrift = false,
-            string baseUrl = "https://api.binance.com/",
+            string baseUrl = "",
             HttpMessageHandler handler = null)
         {
             _key = key ?? string.Empty;
@@ -98,7 +109,6 @@ namespace AlgoTrader.Shared
             int attempt = 0,
             CancellationToken cancellationToken = default)
         {
-
             // copy query to avoid modifying caller's collection
             var q = new Dictionary<string, string>(query);
 

@@ -1,3 +1,3 @@
 ﻿/* Timestamp format is yyyy-mm-dd */
-delete from [AlgoTrader.DataContext.Live].dbo.SymbolDataItems
-		 where Timestamp < '2021-10-01'
+delete from [AlgoTrader.Binance].dbo.BTCUSDT
+		 where Timestamp < '2026-9-12 16:30'

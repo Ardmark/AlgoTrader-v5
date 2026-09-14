@@ -60,8 +60,9 @@ namespace AlgoTrader.Live.ViewModels
         {
             var timeDiff = DateTime.UtcNow - item.Timestamp;
             var p= timeDiff.TotalSeconds < 1 ? $"{timeDiff.TotalMilliseconds:0.0} ms " : $"{timeDiff.TotalSeconds:0} sec ";
-            var s = item.Close == 0 ? WAITING_TEXT : $"{PriceFormatter.Format(item.Close)}, {p} lag"; //0 is just a flag for initialisation, see MainObj.ItemUpdated()
-            //s += timeDiff.TotalSeconds > 60 ? $" (last update {timeDiff.TotalMinutes:0} min ago)" : $" (last update {timeDiff.TotalSeconds:0} sec ago)";
+            //var s = item.Close == 0 ? WAITING_TEXT : $"{PriceFormatter.Format(item.Close)}, {p} lag"; //0 is just a flag for initialisation, see MainObj.ItemUpdated()
+            //var s = $"{PriceFormatter.Format(item.Close)}";
+            var s = item.Close == 0 ? WAITING_TEXT : item.Close.ToString("0.00");
 
             SetProperty("CurrentPrice", s);
         }

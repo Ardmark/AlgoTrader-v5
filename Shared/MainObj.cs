@@ -2,6 +2,7 @@ using AlgoTrader.Shared.Enums;
 using AlgoTrader.Shared.ExchangeConnection;
 using AlgoTrader.Shared.Interfaces;
 using AlgoTrader.Shared.Logging;
+using System.IO; //Backtest requires this
 using System.Data;
 using System.Data.Entity.Core.Common.CommandTrees.ExpressionBuilder;
 using System.Data.SqlClient;
@@ -338,18 +339,30 @@ namespace AlgoTrader.Shared
                     var panels = new List<DisplayPanel>();
                     displayPanelsForSymbol[s] = panels;
 
-                    switch (TradeEngine.EXCHANGE)
+                    if (TradeEngine.USE_TESTNET)
                     {
-                        //case ExchangeId.BITMEX:
-                        //    AddPanel(tradeEngine = new TradeEngineBitmex(s, 0), panels); //must be added before market and auto order panels, so as to get active trade before other panels are added
-                        //    break;
-                        case ExchangeId.BINANCE_SPOT:
-                            AddPanel(tradeEngine = new TradeEngineBinance(s, 0), panels); //must be added before market and auto order panels, so as to get active trade before other panels are added
-                            break;
-                        case ExchangeId.BINANCE_MARGIN:
-                            AddPanel(tradeEngine = new TradeEngineBinanceMargin(s, 0), panels); //must be added before market and auto order panels, so as to get active trade before other panels are added
-                            break;
+                        //testnet only runs on spot, so ignore the ExchangeId here and just run spot
+                        switch (TradeEngine.EXCHANGE)
+                        {
+                            case ExchangeId.BINANCE_SPOT:
+                            case ExchangeId.BINANCE_MARGIN:
+                                AddPanel(tradeEngine = new TradeEngineBinanceSpot(s, 0), panels); //must be added before market and auto order panels, so as to get active trade before other panels are added
+                                break;
+                        }
+                    }
+                    else
+                    {
+                        switch (TradeEngine.EXCHANGE)
+                        {
+                            //live, so use appropriate exchange
+                            case ExchangeId.BINANCE_SPOT:
+                                AddPanel(tradeEngine = new TradeEngineBinanceSpot(s, 0), panels); //must be added before market and auto order panels, so as to get active trade before other panels are added
+                                break;
+                            case ExchangeId.BINANCE_MARGIN:
+                                AddPanel(tradeEngine = new TradeEngineBinanceMargin(s, 0), panels); //must be added before market and auto order panels, so as to get active trade before other panels are added
+                                break;
 
+                        }
                     }
 
                     AddPanel(chart = new Chart(s, 0, tradeEngine, panelsContainer), panels);

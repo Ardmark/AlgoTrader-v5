@@ -1,8 +1,4 @@
 ﻿using AlgoTrader.Shared.Enums;
-using AlgoTrader.Shared.Logging;
-using System.Data.SqlClient;
-using System.IO;
-using System.Windows.Threading;
 
 namespace AlgoTrader.Shared.ExchangeConnection
 {

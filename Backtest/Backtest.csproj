@@ -18,8 +18,13 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Compile Remove="Backtesting\OrderExecutionMenuBacktest.xaml.cs" />
-    <Compile Remove="Backtesting\OrderPlacementMenuBacktest.xaml.cs" />
+    <Compile Remove="Backtesting\**" />
+    <EmbeddedResource Remove="Backtesting\**" />
+    <None Remove="Backtesting\**" />
+    <Page Remove="Backtesting\**" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Compile Remove="Migrations\202101101658200_BacktestDataItem.cs" />
     <Compile Remove="Migrations\202101101658200_BacktestDataItem.Designer.cs" />
     <Compile Remove="Migrations\202112161439136_First.cs" />
@@ -60,8 +65,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Page Remove="Backtesting\OrderExecutionMenuBacktest.xaml" />
-    <Page Remove="Backtesting\OrderPlacementMenuBacktest.xaml" />
     <Page Remove="Windows\App.xaml" />
   </ItemGroup>
 

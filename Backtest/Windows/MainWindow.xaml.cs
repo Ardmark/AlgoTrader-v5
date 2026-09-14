@@ -1,11 +1,4 @@
-﻿#if BACKTEST
-using AlgoTrader.Live.ViewModels;
-#elif ARCHIVE
-using AlgoTrader.Archive.ViewModels;
-#elif LIVE
-using AlgoTrader.Live.ViewModels;
-#endif
-
+﻿using AlgoTrader.Live.ViewModels;
 using System.ComponentModel;
 using System.Windows;
 using AlgoTrader.Shared;
@@ -66,15 +59,11 @@ namespace AlgoTrader.Windows
 
         private void DataWindow_Closing(object sender, CancelEventArgs e)
         {
-            if (!MainObj.BACKTEST)
+            //this is modal, but will only block the UI thread
+            if (MessageBox.Show("Close application", "Are you sure?", MessageBoxButton.YesNo, MessageBoxImage.Warning) == MessageBoxResult.No)
             {
-                //this is modal, but will only block the UI thread
-                if (MessageBox.Show("Close application", "Are you sure?", MessageBoxButton.YesNo, MessageBoxImage.Warning) == MessageBoxResult.No)
-                {
-                    e.Cancel = true;
-                }
+                e.Cancel = true;
             }
-
         }
         private void Window_SizeChanged(object sender, SizeChangedEventArgs e)
         {

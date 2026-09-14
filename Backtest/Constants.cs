@@ -4,62 +4,99 @@ namespace AlgoTrader.Windows
 {
     public partial class MainWindow
     {
-        void SetupConstants()
+        private static void SetupConstants()
         {
-            //****//
-            //LIVE//
-            //****//
+            #region Exchange keys
+            
+            //live (keys are OK but commented to be safe)
+            TradeEngine.LIVE_KEY =    "vVo1RvHqDbC07mA7QTaj8Q7dtF6qE7mCrTBztdHOidQLml5dhdk4v1nLDwlzHyZ6"; // also, should enable only trusted IP addresses on Binance - have not done this yet
+            TradeEngine.LIVE_SECRET = "H7IhdsS3TVUoTjowVOC93lGpcVZo5PjCD1I2vwUeWbIO02N1EUTeb21nWavZfrB1"; // Same for this
 
-            //Connection
-            MainObj.BACKTEST = true; //set TRUE for testnet trading
+            //testnet
+            TradeEngine.TESTNET_KEY =    "rssumaVWFRJ6b1Uh3n6E87CXwKz3UytIfpkaGngMVx21ukjCl0Mtik8VwAePt99K";
+            TradeEngine.TESTNET_SECRET = "9vTXpWsL5mSVWAb6piM40kLb9qXumu6wxYFhXwLW4OTZt8YIXc5nhGEHhtzkrK35";
+
+            #endregion
+
+            TradeEngine.EXCHANGE = Shared.Enums.ExchangeId.BINANCE_SPOT;
+            //TradeEngine.EXCHANGE = Shared.Enums.ExchangeId.BINANCE_MARGIN;
+
+            TradeEngine.USE_TESTNET = true; //if true, must use spot as margin does not work on testnet
+
+            //restrict balance on testnet network for now also no need to trade everything each time on testnet, this makes testing more difficult anyway
+            //isolated margin is OK as it only has a testing balance initially but margin not available on testnet
+            TradeEngine.RESTRICTED_TRADE_VALUE = TradeEngine.USE_TESTNET ? 20 : 0; //if set to 1, the minimum will be used which 0.0001 BTC or about $8
+            
+
+            #region Connection
             MainObj.READ_LIVE_DATA = true; //if true, will update items live. If writing to DB, this is ignored
             MainObj.WRITE_TO_DB = true;
+            #endregion
+            
+            #region Leverage
+            TradeEngine.USE_FIXED_LEVERAGE = false; //if true, will use the default leverage for all trades, otherwise will calculate leverage from stop
+            TradeEngine.MIN_ALLOWED_LEVERAGE_SHORT = 1;
+            TradeEngine.MIN_ALLOWED_LEVERAGE_LONG = 1.333;
+            TradeEngine.MAX_ALLOWED_LEVERAGE = 3; //leverage cannot excede this
 
-            //Trading
-            TradeEngine.EXCHANGE = Shared.Enums.ExchangeId.BITMEX;
-            TradeEngine.USE_SIMULATED_EXCHANGE = false;
-            TradeEngine.RESTRICTED_TRADE_VALUE = 0;
+            //these min and max values are just the arbitrary ranges which the leverages are calculated from.
+            //The actual leverage value can be lower or higher than these values, but will never go outside MIN_ and MAX_ values above.
+            TradeEngine.STOP_MAX_VALUE = new Dictionary<double, double>
+            {
+              //{ timeframe, stop }
+              // these values are calculated against the MIN_LEVERAGE
+              // e.g. for a stop of 1%, the leverage will be 5 on 5-min
+                { 5, 1 },
+                { 60, 2.7 },
+            };           
+            TradeEngine.MIN_LEVERAGE = new Dictionary<double, double>
+            {
+              //{ timeframe, leverage }
+                { 5, 5 },
+                { 60, 2 },
+            };
 
+            TradeEngine.STOP_MIN_VALUE = new Dictionary<double, double>
+            {
+              //{ timeframe, stop }
+              // these values are calculated against the MAX_LEVERAGE
+              // e.g. for a stop of 0.5%, the leverage will be 10 on 5-min
+                { 5, 0.5 },
+                { 60, 1.35 },
+            };            
+            TradeEngine.MAX_LEVERAGE = new Dictionary<double, double>
+            {
+              //{ timeframe, leverage }
+                { 5, 10 },
+                { 60, 4 },
+            };
+
+            //leverage is always reset to this after a trade is closed, and before a new trade is opened. This is also the default leverage for all trades if USE_FIXED_LEVERAGE is true.
+            TradeEngine.DEFAULT_LEVERAGE = 5;
+
+            #endregion
+
+            #region stop loss
+            TradeEngine.STOP_LINE_PRICE_GAP_PC = 0;////this percent will be used to offset line for trade exit
+            TradeEngine.ENTRY_LINE_PRICE_GAP_PC = 0;//this percent will be used to offset line for trade entry
+            TradeEngine.STOPLINE_MIN_VALUE = 0.1; //if stopline is moved closer than this % to Order / Entry, this will trigger a UI warning
+            TradeEngine.MAX_STOP_LOSS = 1; //
+            #endregion
+
+            #region Trading
+            TradeEngine.FEE = 0.15; //percent, total for 2 trades
+            TradeEngine.MAX_ENTRY_DIFF_PERCENT = 0.1;
+            TradeEngine.INITIAL_TAKE_PROFIT_PERCENT_MARKET = 6; //will auto-set ceiling to this value - and it is then used in the OCO (Binance) will default to 10% if set to zero here
             TradeEngine.ENTRY_LINE_PRICE_GAP_PC = 0; //percent to offset trade entry lines
             TradeEngine.STOP_LINE_PRICE_GAP_PC = 0; //percent to offset trade stop lines
+            TradeEngine.MINIMUM_TRADE_TIME = TradeEngine.USE_TESTNET ? 0 : 15; //3 bars on 5min, really need a dictionary for this
+            #endregion
 
-            TradeEngine.INITIAL_TAKE_PROFIT_PERCENT_MARKET = 0;// 6; //will auto-set t/p if this value is set
-            TradeEngine.MAX_STOP_LOSS = 6; //leverage will scale to always target this as a stop loss if actual loss is greater from default leverage
-           
+            #region Display length and initial timeframe
+            MainObj.NUM_DAYS_TO_SHOW = 30;
+            MainObj.INITIAL_TIMEFRAME = 5;
+            #endregion
 
-            /* 
-             * Reason for not scaling leverage to stop depth:
-             * The first trade may scale to 5X, but that may likely fail, and the next may scale to less - 
-             *  with the market becoming more volatile before it breaks -
-             *  and this can happen a few times, so the final successful trade makes a loss against the previous failed trades.
-             * So it is better to just have a fixed leverage, and only scale it if the stop is excessive for some reason
-             * */
-            TradeEngineBitmex.MIN_LEVERAGE_SHORT = 1;
-            TradeEngineBitmex.MIN_LEVERAGE_LONG = 1.333;
-            TradeEngineBitmex.DEFAULT_LEVERAGE = 3;
-            TradeEngine.MINIMUM_TRADE_TIME = 0;
-
-            TradeEngine.STOP_MIN_VALUE = 5; //will move stop or floor to this value when trade enters, and will auto-set floor at this level if there is no floor
-            TradeEngine.MAX_ENTRY_DIFF_PERCENT = 0.5;
-
-
-            /*************************************************************/
-            /* Set correct domain in BitMEXAPI.cs */
-            /* API keys need 'Order', not 'Order Cancel' permission, as the latter is to only cancel orders */
-            /*************************************************************/
-
-            //never live here
-            TradeEngineBitmex.KEY = "p0Y99qfKEYSYjsXwNgvegSMp"; //TESTNET TRADING - testnet.bitmex.com
-            TradeEngineBitmex.SECRET = "G6HCrOwgYU0MlRXLY4JiHCYKjKIfltOOAhkdGEg5rM0JzfHc";
-            TradeEngineBitmex.DOMAIN = "https://testnet.bitmex.com";
-
-            //Bitmex has a maximum order price of 1000000, and a short stop will excede this even though the liquidation price will be set automatically to well above this maximum.
-            //Limit the value of any short stops, otherwise a Floor will not be set and this is just inconsistent even though it is rather pointless to set one anyway.
-            TradeEngine.MAX_SHORT_STOP = 500000;
-
-            //Display
-            MainObj.NUM_DAYS_TO_SHOW = 300;
-            MainObj.INITIAL_TIMEFRAME = 60;
         }
     }
 
