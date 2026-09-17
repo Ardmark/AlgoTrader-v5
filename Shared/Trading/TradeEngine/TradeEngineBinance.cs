@@ -554,19 +554,20 @@ namespace AlgoTrader.Shared
             var openOrders = GetOpenOrders();
             if (openOrders != null && openOrders.Count == 0)
             {
-                //if there are no open orders to cancel this will throw an exception hence the n
+                //if there are no open orders to cancel this will throw an exception
                 return true;
             }
             else
             {
                 try
                 {
+                    LogTrades.WriteLine("Cancelling open orders...");
                     var v = DeserializeToList(binanceAPI.CancelOpenOrdersAsync(GetCancelOrderData()).Result.AsArray());
                     return v != null && (v.Count == 0 || !v.Any(x => x.Status != null && x.Status != "CANCELED"));
                 }
                 catch (Exception ex)
                 {
-                     LogTrades.WriteLine($"Failed to deserialize CancelAllOpenOrders(...): {ex}");
+                    LogTrades.WriteLine($"Failed to deserialize CancelAllOpenOrders(...): {ex}");
                     return false;
                 }
             }
@@ -668,7 +669,7 @@ namespace AlgoTrader.Shared
                     Entry.TradeExecutionStatus = TradeExecutionStatus.OK;
                     SetUpdateRequest(Entry);
 
-                    if (IsTradeClosed())
+                    if (IsTradeClosed(Entry.Position))
                     {
                         //not accurate, there could be a minute elapsed since the stop triggered on the exchange
                         //BUT the app should have closed the trade locally by then.
@@ -702,58 +703,88 @@ namespace AlgoTrader.Shared
 
         #region Utility methods  
 
-        protected override bool IsTradeClosed()
+        protected override bool IsTradeClosed(TradePosition position)
         {
-            var exchangeInfo = GetExchangeInfo();
-            if (exchangeInfo != null)
+            #region Get lot size (this is incorrect, it returns 0.00001 when the min.lot size is 0.0001) but keep for reference
+            //var exchangeInfo = GetExchangeInfo();
+            //if (exchangeInfo != null)
+            //{
+            //    var __baseAsset = SymbolNames.GetBaseAssetForSymbol(symbolName);
+            //    if (__baseAsset != null)
+            //    {
+            //        var __symbol = exchangeInfo.Symbols.Where(x => x.Symbol == symbolName).FirstOrDefault();
+            //        if (__symbol != null)
+            //        {
+            //            var lotSize = __symbol.Filters.Where(x => x.FilterType == "LOT_SIZE").FirstOrDefault();
+            //            if (lotSize != null)
+            //            {
+            //                var accountData = GetAccountInfo();
+            //                var _minValue = lotSize.MinQty * 2; //it should always use the lot size notional value, same as MinQty, to calculate trade quantity so would only leave < MinQty but double this to be safe
+            //                var _baseAssetBalanceFree = accountData.Balances.Where(x => x.Asset == __baseAsset).Select(x => x.Free).FirstOrDefault();
+            //                var _baseAssetBalanceLocked = accountData.Balances.Where(x => x.Asset == __baseAsset).Select(x => x.Locked).FirstOrDefault();
+            //                return _baseAssetBalanceLocked < _minValue && _baseAssetBalanceFree < _minValue; //i.e there is no BTC
+            //            }
+            //        }
+            //    }
+            //}
+            #endregion
+
+
+            var __baseAsset = SymbolNames.GetBaseAssetForSymbol(symbolName);
+            if (__baseAsset != null)
             {
-                var __baseAsset = SymbolNames.GetBaseAssetForSymbol(symbolName);
-                if (__baseAsset != null)
-                {
-                    var __symbol = exchangeInfo.Symbols.Where(x => x.Symbol == symbolName).FirstOrDefault();
-                    if (__symbol != null)
-                    {
-                        var lotSize = __symbol.Filters.Where(x => x.FilterType == "LOT_SIZE").FirstOrDefault();
-                        if (lotSize != null)
-                        {
-                            var accountData = GetAccountInfo();
-                            var _minValue = lotSize.MinQty * 2; //it should always use the lot size notional value, same as MinQty, to calculate trade quantity so would only leave < MinQty but double this to be safe
-                            var _baseAssetBalanceFree = accountData.Balances.Where(x => x.Asset == __baseAsset).Select(x => x.Free).FirstOrDefault();
-                            var _baseAssetBalanceLocked = accountData.Balances.Where(x => x.Asset == __baseAsset).Select(x => x.Locked).FirstOrDefault();
-                            return _baseAssetBalanceLocked < _minValue && _baseAssetBalanceFree < _minValue; //i.e there is no BTC
-                        }
-                    }
-                }
+                var accountData = GetAccountInfo();
+                var _minValue = GetMinLotSize(); 
+                var _baseAssetBalanceFree = accountData.Balances.Where(x => x.Asset == __baseAsset).Select(x => x.Free).FirstOrDefault();
+                var _baseAssetBalanceLocked = accountData.Balances.Where(x => x.Asset == __baseAsset).Select(x => x.Locked).FirstOrDefault();
+                return _baseAssetBalanceLocked < _minValue && _baseAssetBalanceFree < _minValue; //i.e there is no BTC
             }
+                        
             return false;
         }
 
-        protected double GetRestrictedBalance(double balance, double lastQuoteValue)
-        {
-            var balanceToTrade = RESTRICTED_TRADE_VALUE > 0 ? RESTRICTED_TRADE_VALUE : balance;
-            if (RESTRICTED_TRADE_VALUE > 0) //get the minimum tradeable amount of the quote asset expressed in base asset (i.e. BTC -> USDT)
-            {
-                var _minValue = 0.0001; //no idea where this comes from, not in exchange info etc. but it is the minimum trade amount BTC
-                _minValue *= 1.1; //to be sure it will enter, although it does on 0.0001 anyway
-                balanceToTrade = _minValue * lastQuoteValue;
-                if (RESTRICTED_TRADE_VALUE > balanceToTrade)
-                {
-                    balanceToTrade = RESTRICTED_TRADE_VALUE;
-                }
-            }
-            return balanceToTrade;
-        }
-        //Get the correct precision for a trade and return the amended amount, this is for the base asset (USDT)
-        //Note, the symbol will be BTCUSDT, all the symbols are trading pairs
-        //All trades are in base asset, both sell and buy (e.g. BTC)
-        protected override double GetBalanceToEnterTrade(double freeBalance, double lastQuoteValue, TradePosition position = TradePosition.LONG)
-        {
-            var balanceToTrade = GetRestrictedBalance(freeBalance, lastQuoteValue);
+        #region Get minimum lot size and price filter
 
-            var fiatAmount = balanceToTrade / lastQuoteValue;
+        #region Unused - get lot size (returns 0.00001 when the minimum is actually 0.0001) and price filter from exchange info
+        //var exchangeInfo = GetExchangeInfo();
+        //if (exchangeInfo != null)
+        //{
+        //    var __symbol = exchangeInfo.Symbols.Where(x => x.Symbol == symbolName).FirstOrDefault();
+        //    if (__symbol != null)
+        //    {
+        //        var lotSize = __symbol.Filters.Where(x => x.FilterType == "LOT_SIZE").FirstOrDefault();
+        //        if (lotSize != null)
+        //        {
+        //            _minValueBase = lotSize.MinQty;
+        //        }
+        //        var priceFilter = __symbol.Filters.Where(x => x.FilterType == "PRICE_FILTER").FirstOrDefault();
+        //        if (priceFilter != null)
+        //        {
+        //            _minValueQuote = priceFilter.TickSize;
+        //        }
+        //    }
+        //}
+        #endregion
 
-            return GetCorrectPrecisionForBaseAssetTrade(fiatAmount);       
+        const double minLotSize = 0.0001;
+        protected double GetMinLotSize()
+        {
+            return minLotSize;
         }
+        protected double GetMinPriceFilter()
+        {
+            return minLotSize * GetLastPrice();
+        }
+        protected double GetRestrictedBalanceBase(double balance)
+        {
+            return RESTRICT_TRADE_VALUE ? GetMinLotSize() : balance;
+        }
+        protected double GetRestrictedBalanceQuote(double balance)
+        {
+            return RESTRICT_TRADE_VALUE ? GetMinPriceFilter() : balance;
+        }
+
+        #endregion
 
         //Get the correct precision for a base asset trade and return the amended amount, this is for the base asset
         //Note, the symbol will be BTCUSDT, all the symbols are trading pairs

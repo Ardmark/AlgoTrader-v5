@@ -4,9 +4,9 @@ using AlgoTrader.Shared.Interfaces;//Backtest requires this
 
 namespace AlgoTrader.Shared
 {
-    public class BinanceMarginAPI : BinanceAPI, IBinanceAPI
+    public class BinanceIsolatedMarginAPI : BinanceAPI, IBinanceAPI
     {
-        public BinanceMarginAPI(string key = null,
+        public BinanceIsolatedMarginAPI(string key = null,
             string secret = null,
             long? recvWindow = null, //number of milliseconds after timestamp the request is valid for, defaults to 5000
             int timeoutMs = 15000,

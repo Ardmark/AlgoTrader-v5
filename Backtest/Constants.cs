@@ -18,15 +18,13 @@ namespace AlgoTrader.Windows
 
             #endregion
 
-            TradeEngine.EXCHANGE = Shared.Enums.ExchangeId.BINANCE_SPOT;
-            //TradeEngine.EXCHANGE = Shared.Enums.ExchangeId.BINANCE_MARGIN;
+            //TradeEngine.EXCHANGE = Shared.Enums.ExchangeId.BINANCE_SPOT;
+            TradeEngine.EXCHANGE = Shared.Enums.ExchangeId.BINANCE_MARGIN;
 
-            TradeEngine.USE_TESTNET = true; //if true, must use spot as margin does not work on testnet
+            TradeEngine.USE_TESTNET = false; //if true, must use spot as margin does not work on testnet
 
-            //restrict balance on testnet network for now also no need to trade everything each time on testnet, this makes testing more difficult anyway
-            //isolated margin is OK as it only has a testing balance initially but margin not available on testnet
-            TradeEngine.RESTRICTED_TRADE_VALUE = TradeEngine.USE_TESTNET ? 20 : 0; //if set to 1, the minimum will be used which 0.0001 BTC or about $8
-            
+            TradeEngine.RESTRICT_TRADE_VALUE = true; //set in binance.cs, this is 0.0001 BTC - the lot size filter is incorrect
+          
 
             #region Connection
             MainObj.READ_LIVE_DATA = true; //if true, will update items live. If writing to DB, this is ignored
@@ -35,9 +33,10 @@ namespace AlgoTrader.Windows
             
             #region Leverage
             TradeEngine.USE_FIXED_LEVERAGE = false; //if true, will use the default leverage for all trades, otherwise will calculate leverage from stop
-            TradeEngine.MIN_ALLOWED_LEVERAGE_SHORT = 1;
-            TradeEngine.MIN_ALLOWED_LEVERAGE_LONG = 1.333;
-            TradeEngine.MAX_ALLOWED_LEVERAGE = 10; //leverage cannot excede this
+
+            TradeEngine.MIN_ALLOWED_LEVERAGE_SHORT = 1; //needs to be higher if you are trading a derivative so are always holding BTC
+            TradeEngine.MIN_ALLOWED_LEVERAGE_LONG = 1;
+            TradeEngine.MAX_ALLOWED_LEVERAGE = 3; //leverage cannot excede this
 
             //these min and max values are just the arbitrary ranges which the leverages are calculated from.
             //The actual leverage value can be lower or higher than these values, but will never go outside MIN_ and MAX_ values above.

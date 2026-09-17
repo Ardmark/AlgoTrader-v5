@@ -359,7 +359,7 @@ namespace AlgoTrader.Shared
                                 AddPanel(tradeEngine = new TradeEngineBinanceSpot(s, 0), panels); //must be added before market and auto order panels, so as to get active trade before other panels are added
                                 break;
                             case ExchangeId.BINANCE_MARGIN:
-                                AddPanel(tradeEngine = new TradeEngineBinanceMargin(s, 0), panels); //must be added before market and auto order panels, so as to get active trade before other panels are added
+                                AddPanel(tradeEngine = new TradeEngineBinanceIsolatedMargin(s, 0), panels); //must be added before market and auto order panels, so as to get active trade before other panels are added
                                 break;
 
                         }
@@ -897,12 +897,6 @@ namespace AlgoTrader.Shared
             allItems = null;
 
             #endregion
-
-            foreach (var s in SymbolNames.GetSymbolNames())
-            {
-                var tradeEngine = GetTradeEngineForSymbol(s);
-                tradeEngine.InitLiveUpdateTimer();
-            }
 
             //finish any UI init here
             Application.Current.Dispatcher.Invoke(() =>

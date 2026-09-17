@@ -949,6 +949,11 @@ namespace AlgoTrader.Live.ViewModels
                 #region Set price break order (Short)
                 () =>
                 {
+                    if (TradeEngine.EXCHANGE == ExchangeId.BINANCE_SPOT)
+                    {
+                        AlertDialog.Show("Short orders not available on spot market");
+                        return;
+                    }
                     if (MainObj.invertChart)
                     {
                         ShowInvertedChartWarning();
@@ -1015,7 +1020,10 @@ namespace AlgoTrader.Live.ViewModels
                         else
                         {
                             var leverage = TradeEngine.Leverage;
-                            AlertDialog.ShowCallback($"This LONG order will execute immediately at user-defined leverage of {leverage}. Do you want to continue?", "Set Long Market order?", (ret) =>
+                            var msg = TradeEngine.EXCHANGE == ExchangeId.BINANCE_MARGIN
+                                    ? $"This LONG order will execute immediately at user-defined leverage of {leverage}. Do you want to continue?"
+                                    : $"This order will execute immediately. Do you want to continue?";
+                            AlertDialog.ShowCallback(msg, "Set Long Market order?", (ret) =>
                             {
                                 if (ret)
                                 {
@@ -1039,6 +1047,11 @@ namespace AlgoTrader.Live.ViewModels
                 #region Set Market order (Short)
                 () =>
                 {
+                    if (TradeEngine.EXCHANGE == ExchangeId.BINANCE_SPOT)
+                    {
+                        AlertDialog.Show("Short orders not available on spot market");
+                        return;
+                    }
                     if (MainObj.invertChart)
                     {
                         ShowInvertedChartWarning();
@@ -1874,7 +1887,7 @@ namespace AlgoTrader.Live.ViewModels
         public void SetWindowTitle()
         {
             var executionType = TradeEngine.USE_TESTNET ? "TESTNET TRADING" : "LIVE TRADING ";
-            var orderLimit = TradeEngine.RESTRICTED_TRADE_VALUE > 0 ? $" | ${TradeEngine.RESTRICTED_TRADE_VALUE} trade limit " : "";
+            var orderLimit = TradeEngine.RESTRICT_TRADE_VALUE ? $" |Trade restricted to minimum lot size " : "";
             var exchange = TradeEngine.EXCHANGE.GetEnumDisplayName();
             string title = $"{exchange} " + (TradeEngine.USE_SIMULATED_EXCHANGE ? "using SIMULATED EXCHANGE" : $"{executionType} | {TradeEngine.Leverage}X market leverage | {TradeEngine.MAX_STOP_LOSS}% fixed max. loss {orderLimit}");
             SetProperty("WindowTitle", title);

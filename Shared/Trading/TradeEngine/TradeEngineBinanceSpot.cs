@@ -127,7 +127,7 @@ namespace AlgoTrader.Shared
         }
         #endregion
 
-        protected override double GetFreeBaseAssetBalance() 
+        protected override double BalanceToCloseTrade(TradePosition position) 
         {
             //e.g. BTCUSDT - BTC is the base asset, USDT is the quote asset
 
@@ -140,7 +140,11 @@ namespace AlgoTrader.Shared
                 if (accountData != null)
                 {
                     var symbol = SymbolNames.GetBaseAssetForSymbol(symbolName);
-                    return (double)accountData?.Balances.FirstOrDefault(x => x.Asset == symbol)?.Free;
+                    var quoteAssetBalance = (double)accountData?.Balances.FirstOrDefault(x => x.Asset == symbol)?.Free;
+
+                    quoteAssetBalance = GetRestrictedBalanceQuote(quoteAssetBalance);
+                    
+                    return quoteAssetBalance;
                 }
                 
             }
@@ -151,65 +155,40 @@ namespace AlgoTrader.Shared
             }
             return 0;
         }
-        
-        protected override double GetBalanceToEnterTrade(double freeBalance, double lastQuoteValue, TradePosition position = TradePosition.LONG)
+
+        protected override double BalanceNet()
         {
-            var balanceToTrade = GetRestrictedBalance(freeBalance, lastQuoteValue);
-
-            var fiatAmount = balanceToTrade / lastQuoteValue;
-
-            return GetCorrectPrecisionForBaseAssetTrade(fiatAmount);       
+            (var netBalance, var leveragedBalance) =  BalanceToEnterTrade(GetLastPrice(), TradePosition.LONG);
+            return netBalance;
         }
 
-        protected override (double freeBalance, double totalEquity) GetTotalEquity() //e.g. USDT, BTC
+        protected override (double, double) BalanceToEnterTrade(double lastQuoteValue, TradePosition position) //e.g. USDT, BTC
         {
             try
             {
                 var accountData = GetAccountInfo();
 
-                //e.g. BTCUSDT - BTC is the base asset, USDT is the quote asset
-
-                double totalEquity = 0;
-                double freeEquity = 0;
-
                 //can really ignore locked amount, this is just for trades placed on the exchange which have not yet entered
-
-
-                /*************/
-                /* Note, this only tests for BTC and USDT since testnet has every symbol with some asset valuu */
-                foreach (var v in accountData.Balances.Where(x => x.Asset == SymbolNames.FIAT_ASSET || x.Asset == "BTC" && (x.Free > 0 || x.Locked > 0)))
+                var v = accountData.Balances.FirstOrDefault(x => x.Asset == SymbolNames.FIAT_ASSET);
+                double freeEquity = v != null ? v.Free : 0;
+                if (freeEquity == 0)
                 {
-                    if (SymbolNames.SYMBOLS_TO_EXCLUDE.Contains(v.Asset))
-                    {
-                        continue;
-                    }
-
-                    if (v.Asset == SymbolNames.FIAT_ASSET)
-                    {
-                        //e.g. USDT
-                        totalEquity += v.Free + v.Locked;
-                        freeEquity += v.Free;
-                        //resultMsg += $"{v.Asset}:\t{pc.ToString("0.0")}%\t\t${value.ToString("0.00")}\n";
-                    }
-                    else if (v.Free + v.Locked > 0)
-                    {
-                        var price = GetLastPrice();
-                        totalEquity += (v.Free + v.Locked) * price;
-                        freeEquity += v.Free * price;
-                    }
+                    return (0, 0);
                 }
-                
-                return (Math.Round(freeEquity, 2), Math.Round(totalEquity, 2));
+                var baseBalance = freeEquity / lastQuoteValue;
+                var balanceToTrade = GetRestrictedBalanceBase(baseBalance);
+                return (Math.Round(freeEquity, 2), GetCorrectPrecisionForBaseAssetTrade(balanceToTrade));
             }
             catch (Exception e)
             {
-                LogTrades.WriteLine($"Error getting account info: {e.Message}");
+                LogTrades.WriteLine($"Error getting balance to enter trade: {e.Message}");
                 return (0, 0);
             }
         }
 
-        protected override bool IsTradeClosed()
+        protected override bool IsTradeClosed(TradePosition position)
         {
+            var ret = false;
             var exchangeInfo = GetExchangeInfo();
             if (exchangeInfo != null)
             {
@@ -225,13 +204,14 @@ namespace AlgoTrader.Shared
                             var accountData = GetAccountInfo();
                             var _minValue = lotSize.MinQty * 2; //it should always use the lot size notional value, same as MinQty, to calculate trade quantity so would only leave < MinQty but double this to be safe
                             var _baseAssetBalanceFree = accountData.Balances.Where(x => x.Asset == __baseAsset).Select(x => x.Free).FirstOrDefault();
-                            var _baseAssetBalanceLocked = accountData.Balances.Where(x => x.Asset == __baseAsset).Select(x => x.Locked).FirstOrDefault();
-                            return _baseAssetBalanceLocked < _minValue && _baseAssetBalanceFree < _minValue; //i.e there is no BTC
+                            //var _baseAssetBalanceLocked = accountData.Balances.Where(x => x.Asset == __baseAsset).Select(x => x.Locked).FirstOrDefault();
+                            ret = _baseAssetBalanceFree < _minValue; //i.e there is no BTC
                         }
                     }
                 }
             }
-            return false;
+
+            return ret;
         }
 
         public override void ShowAccountBalances()

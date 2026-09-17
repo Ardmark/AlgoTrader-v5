@@ -83,7 +83,7 @@ namespace AlgoTrader.Shared
         public static int MAX_TRADES_PER_24_HOURS { get; set; } = 10;
         public static int MAX_CONCURRENT_TRADES { get; set; } = 1;
         public static int MINIMUM_TRADE_TIME { get; set; } = 60;
-        public static double RESTRICTED_TRADE_VALUE { get; set; } = 0;
+        public static bool RESTRICT_TRADE_VALUE { get; set; } = false;
         public static double MAX_ENTRY_DIFF_PERCENT { get; set; } = 0; //in Order.cs so must be shared: maximum allowable difference for an order or flip to happen; more than this, the trade won't enter
         public static double ENTRY_LINE_PRICE_GAP_PC { get; set; } = 0; //this percent will be used to offset line for trade entry
         public static double STOP_LINE_PRICE_GAP_PC { get; set; } = 0; //this percent will be used to offset line for trade
@@ -692,13 +692,13 @@ namespace AlgoTrader.Shared
         protected abstract bool CancelOpenOrders();
         protected abstract void UpdateLiveState();
         protected abstract double GetLastPrice();
-        protected abstract double GetBalanceToEnterTrade(double freeBalance, double lastQuoteValue, TradePosition position);
         protected abstract bool SendOrder(TradePosition position, double orderQuantity, string orderId, Side side, out double averagePrice, out double executedQuantity);
         protected abstract double GetCorrectPrecisionForBaseAssetTrade(double balanceToTrade);
-        protected abstract (double freeBalance, double totalEquity) GetTotalEquity();
-        protected abstract double GetFreeBaseAssetBalance();
+        protected abstract double BalanceNet();
+        protected abstract (double, double) BalanceToEnterTrade(double lastQuoteValue, TradePosition position);
+        protected abstract double BalanceToCloseTrade(TradePosition position);
         protected abstract bool InitForEntryOrClose();
-        protected abstract bool IsTradeClosed();
+        protected abstract bool IsTradeClosed(TradePosition position);
         #endregion
 
         #region Run orders
@@ -708,6 +708,9 @@ namespace AlgoTrader.Shared
         {
             //when called directly from ItemUpdated, this will run live trade
             //when called for backtesting, will exit the test session when this returns false
+
+            //IsTradeClosed(TradePosition.SHORT);
+            //IsTradeClosed(TradePosition.LONG);
 
             bool redrawRequired = false;
             bool ret = false; //this is for returning from backtest loop, so default is to continue backtesting when exiting from tp, stop etc.
@@ -1050,7 +1053,7 @@ namespace AlgoTrader.Shared
             return (false, false);
         }
 
-        public virtual async void EnterTradeOnExchange()
+        public async void EnterTradeOnExchange()
         {
             #region Test for OK to start entry
             
@@ -1092,36 +1095,10 @@ namespace AlgoTrader.Shared
 
             #endregion
 
-            ResetLiveUpdateTimer();
+            StopLiveUpdateTimer();
 
             LogTrades.WriteLine($"Starting new {Order.Position} order:");
-
-            #region Get balance to trade
-            LogTrades.WriteLine("Getting equity...");
-            (var freeBalance, var totalEquity) = GetTotalEquity(); //totalEquity is in $, only used for a record in the Entry object
-            if (freeBalance <= 0)
-            {
-                LogTrades.WriteLine($"Could not get free balance for {symbolName}, terminating Entry");
-                KillEntryOrCloseOrder(true);
-                return;
-            }
-            freeBalance = USE_TESTNET ? Math.Min(freeBalance, 50) : freeBalance;
-            #endregion
-
-            #region Generate Entry
-            Entry = Order.Clone(); //item status will be open
-            Entry.ItemId = _Trade.GetNewTradeId(); //set the client-assigned Id (could wait for the binance-assigned one instead) but this way, can query status even if no confirmation yet received
-            Entry.Action = TradeAction.ENTRY;
-            Entry.Price = lastQuoteValue;
-            Entry.TradeExchangeStatus = TradeExchangeStatus.ENTERED_OFF_EXCHANGE; //only set live when it actually returns from exchange
-            Entry.Timestamp = GetTimeStamp();
-            Entry.Id = 0; //so it will get added
-            Entry.Balance = freeBalance;
-            Entry.Equity = totalEquity;
-            Entry.TradeReference = Order.TradeReference;//shared with all trades in this group
-            SetUpdateRequest(Entry);
-            #endregion
-
+            
             #region Calculate stop and take profit prices
 
             //need the closest of the current stop or opposing trade. If neither found, use the minimum stop value
@@ -1168,16 +1145,61 @@ namespace AlgoTrader.Shared
                 }
             }
 
-            #endregion
+            #endregion         
 
-            #region Calculate Leverage
+            #region Calculate Leverage and clamp to min / max levels
 
             //if a stop line is present, the leverage will be calculated from that, base on the range of stop values and leverages
             // for the timeframe. If no stop line is present, the leverage will be whatever is currently set in the UI
             Leverage = Stop != null ? CalculateLeverageFromPercent(stopPercent, Entry.Position) : Leverage;
 
-            //save the calculated leverage, even if we are not using it
-            Order.Leverage = Entry.Leverage = Leverage;
+            if (Order.Position == TradePosition.LONG) {
+                if (Leverage < MIN_ALLOWED_LEVERAGE_LONG) {
+                    LogTrades.WriteLine($"Calculated leverage less than {MIN_ALLOWED_LEVERAGE_LONG}, will be clamped");
+                }
+            }
+            else {
+                if (Leverage < MIN_ALLOWED_LEVERAGE_SHORT) {
+                    LogTrades.WriteLine($"Calculated leverage less {MIN_ALLOWED_LEVERAGE_SHORT}, will be clamped");
+                }
+            }
+            if (Leverage > MAX_ALLOWED_LEVERAGE) {
+                LogTrades.WriteLine($"Calculated leverage greater than {MAX_ALLOWED_LEVERAGE}, will be clamped");
+            }
+
+            Leverage = Math.Clamp(Leverage, Order.Position == TradePosition.LONG ? MIN_ALLOWED_LEVERAGE_LONG : MIN_ALLOWED_LEVERAGE_SHORT, MAX_ALLOWED_LEVERAGE);
+
+            LogTrades.WriteLine($"Leverage is {Leverage}X");
+
+            #endregion
+
+            #region Get balance to trade
+
+            LogTrades.WriteLine("Getting balance for trade...");
+   
+            (var netBalanceQuote, var tradeAmountBase) = BalanceToEnterTrade(lastQuoteValue, Order.Position);
+            if (tradeAmountBase == 0)
+            {
+                LogTrades.WriteLine($"Failed to get trade amount, terminating Entry");
+                KillEntryOrCloseOrder(true);
+                return;
+            }
+
+            #endregion
+
+            #region Generate Entry
+
+            Entry = Order.Clone(); //item status will be open
+            Entry.ItemId = _Trade.GetNewTradeId(); //set the client-assigned Id (could wait for the binance-assigned one instead) but this way, can query status even if no confirmation yet received
+            Entry.Action = TradeAction.ENTRY;
+            Entry.Price = lastQuoteValue;
+            Entry.TradeExchangeStatus = TradeExchangeStatus.ENTERED_OFF_EXCHANGE; //only set live when it actually returns from exchange
+            Entry.Timestamp = GetTimeStamp();
+            Entry.Id = 0; //so it will get added
+            Entry.Equity = netBalanceQuote;
+            Entry.TradeReference = Order.TradeReference;//shared with all trades in this group
+            Entry.Leverage = Order.Leverage = Leverage; //leverage may have been changed by max borrow amount
+            SetUpdateRequest(Entry);
 
             #endregion
 
@@ -1185,17 +1207,9 @@ namespace AlgoTrader.Shared
 
             Order.TradeExchangeStatus = Entry.TradeExchangeStatus = TradeExchangeStatus.ENTERING_ON_EXCHANGE;
 
-            var tradeAmount = GetBalanceToEnterTrade(freeBalance, lastQuoteValue, Order.Position);
-            if (tradeAmount == 0)
-            {
-                LogTrades.WriteLine($"Failed to get trade amount, terminating Entry");
-                KillEntryOrCloseOrder(true);
-                return;
-            }
+            LogTrades.WriteLine($"Placing buy order of {tradeAmountBase}, adjusted for step size, at {DateTime.Now}...");
 
-            LogTrades.WriteLine($"Placing buy order of {tradeAmount}, adjusted for step size, at {DateTime.Now}...");
-
-            bool accepted = SendOrder(Entry.Position, tradeAmount, Entry.ItemId, Side.ENTER, out double averagePrice, out double executedQuantity);
+            bool accepted = SendOrder(Entry.Position, tradeAmountBase, Entry.ItemId, Side.ENTER, out double averagePrice, out double executedQuantity);
             if (!accepted)
             {
                 LogTrades.WriteLine("Order not accepted, terminating Entry");
@@ -1212,14 +1226,6 @@ namespace AlgoTrader.Shared
             var currentTradeIndicator = GetCurrentTradeIndicator(Order);
 
             //get the EF tracked trade - if this is a live entry, will be using a different data context to the one the parameter is running on
-
-            if (Entry == null)
-            {
-                //if not trading live, will bypass exchange (if not using simulator) and come straight here, so no entry yet
-                Entry = Order.Clone();
-                Entry.Action = TradeAction.ENTRY;
-                Entry.Timestamp = GetTimeStamp();
-            }
 
             Entry.Price = Order.Price = averagePrice;
             Entry.Quantity = Order.Quantity = executedQuantity; //set both the entry and order quantity, as either may be used when closing, etc.
@@ -1274,6 +1280,8 @@ namespace AlgoTrader.Shared
             MainObj.DrawCurrentDispatcher();
 
             tradeStatusChanged = true;
+
+            InitLiveUpdateTimer();
         }
 
         #endregion
@@ -1465,16 +1473,20 @@ namespace AlgoTrader.Shared
             }
             #endregion
 
-            ResetLiveUpdateTimer();
-
-            LogTrades.WriteLine("Cancelling open orders.");
+            StopLiveUpdateTimer();
 
             CancelOpenOrders();
 
             #region Get balance to trade
+
             //if the base asset balance is very small, assume the trade has exited on the exchange, so go no further
 
-            var coinBalance = GetFreeBaseAssetBalance();
+            double coinBalance = BalanceToCloseTrade(Entry.Position);
+            if (coinBalance == 1)
+            {
+                return;
+            }
+
             #endregion
 
             LogTrades.WriteLine($"Closing order for {symbolName}...");
@@ -1482,7 +1494,7 @@ namespace AlgoTrader.Shared
             double closePrice = currentDataItem.Close; //default value
             var _baseAsset = SymbolNames.GetBaseAssetForSymbol(symbolName);
 
-            if (IsTradeClosed())
+            if (IsTradeClosed(Entry.Position))
             {
                 LogTrades.WriteLine($"No {_baseAsset} to sell, trade has already closed on exchange.");
             }
@@ -1493,6 +1505,7 @@ namespace AlgoTrader.Shared
                 LogTrades.WriteLine($"Using received balance of {coinBalance} {_baseAsset}");
 
                 #region Generate close order
+
                 if (Close == null)
                 {
                     Close = Order.Clone();
@@ -1501,6 +1514,7 @@ namespace AlgoTrader.Shared
                     Close.Timestamp = GetTimeStamp();
                 }
                 Close.Quantity = GetCorrectPrecisionForBaseAssetTrade(coinBalance);
+
                 #endregion
 
                 #region Place order     
@@ -1508,11 +1522,6 @@ namespace AlgoTrader.Shared
                 LogTrades.WriteLine($"Placing sell order of {Close.Quantity}, adjusted for step size, at {DateTime.Now}...");
 
                 bool accepted = SendOrder(Close.Position, Close.Quantity, Close.ItemId, Side.CLOSE, out closePrice, out double executedQuantity);
-                //if (!accepted)
-                //{
-                //    KillEntryOrCloseOrder(true);
-                //    return;
-                //}
 
                 if (accepted)
                 {
@@ -1528,6 +1537,7 @@ namespace AlgoTrader.Shared
             var closeItemId = Close.ItemId; //need this later for conversion rate
 
             #region Set flip from opposing trade
+
             if (triggeringTrade != null)
             {
                 var triggeringTradeId = triggeringTrade.Id;
@@ -1541,14 +1551,17 @@ namespace AlgoTrader.Shared
                 LogTrades.WriteLine($"Flipping order if possible...");
                 EnterTradeOnExchange(); //and that's all there is to it.
             }
+
             #endregion
 
             #region Get exchange rate
+
             //this will cause synchronisation to exit BEFORE this awaitable method completes,
             // so CANNOT have any synched objects accessed after this (like Close, etc.)
             LogTrades.WriteLine("Getting exchange conversion rate...");
             var gbp = await GetConversionRate(closeItemId);
             LogTrades.WriteLine($"Conversion rate received of {gbp.ToString("F2")}, trade close complete!");
+
             #endregion
 
             MainObj.DrawCurrentDispatcher();
@@ -1584,7 +1597,7 @@ namespace AlgoTrader.Shared
             Close.Price = (double)price;
             Close.ItemStatus = TradeItemStatus.CLOSED;
             Close.GlobalStatus = TradeGlobalStatus.STOPPED;
-            (_, Close.Balance) = GetTotalEquity();
+            Close.Balance = BalanceNet();
 
             if (Entry.Price != 0) //if so Result will be infinity and db.SaveChanges() will throw exception
             {
@@ -1695,7 +1708,7 @@ namespace AlgoTrader.Shared
             UpdateLiveState();
         }
 
-        protected void ResetLiveUpdateTimer()
+        protected void StopLiveUpdateTimer()
         {
             if (timer != null)
             {
@@ -1703,7 +1716,6 @@ namespace AlgoTrader.Shared
                 timer.Dispose();
                 timer = null;
             }
-            InitLiveUpdateTimer();
         }
 
         #endregion
@@ -1736,30 +1748,9 @@ namespace AlgoTrader.Shared
             var levReduction = (stopPC - minStop) / stopScale; //how much the leverage should be reduced from the max. value
             var leverage = maxLev - levReduction; //the leverage to use for this stop value
             leverage = Math.Round(leverage, 2); //just too much precision to display otherwise
-            var v = Math.Clamp(leverage, position == TradePosition.LONG ? MIN_ALLOWED_LEVERAGE_LONG : MIN_ALLOWED_LEVERAGE_SHORT, MAX_ALLOWED_LEVERAGE);
             LogTrades.WriteLine($"Stop is at {stopPC}%");
-            if (position == TradePosition.LONG)
-            {
-                if (leverage < MIN_ALLOWED_LEVERAGE_LONG)
-                {
-                    LogTrades.WriteLine($"Calculated leverage less than {MIN_ALLOWED_LEVERAGE_LONG}, will be clamped");
-                }
-            }
-            else
-            {
-                if (leverage < MIN_ALLOWED_LEVERAGE_SHORT)
-                {
-                    LogTrades.WriteLine($"Calculated leverage less {MIN_ALLOWED_LEVERAGE_SHORT}, will be clamped");
-                }
-            }
-            if (leverage > MAX_ALLOWED_LEVERAGE)
-            {
-                LogTrades.WriteLine($"Calculated leverage greater than {MAX_ALLOWED_LEVERAGE}, will be clamped");
-            }
-            LogTrades.WriteLine($"Leverage is {v}X");
-
-
-            return v;
+           
+            return leverage;
 
             //This algorithm attempts to set the leverage so the maximum allowed loss is always the same.
             //For small initial stops, the leverage may be outside of the max. allowed leverage, so that will clamp the leverage and reduce the

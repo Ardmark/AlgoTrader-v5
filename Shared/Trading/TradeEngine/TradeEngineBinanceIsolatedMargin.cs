@@ -22,7 +22,7 @@ namespace AlgoTrader.Shared
     *  
     * */
 
-    public class TradeEngineBinanceMargin : TradeEngineBinance
+    public class TradeEngineBinanceIsolatedMargin : TradeEngineBinance
     {
         #region Strings
         public const string TRUE = "true";
@@ -139,9 +139,9 @@ namespace AlgoTrader.Shared
         #endregion
 
         #region Init
-        public TradeEngineBinanceMargin(string symbolName, int timeInterval) : base(symbolName, timeInterval) 
+        public TradeEngineBinanceIsolatedMargin(string symbolName, int timeInterval) : base(symbolName, timeInterval) 
         {
-            binanceAPI = new BinanceMarginAPI
+            binanceAPI = new BinanceIsolatedMarginAPI
                          (
                               LIVE_KEY,
                               LIVE_SECRET,
@@ -299,136 +299,171 @@ namespace AlgoTrader.Shared
         }
         #endregion
 
-        protected override double GetFreeBaseAssetBalance()
-        {
-            //e.g. BTCUSDT - BTC is the base asset, USDT is the quote asset
-
-            var response = Deserialize<IsolatedMarginAccountData>(binanceAPI.QueryIsolateMarginAccountInfoAsync().Result);
-            if (response == null)
-            {
-                return 0;
-            }
-            var baseAsset = response.GetBaseAsset(symbolName);
-            return baseAsset != null ? baseAsset.Free : 0;
-        }
-
-        protected override double GetBalanceToEnterTrade(double freeBalance, double lastQuoteValue, TradePosition position)
+        //return netBalance in USDT, leveragedBalance in BTC
+        protected override (double, double) BalanceToEnterTrade(double lastQuoteValue, TradePosition position)
         {
             //Get the correct precision for a trade and return the amended amount, this is for the base asset (USDT)
             //All trades are in base asset, both sell and buy (e.g. BTC)
             var response = Deserialize<IsolatedMarginAccountData>(binanceAPI.QueryIsolateMarginAccountInfoAsync().Result);
             if (response == null)
             {
-                return 0;
+                return (0, 0);
             }
-            var baseAsset = response.GetBaseAsset(symbolName);
-            var quoteAsset = response.GetQuoteAsset(symbolName);
-            var assetData = response.GetAssetData(symbolName);
-            if (baseAsset == null || quoteAsset == null || assetData == null)
+
+            var netAsset = response.TotalNetAssetOfBtc; //this is always in BTC
+            if (netAsset == 0)
             {
-                return 0;
+                LogTrades.WriteLine("No net asset to trade.");
+                return (0, 0);
             }
 
-            //with margin trading, the balance is leverage-derived rather than setting a leverage value on the exchange
-            var marginLevel = Math.Clamp(assetData.MarginLevel, Leverage, 10);
+            var leveragedAmount = Leverage * netAsset; //in base asset BTC
 
-            if (marginLevel < 10)
+            var balanceToTrade = GetRestrictedBalanceBase(leveragedAmount);
+
+            var data1 = new Dictionary<string, string>
             {
-                LogTrades.WriteLine($"*** Asset data margin level returned {marginLevel}, which is less than the assumed level of 10");
-            }
+                { "asset", "BTC" },
+                { "isolatedSymbol", "BTCUSDT" }
+            };
 
-            var leveragedAmount = Leverage / marginLevel * quoteAsset.Free;
-
-            double orderQuantity = 0;
-            switch (position)
-            {
-                case TradePosition.LONG:
-
-                    double orderQuantityBuy = base.GetBalanceToEnterTrade(leveragedAmount, GetLastPrice());
-
-                    var data1 = new Dictionary<string, string>
-                    {
-                        { "asset", "BTC" },
-                        { "isolatedSymbol", "BTCUSDT" }
-                    };
-
-                    //get the max borrow limit - this is not fixed, it is dependent on your current equity so get it each time
-                    double maxBorrowLimit = 0;
-                    var response1 = Deserialize<MaxBorrowData>(binanceAPI.QueryMaxBorrowAsync(data1).Result);
-                    if (response != null)
-                    {
-                        double.TryParse(response1.Amount, out maxBorrowLimit);
-                    }
-
-                    if (orderQuantityBuy > maxBorrowLimit)
-                    {
-                        LogTrades.WriteLine($"*** Max borrow limit EXCEEDED, required amount was ${orderQuantityBuy} but limit is ${maxBorrowLimit}");  
-                    }
-                    if (maxBorrowLimit > 0)
-                    {
-                        orderQuantity = GetCorrectPrecisionForBaseAssetTrade(Math.Min(maxBorrowLimit, orderQuantityBuy));
-                    }
-                    break;
-                case TradePosition.SHORT:
-                    orderQuantity = GetCorrectPrecisionForBaseAssetTrade(baseAsset.Free);
-                    break;
-            }
-
-            return orderQuantity;
-        }
-
-        protected override (double freeBalance, double totalEquity) GetTotalEquity() //e.g. USDT, BTC
-        {
-            var response = Deserialize<IsolatedMarginAccountData>(binanceAPI.QueryIsolateMarginAccountInfoAsync().Result);
+            //get the max borrow limit - this is not fixed, it is dependent on your current equity so get it each time
+            double maxBorrowLimit = 0;
+            var response1 = Deserialize<MaxBorrowData>(binanceAPI.QueryMaxBorrowAsync(data1).Result);
             if (response != null)
             {
-                var baseAsset = response.GetBaseAsset(symbolName);
-                var quoteAsset = response.GetQuoteAsset(symbolName);
-
-                if (baseAsset != null && quoteAsset != null)
-                {
-                    var price = GetLastPrice();
-                    var freeEquity = baseAsset.Free + quoteAsset.Free * price;
-                    var totalEquity = baseAsset.TotalAsset + quoteAsset.TotalAsset * price;
-
-                    return (Math.Round(freeEquity, 2), Math.Round(totalEquity, 2));
-                }
+                double.TryParse(response1.Amount, out maxBorrowLimit);
             }
-            return (0, 0);
-        }
-        
-        protected override bool IsTradeClosed()
-        {
-            var exchangeInfo = GetExchangeInfo();
-            if (exchangeInfo != null)
+
+            if (maxBorrowLimit == 0)
             {
-                var __symbol = exchangeInfo.Symbols.Where(x => x.Symbol == symbolName).FirstOrDefault();
-                if (__symbol != null)
+                LogTrades.WriteLine("Max borrow limit was ZERO, cannot borrow above equity");
+                balanceToTrade = netAsset;
+                Leverage = 1;
+            }
+            else if (balanceToTrade > maxBorrowLimit)
+            {
+                balanceToTrade = maxBorrowLimit;
+                //recalculate leverage
+                Leverage = balanceToTrade / balanceToTrade;
+                LogTrades.WriteLine($"*** Max borrow limit EXCEEDED, required amount was ${balanceToTrade} but limit is ${maxBorrowLimit}");  
+            }
+
+            return (Math.Round(netAsset * lastQuoteValue), GetCorrectPrecisionForBaseAssetTrade(balanceToTrade));
+        }
+
+        protected override double BalanceToCloseTrade(TradePosition position)
+        {
+            try
+            {
+                //e.g. BTCUSDT - BTC is the base asset, USDT is the quote asset
+                double baseAssetBalance = 0;
+                var response = Deserialize<IsolatedMarginAccountData>(binanceAPI.QueryIsolateMarginAccountInfoAsync().Result);
+                if (response == null)
                 {
-                    var lotSize = __symbol.Filters.Where(x => x.FilterType == "LOT_SIZE").FirstOrDefault();
-                    if (lotSize != null)
+                    return 0;
+                }
+                switch (position)
+                {
+                    case TradePosition.LONG:
+                        var baseAsset = response.GetBaseAsset(symbolName);
+                        baseAssetBalance = baseAsset.Free;
+                        break;
+                    case TradePosition.SHORT:
+                        var quoteAsset = response.GetQuoteAsset(symbolName);
+                        var lastPrice = GetLastPrice();
+                        baseAssetBalance = quoteAsset.Free / lastPrice;
+                        break;
+                }
+
+                baseAssetBalance = GetRestrictedBalanceBase(baseAssetBalance);
+                
+                return baseAssetBalance;
+            }
+            catch
+            {
+                LogTrades.WriteLine("Exception in getting asset value in BalanceToCloseTrade()");
+                return -1;
+            }
+        }
+
+        protected override double BalanceNet()
+        {
+            var response = Deserialize<IsolatedMarginAccountData>(binanceAPI.QueryIsolateMarginAccountInfoAsync().Result);
+            if (response == null)
+            {
+                return 0;
+            }
+           
+            var netAsset = response.TotalNetAssetOfBtc;
+            var freeBalance = netAsset * GetLastPrice();
+            return Math.Round(freeBalance, 2);
+        }
+
+
+        protected override bool IsTradeClosed(TradePosition position)
+        {
+            var ret = false;
+            try
+            {
+                var response = Deserialize<IsolatedMarginAccountData>(binanceAPI.QueryIsolateMarginAccountInfoAsync().Result);
+                if (response != null)
+                {
+                    switch (position)
                     {
-                        var response = Deserialize<IsolatedMarginAccountData>(binanceAPI.QueryIsolateMarginAccountInfoAsync().Result);
-                        if (response != null)
-                        {
+                        case TradePosition.LONG:
+
+                            var lotSize = GetMinLotSize();
+
                             var baseAsset = response.GetBaseAsset(symbolName);
                             if (baseAsset != null)
                             {
-                                var _minValue = lotSize.MinQty * 2; //it should always use the lot size notional value, same as MinQty, to calculate trade quantity so would only leave < MinQty but double this to be safe
-                                var _baseAssetBalanceFree = baseAsset.Free;
-                                var _baseAssetBalanceLocked = baseAsset.Locked;
-                                return _baseAssetBalanceLocked < _minValue && _baseAssetBalanceFree < _minValue; //i.e there is no BTC
+                                ret = (baseAsset.Free + baseAsset.Borrowed) <= lotSize; //i.e there is no BTC
                             }
-                        }
+
+                            break;
+
+                        case TradePosition.SHORT:
+
+                            var priceFilter = GetMinPriceFilter();
+
+                            var quoteAsset = response.GetQuoteAsset(symbolName);
+                            if (quoteAsset != null)
+                            {
+                                ret = (quoteAsset.Free + quoteAsset.Borrowed) <= priceFilter; //i.e there is no FIAT
+                            }
+
+                            break;
                     }
-                }            
+                }
             }
-            return false;
+            catch { }
+
+            if (ret) LogTrades.WriteLine("IsTradeClosed() returned TRUE");
+
+            return ret;
         }
 
         public override void ShowAccountBalances()
         {
             string message = string.Empty;
+
+            #region get min. values, below which 0 will be displayed
+            double _minValueBase = 0;
+            double _minValueQuote = 0;
+            double RoundToZeroBase(double d)
+            {
+                return d < _minValueBase ? 0 : d;
+            }
+            double RoundToZeroQuote(double d)
+            {
+                return d < _minValueQuote ? 0 : d;
+            }
+
+            var lotSize = GetMinLotSize();
+            _minValueBase = lotSize;
+            _minValueQuote = lotSize * GetLastPrice();
+            #endregion
 
             var response = Deserialize<IsolatedMarginAccountData>(binanceAPI.QueryIsolateMarginAccountInfoAsync().Result);
             if (response != null)
@@ -441,18 +476,18 @@ namespace AlgoTrader.Shared
                 {
                     message += "---------------------------------\n";
                     message += "BTC:\n";
-                    message += $"Free:\t\t{baseAsset.Free}\n";
-                    message += $"Locked:\t\t{baseAsset.Locked}\n";
-                    message += $"Borrowed:\t{baseAsset.Borrowed}\n";
-                    message += $"Interest:\t\t{baseAsset.Interest}\n";
+                    message += $"Free:\t\t{RoundToZeroBase(baseAsset.Free)}\n";
+                    message += $"Locked:\t\t{RoundToZeroBase(baseAsset.Locked)}\n";
+                    message += $"Borrowed:\t{RoundToZeroBase(baseAsset.Borrowed)}\n";
+                    message += $"Interest:\t\t{RoundToZeroBase(baseAsset.Interest)}\n";
 
 
                     message += "---------------------------------\n";
                     message += "USDT:\n";
-                    message += $"Free:\t\t{quoteAsset.Free:F2}\n";
-                    message += $"Locked:\t\t{quoteAsset.Locked:F2}\n";
-                    message += $"Borrowed:\t{quoteAsset.Borrowed:F2}\n";
-                    message += $"Interest:\t\t{quoteAsset.Interest:F2}\n";
+                    message += $"Free:\t\t{RoundToZeroQuote(quoteAsset.Free):F2}\n";
+                    message += $"Locked:\t\t{RoundToZeroQuote(quoteAsset.Locked):F2}\n";
+                    message += $"Borrowed:\t{RoundToZeroQuote(quoteAsset.Borrowed):F2}\n";
+                    message += $"Interest:\t\t{RoundToZeroQuote(quoteAsset.Interest):F2}\n";
 
                     message += "---------------------------------\n";
 
