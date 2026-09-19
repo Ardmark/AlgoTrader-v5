@@ -78,7 +78,6 @@ namespace AlgoTrader.Shared
         
         public override async void Test()
         {
-            //CancelOpenOrders();
         }
 
         /*

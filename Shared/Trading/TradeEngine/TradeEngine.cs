@@ -5,7 +5,6 @@ using OpenExchangeRates;
 using System.Data.Entity;
 using System.Windows.Controls;
 using System.Windows.Media;
-using static AlgoTrader.Shared.BinanceAPI;
 using Brushes = System.Windows.Media.Brushes;
 
 namespace AlgoTrader.Shared
@@ -64,7 +63,7 @@ namespace AlgoTrader.Shared
         }
         public static int NUM_BARS_FOR_FLOOR { get; set; } = 0; // when this many bars clear (higher lows) will set floor
         public static double MOVE_STOPS_AMT { get; set; } = 0.1;
-        public static double MAX_STOP_LOSS { get; internal set; } = 1;
+        //public static double MAX_STOP_LOSS { get; internal set; } = 1;
 
         //take profit
         public static double INITIAL_TAKE_PROFIT_PERCENT_MARKET { get; set; } = 0; //initial take profit percent (set to zero to block setting TP initially) - set to any % to place an initial take profit  
@@ -746,7 +745,7 @@ namespace AlgoTrader.Shared
                             {
                                 LogTrades.WriteLine("Attempting to close order without removing stops first...");
                                 hasFailedToClose = true;
-                                CloseTradeOnExchange(null);
+                                CloseTradeOnExchange();
                             }
                             else
                             {
@@ -1056,9 +1055,10 @@ namespace AlgoTrader.Shared
         public async void EnterTradeOnExchange()
         {
             #region Test for OK to start entry
-            
+
             if (!USE_TESTNET && !dataReady) return;
 
+            LogTrades.WriteLine($"\n**************************************");;
             //if this has just restarted, will try to enter any trades immediately but the price won't be available from the websocket yet.
             //so use the REST api instead
             var lastQuoteValue = GetLastPrice();
@@ -1068,13 +1068,21 @@ namespace AlgoTrader.Shared
                 KillEntryOrCloseOrder(true);
                 return;
             }
-            var diff = Math.Abs(MainObj.GetPriceDiff(Order.Price, lastQuoteValue, Order.Position) * 100);
 
-            LogTrades.WriteLine($"Price diff. between entry and current price is {diff}%");
+            var orderPrice = Order.Price;
+            var line = AllLinesForSymbol.FirstOrDefault(x => x.TradeId == Order.Id);
+            if (line != null)
+            {
+                (orderPrice, bool isWithinLine) = line.GetPriceAtTime(DateTime.UtcNow, true);
+            }
+            var diff = Math.Round(Math.Abs(MainObj.GetPriceDiff(orderPrice, lastQuoteValue, Order.Position) * 100),2);
+
+            LogTrades.WriteLine($"Price diff. between entry price and current price is {diff}%");
 
             //determine if this is within an acceptable range
             if (diff > (USE_TESTNET ? 1000 : MAX_ENTRY_DIFF_PERCENT))
             {
+                KillEntryOrCloseOrder(true);
                 LogTrades.WriteLine("Did not enter trade as price difference between Order and current price was too great");
                 return;
             }
@@ -1149,10 +1157,11 @@ namespace AlgoTrader.Shared
 
             #region Calculate Leverage and clamp to min / max levels
 
+            LogTrades.WriteLine("Calculating leverage...");
             //if a stop line is present, the leverage will be calculated from that, base on the range of stop values and leverages
             // for the timeframe. If no stop line is present, the leverage will be whatever is currently set in the UI
-            Leverage = Stop != null ? CalculateLeverageFromPercent(stopPercent, Entry.Position) : Leverage;
-
+            Leverage = Stop != null ? CalculateLeverageFromPercent(stopPercent, Order.Position) : Leverage;
+            LogTrades.WriteLine($"Leverage calculated as {Leverage}");
             if (Order.Position == TradePosition.LONG) {
                 if (Leverage < MIN_ALLOWED_LEVERAGE_LONG) {
                     LogTrades.WriteLine($"Calculated leverage less than {MIN_ALLOWED_LEVERAGE_LONG}, will be clamped");
@@ -1460,6 +1469,8 @@ namespace AlgoTrader.Shared
 
             if (!USE_TESTNET && !dataReady) return;
 
+            LogTrades.WriteLine($"\n**************************************");
+
             if (Entry == null)
             {
                 LogTrades.WriteLine($"No Entry trade present for {symbolName}, cannot close trade, exiting OnExchangeDataReceived");
@@ -1639,39 +1650,16 @@ namespace AlgoTrader.Shared
 
         protected void KillEntryOrCloseOrder(bool entry)
         {
-            //kill order only applies to new entry being abandoned prior to submitting order request to exchange, or if it is rejected by exchange
-            // - so only the Entry will actually have the script name, etc., but this saves a test for NULL on that if calling EndScript()
             foreach (var trade in ActiveTrades)
             {
                 trade.ItemStatus = TradeItemStatus.CLOSED;
                 trade.GlobalStatus = TradeGlobalStatus.STOPPED;
                 trade.TradeExecutionStatus = TradeExecutionStatus.OK;
-                trade.ItemStatus = TradeItemStatus.CLOSED;
-                trade.GlobalStatus = TradeGlobalStatus.STOPPED;
                 trade.TradeExchangeStatus = entry ? TradeExchangeStatus.NEVER_ENTERED : TradeExchangeStatus.NO_WARNING;
                 SetUpdateRequest(trade);
             }
-            if (Entry != null)
-            {
-                Entry.TradeExecutionStatus = TradeExecutionStatus.OK;
-                Entry.ItemStatus = TradeItemStatus.CLOSED;
-                Entry.GlobalStatus = TradeGlobalStatus.STOPPED;
-                Entry.TradeExchangeStatus = entry ? TradeExchangeStatus.NEVER_ENTERED : TradeExchangeStatus.NO_WARNING;
-            }
-            if (Order != null)
-            {
-                Order.TradeExecutionStatus = TradeExecutionStatus.OK;
-                Order.TradeExchangeStatus = entry ? TradeExchangeStatus.NEVER_ENTERED : TradeExchangeStatus.NO_WARNING;
-                Order.ItemStatus = TradeItemStatus.CLOSED;
-                Order.GlobalStatus = TradeGlobalStatus.STOPPED;
-            }
-            if (Stop != null)
-            {
-                Stop.TradeExecutionStatus = TradeExecutionStatus.OK;
-                Stop.ItemStatus = TradeItemStatus.CLOSED;
-                Stop.GlobalStatus = TradeGlobalStatus.STOPPED;
-                Stop.TradeExchangeStatus = entry ? TradeExchangeStatus.NEVER_ENTERED : TradeExchangeStatus.NO_WARNING;
-            }
+
+            Order = Entry = Stop = TakeProfit = null;    
         }
 
         #endregion
@@ -1748,7 +1736,7 @@ namespace AlgoTrader.Shared
             var levReduction = (stopPC - minStop) / stopScale; //how much the leverage should be reduced from the max. value
             var leverage = maxLev - levReduction; //the leverage to use for this stop value
             leverage = Math.Round(leverage, 2); //just too much precision to display otherwise
-            LogTrades.WriteLine($"Stop is at {stopPC}%");
+            LogTrades.WriteLine($"Stop is at {stopPC:F2}%");
            
             return leverage;
 

@@ -1,6 +1,7 @@
 ﻿using AlgoTrader.Shared.Enums;
 using AlgoTrader.Shared.Windows;
 using System.Data.Entity.Core.Common.EntitySql;
+using System.Transactions;
 using System.Windows.Controls;
 using System.Windows.Documents;
 using static System.Windows.Forms.VisualStyles.VisualStyleElement.ToolTip;
@@ -112,13 +113,15 @@ namespace AlgoTrader.Shared
                             }
 
                             //line up the line start with the order or entry
-                            if (trade != null && trade.TradeExchangeStatus == TradeExchangeStatus.ENTERED_ON_EXCHANGE)
-                            {
-                                var _gradient = (chartLine.EndPrice - chartLine.StartPrice) / (chartLine.EndTimeStamp - chartLine.StartTimeStamp).Ticks;
-                                var _timediff = (chartLine.EndTimeStamp - chartLine.StartTimeStamp).Ticks;
-                                chartLine.StartPrice -= _gradient * (chartLine.StartTimeStamp - trade.Timestamp).Ticks;
-                                chartLine.StartTimeStamp = trade.Timestamp;
-                            }
+                            //if (trade != null && trade.TradeExchangeStatus == TradeExchangeStatus.ENTERED_ON_EXCHANGE)
+                            //{
+                            //    tradeEngine.LineUpTrades_synchronised(lines, TradeAction.STOP, order, entry != null);
+
+                            //    var _gradient = (chartLine.EndPrice - chartLine.StartPrice) / (chartLine.EndTimeStamp - chartLine.StartTimeStamp).Ticks;
+                            //    var _timediff = (chartLine.EndTimeStamp - chartLine.StartTimeStamp).Ticks;
+                            //    chartLine.StartPrice -= _gradient * (chartLine.StartTimeStamp - trade.Timestamp).Ticks;
+                            //    chartLine.StartTimeStamp = trade.Timestamp;
+                            //}
 
                             tradeEngine.SetUpdateRequest(chartLine);
 
@@ -213,7 +216,6 @@ namespace AlgoTrader.Shared
                                     MainObj.DrawCurrentDispatcher(true);
                                     return;
                                 }
-                                
 
                                 void SetPrice()
                                 {
@@ -225,20 +227,25 @@ namespace AlgoTrader.Shared
                                         //move the order to the line start
                                         order.Timestamp = chartLine.StartTimeStamp;
                                         order.Price = chartLine.StartPrice;
-
-                                        //always run the order line to the current time
-                                        if (chartLine.EndTimeStamp < DateTime.UtcNow)
-                                        {
-                                            var _gradient = (chartLine.EndPrice - chartLine.StartPrice) / (chartLine.EndTimeStamp - chartLine.StartTimeStamp).Ticks;
-                                            var _timediff = (chartLine.EndTimeStamp - chartLine.StartTimeStamp).Ticks;
-                                            chartLine.EndTimeStamp = DateTime.UtcNow;
-                                            chartLine.EndPrice = chartLine.StartPrice + _gradient * (DateTime.UtcNow - chartLine.StartTimeStamp).Ticks;
-                                        }
                                     }
 
-                                    //line up other trades and lines to the order
-                                    tradeEngine.LineUpTrades_synchronised(lines, TradeAction.STOP, order, entry != null);
-                                    tradeEngine.LineUpTrades_synchronised(lines, TradeAction.TAKE_PROFIT, order, entry != null);
+                                    //set start of line to order time, end of line to entry
+                                    if (entry != null)
+                                    {
+                                        var _gradient = (chartLine.EndPrice - chartLine.StartPrice) / (chartLine.EndTimeStamp - chartLine.StartTimeStamp).Ticks;
+                                        var _timediff = (chartLine.EndTimeStamp - chartLine.StartTimeStamp).Ticks;
+
+                                        if (chartLine.EndTimeStamp < order_entry.Timestamp)
+                                        {
+                                            chartLine.EndTimeStamp = order_entry.Timestamp;
+                                            chartLine.EndPrice = chartLine.StartPrice + _gradient * (chartLine.StartTimeStamp - order_entry.Timestamp).Ticks;
+                                        }
+                                        if (chartLine.StartTimeStamp < order.Timestamp)
+                                        {
+                                            chartLine.StartTimeStamp = order.Timestamp;
+                                            chartLine.StartPrice = chartLine.EndPrice + _gradient * (order.Timestamp - chartLine.EndTimeStamp).Ticks;
+                                        }
+                                    }
 
                                     tradeEngine.UpdateUIList(chartLine);
                                     tradeEngine.currentTradeSetReference = chartLine.Trade.TradeReference;

@@ -4,12 +4,13 @@ namespace AlgoTrader.Shared.Logging
 {
     public static class LogBase
     {
+        const string path = "../../../Logs";
         public static void ClearLog(string filename)
         {
 
             try
             {
-                using (FileStream fs = new FileStream(System.IO.Path.Combine(System.AppDomain.CurrentDomain.BaseDirectory, "../../Logs", filename), FileMode.Truncate))
+                using (FileStream fs = new FileStream(System.IO.Path.Combine(System.AppDomain.CurrentDomain.BaseDirectory, path, filename), FileMode.Truncate))
                 {
                     fs.SetLength(0);
                 }
@@ -26,7 +27,7 @@ namespace AlgoTrader.Shared.Logging
 
             try
             {
-                using (FileStream fs = new FileStream(System.IO.Path.Combine(System.AppDomain.CurrentDomain.BaseDirectory, "../../../Logs", filename), FileMode.OpenOrCreate))
+                using (FileStream fs = new FileStream(System.IO.Path.Combine(System.AppDomain.CurrentDomain.BaseDirectory, path, filename), FileMode.OpenOrCreate))
                 {
                     var len = fs.Length;
 

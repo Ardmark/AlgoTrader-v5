@@ -43,24 +43,17 @@ namespace AlgoTrader.Shared
 
         public override void Test()
         {
+            double leverage = 0;
+            leverage = CalculateLeverageFromPercent(1, TradePosition.LONG);
+            leverage = CalculateLeverageFromPercent(1.1, TradePosition.SHORT);
+            leverage = CalculateLeverageFromPercent(0.75, TradePosition.LONG);
+            leverage = CalculateLeverageFromPercent(1.25, TradePosition.SHORT);
+            leverage = CalculateLeverageFromPercent(1.5, TradePosition.SHORT);
+            leverage = CalculateLeverageFromPercent(1.25, TradePosition.SHORT);
+            leverage = CalculateLeverageFromPercent(1.5, TradePosition.SHORT);
+            leverage = CalculateLeverageFromPercent(1.75, TradePosition.SHORT);
 
-            return;
-            CancelOpenOrders();
 
-           // return;
-            SendOrder(TradePosition.LONG, 0.0003, _Trade.GetNewTradeId(), Side.CLOSE, out double averagePrice, out double averageQuantity);
-
-            //OCO pricing for a long, mark price 77300
-            //double abovePrice = 79000;
-            //double belowPrice = 77000;
-
-            //OCO pricing for a short, mark price 77300
-            //double belowPrice = 77000;
-            //double abovePrice = 79000;
-
-            //SendOCO(TradePosition.LONG, 0.0001, belowPrice, _Trade.GetNewTradeId(), abovePrice, _Trade.GetNewTradeId());
-
-            return;
         }
 
         #region Binance data classes (JSON deserializes into these directly)
@@ -476,19 +469,20 @@ namespace AlgoTrader.Shared
                 {
                     message += "---------------------------------\n";
                     message += "BTC:\n";
-                    message += $"Free:\t\t{RoundToZeroBase(baseAsset.Free)}\n";
-                    message += $"Locked:\t\t{RoundToZeroBase(baseAsset.Locked)}\n";
-                    message += $"Borrowed:\t{RoundToZeroBase(baseAsset.Borrowed)}\n";
-                    message += $"Interest:\t\t{RoundToZeroBase(baseAsset.Interest)}\n";
+                    message += $"Free:\t\t{RoundToZeroBase(baseAsset.Free):F8}\n";
+                    message += $"Locked:\t\t{RoundToZeroBase(baseAsset.Locked):F8}\n";
+                    message += $"TOTAL NET:\t{RoundToZeroBase(baseAsset.Free + baseAsset.Locked):F8}\n\n";
+                    message += $"Borrowed:\t{RoundToZeroBase(baseAsset.Borrowed):F8}\n";
+                    message += $"Interest:\t\t{RoundToZeroBase(baseAsset.Interest):F8}\n";
 
 
                     message += "---------------------------------\n";
                     message += "USDT:\n";
                     message += $"Free:\t\t{RoundToZeroQuote(quoteAsset.Free):F2}\n";
                     message += $"Locked:\t\t{RoundToZeroQuote(quoteAsset.Locked):F2}\n";
+                    message += $"TOTAL NET:\t{RoundToZeroQuote(quoteAsset.Free + quoteAsset.Locked):F2}\n\n";
                     message += $"Borrowed:\t{RoundToZeroQuote(quoteAsset.Borrowed):F2}\n";
                     message += $"Interest:\t\t{RoundToZeroQuote(quoteAsset.Interest):F2}\n";
-
                     message += "---------------------------------\n";
 
                     var openOrders = GetOpenOrders();

@@ -79,7 +79,6 @@ namespace AlgoTrader.Windows
             TradeEngine.STOP_LINE_PRICE_GAP_PC = 0;////this percent will be used to offset line for trade exit
             TradeEngine.ENTRY_LINE_PRICE_GAP_PC = 0;//this percent will be used to offset line for trade entry
             TradeEngine.STOPLINE_MIN_VALUE = 0.1; //if stopline is moved closer than this % to Order / Entry, this will trigger a UI warning
-            TradeEngine.MAX_STOP_LOSS = 1; //
             #endregion
 
             #region Trading

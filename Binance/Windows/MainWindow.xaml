@@ -90,7 +90,6 @@
                     </MenuItem>
                     <MenuItem Header="Show closed trades" InputGestureText="C" Command="{Binding ShowClosedTradesCommand}" IsChecked="{Binding ShowClosedTrades_Checked}"></MenuItem>
                     <MenuItem Header="Show all trades + lines" InputGestureText="A" Command="{Binding ShowAllTradesCommand}" IsChecked="{Binding ShowAllTrades_Checked}"></MenuItem>
-                    <MenuItem Header="Show floor trades" InputGestureText="F" Command="{Binding ShowFloorTradesCommand}" IsChecked="{Binding ShowFloorTrades_Checked}"></MenuItem>
                     <MenuItem Header="Show liquidation levels" InputGestureText="L" Command="{Binding ShowLiquidationsCommand}" IsChecked="{Binding ShowLiquidations_Checked}"></MenuItem>
                     <MenuItem Header="Drawing mode" InputGestureText="D" Command="{Binding DrawingModeCommand}" IsChecked="{Binding DrawingMode_Checked}"></MenuItem>
                     <MenuItem Header="Dark mode" InputGestureText="N" Command="{Binding ToggleDarkModeCommand}" IsChecked="{Binding DarkMode_Checked}"></MenuItem>

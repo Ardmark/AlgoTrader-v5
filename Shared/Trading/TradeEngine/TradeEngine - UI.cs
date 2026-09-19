@@ -607,7 +607,7 @@ namespace AlgoTrader.Shared
                     //trade.Quantity = order.Quantity;
                     //trade.Position = order.Position;// isWaitingStop ? order.Position == TradePosition.LONG ? TradePosition.SHORT : TradePosition.LONG : order.Position;
                     
-                  //  SetUpdateRequestAdd_UI(trade);
+                    SetUpdateRequestAdd_UI(trade);
 
                     if (trade.Action == TradeAction.STOP || trade.Action == TradeAction.TAKE_PROFIT)
                     {
@@ -911,60 +911,6 @@ namespace AlgoTrader.Shared
             });
         }
       
-        internal void LineUpTrades_synchronised(List<_ChartLine> lines, TradeAction tradeAction, _Trade order, bool isEntered)
-        {
-            var trade = GetTradeForTradeReference(tradeAction, order.TradeReference);
-            if (trade != null)
-            {
-                var _line = lines.FirstOrDefault(x => x.TradeId == trade.Id);
-                if (_line == null)
-                {
-                    return;
-                }
-                var _gradient = (_line.EndPrice - _line.StartPrice) / (_line.EndTimeStamp - _line.StartTimeStamp).Ticks;
-                var _timediff = (_line.EndTimeStamp - _line.StartTimeStamp).Ticks;
-                if (!isEntered)
-                {
-                    if (_line.StartTimeStamp > order.Timestamp)
-                    {
-                        _line.StartPrice -= _gradient * (_line.StartTimeStamp - order.Timestamp).Ticks;
-                        _line.StartTimeStamp = order.Timestamp;
-                    }
-                    if (_line.EndTimeStamp < DateTime.UtcNow)
-                    {
-                        _line.EndTimeStamp = DateTime.UtcNow;
-                        _line.EndPrice = _line.StartPrice + _gradient * (DateTime.UtcNow - _line.StartTimeStamp).Ticks;
-                    }
-                    if (tradeAction != TradeAction.ORDER)
-                    {
-                        (trade.Price, _) = _line.GetPriceAtTime(DateTime.UtcNow, true);
-                    }
-                }
-                else
-                {
-                    if (_line.EndTimeStamp < DateTime.UtcNow)
-                    {
-                        _line.EndTimeStamp = DateTime.UtcNow;
-                        _line.EndPrice = _line.StartPrice + _gradient * (DateTime.UtcNow - _line.StartTimeStamp).Ticks;
-                    }
-                    if (_line.StartTimeStamp > order.Timestamp)
-                    {
-                        _line.StartTimeStamp = order.Timestamp;
-                        _line.StartPrice = _line.EndPrice + _gradient * (order.Timestamp - _line.EndTimeStamp).Ticks;
-                    }
-                    if (tradeAction != TradeAction.ORDER)
-                    {
-                        (trade.Price, _) = _line.GetPriceAtTime(DateTime.UtcNow, true);
-                    }
-                }
-
-                SetUpdateRequest(trade);
-                UpdateUIList(trade);
-                UpdateUIList(_line);
-                SetUpdateRequest(_line);
-            }
-        }
-
         #endregion
 
         #region MainObj - called methods (on batches of trades)
@@ -1079,7 +1025,6 @@ namespace AlgoTrader.Shared
 
         #endregion
 
-        //note, this method uses the AllTrades list
         private bool RemoveTradeFromSystem_UI_synchronised(_Trade trade, bool removeLine, bool allowForceRemove = false)
         {
             var tradesToRemove = AllTrades.Where(x => x.TradeReference == trade.TradeReference);

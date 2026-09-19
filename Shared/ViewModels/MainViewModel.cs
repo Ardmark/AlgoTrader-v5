@@ -1887,9 +1887,9 @@ namespace AlgoTrader.Live.ViewModels
         public void SetWindowTitle()
         {
             var executionType = TradeEngine.USE_TESTNET ? "TESTNET TRADING" : "LIVE TRADING ";
-            var orderLimit = TradeEngine.RESTRICT_TRADE_VALUE ? $" |Trade restricted to minimum lot size " : "";
+            var orderLimit = TradeEngine.RESTRICT_TRADE_VALUE ? $" | Trade restricted to minimum lot size " : "";
             var exchange = TradeEngine.EXCHANGE.GetEnumDisplayName();
-            string title = $"{exchange} " + (TradeEngine.USE_SIMULATED_EXCHANGE ? "using SIMULATED EXCHANGE" : $"{executionType} | {TradeEngine.Leverage}X market leverage | {TradeEngine.MAX_STOP_LOSS}% fixed max. loss {orderLimit}");
+            string title = $"{exchange} " + (TradeEngine.USE_SIMULATED_EXCHANGE ? "using SIMULATED EXCHANGE" : $"{executionType} | {TradeEngine.Leverage}X market leverage | {orderLimit}");
             SetProperty("WindowTitle", title);
         }
         #endregion
