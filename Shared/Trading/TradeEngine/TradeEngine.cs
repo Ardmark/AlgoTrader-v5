@@ -708,9 +708,6 @@ namespace AlgoTrader.Shared
             //when called directly from ItemUpdated, this will run live trade
             //when called for backtesting, will exit the test session when this returns false
 
-            //IsTradeClosed(TradePosition.SHORT);
-            //IsTradeClosed(TradePosition.LONG);
-
             bool redrawRequired = false;
             bool ret = false; //this is for returning from backtest loop, so default is to continue backtesting when exiting from tp, stop etc.
             this.currentFrame = currentFrame;
@@ -780,8 +777,6 @@ namespace AlgoTrader.Shared
                             }
 
                             //entry should never terminate trade (in backtesting) so cannot return false
-
-                            //RunTrade_exchangeSpecific();
                         }
 
                         /*
@@ -932,7 +927,6 @@ namespace AlgoTrader.Shared
                         order.GlobalStatus = TradeGlobalStatus.STOPPED;
                         order.TradeExecutionStatus = TradeExecutionStatus.OK;
                         SetUpdateRequest(order);
-                        redrawRequired = true;
                     }
                     if (hasEntered)
                     {
@@ -965,6 +959,10 @@ namespace AlgoTrader.Shared
 
         protected (bool hasEntered, bool tradeKilled) ExecuteTradeEntryIfPossible(_Trade trade, Order currentTradeIndicator)
         {
+            if (Entry != null && trade.Position == Entry.Position)
+            {
+                return(false, false);
+            }
             bool canEnter =
                 trade.Type == TradeType.MARKET_ORDER ||
                 currentTradeIndicator == null ||
@@ -1014,7 +1012,6 @@ namespace AlgoTrader.Shared
                         return (false, true);
 
                     case OrderFrequency.OK_TO_ENTER_LIVE:
-                        LogTrades.WriteSpacer();
 
                         var price = trade.Price; //trade may be an active order or a market order entry  currentDataItem.Close;
                         //issue with price of 0, this should not happen here, or matter if trade is live, but this is just to check
@@ -1052,13 +1049,16 @@ namespace AlgoTrader.Shared
             return (false, false);
         }
 
-        public async void EnterTradeOnExchange()
+        public async void EnterTradeOnExchange(bool fromOrder = true)
         {
             #region Test for OK to start entry
 
             if (!USE_TESTNET && !dataReady) return;
 
-            LogTrades.WriteLine($"\n**************************************");;
+            if (fromOrder) LogTrades.WriteSpacer();
+            else LogTrades.WriteLine("\n"); //so flips are all logged in the same block
+
+            LogTrades.WriteLine($"Attempting entry at {DateTime.UtcNow}");
             //if this has just restarted, will try to enter any trades immediately but the price won't be available from the websocket yet.
             //so use the REST api instead
             var lastQuoteValue = GetLastPrice();
@@ -1075,9 +1075,9 @@ namespace AlgoTrader.Shared
             {
                 (orderPrice, bool isWithinLine) = line.GetPriceAtTime(DateTime.UtcNow, true);
             }
-            var diff = Math.Round(Math.Abs(MainObj.GetPriceDiff(orderPrice, lastQuoteValue, Order.Position) * 100),2);
+            var diff = Math.Abs(MainObj.GetPriceDiff(orderPrice, lastQuoteValue, Order.Position) * 100);
 
-            LogTrades.WriteLine($"Price diff. between entry price and current price is {diff}%");
+            LogTrades.WriteLine($"Price diff. between entry price and current price is {diff:F4}%");
 
             //determine if this is within an acceptable range
             if (diff > (USE_TESTNET ? 1000 : MAX_ENTRY_DIFF_PERCENT))
@@ -1295,172 +1295,6 @@ namespace AlgoTrader.Shared
 
         #endregion
 
-        #region Stop
-        
-        // will create a new TakeProfit if one is not already set
-        //this method is also called externally by Order, TradeEngine UI methods
-        public void SetStopOnExchange_Synchronised()
-        {
-            if (
-                USE_SIMULATED_EXCHANGE ||
-                Entry == null ||
-                Entry.TradeExchangeStatus != TradeExchangeStatus.ENTERED_ON_EXCHANGE ||
-                Stop == null
-                )
-            {
-                return;
-            }
-
-            double lastPrice;
-            lastPrice = GetLastPrice();
-
-            if (lastPrice == 0)
-            {
-                LogTrades.WriteLine($"Could not get price for Stop, Stop not set");
-                return;
-            }
-
-            if (Stop.TradeExchangeStatus == TradeExchangeStatus.ENTERED_OFF_EXCHANGE) // && Stop.Type != TradeType.STOP_WAITING)
-            {
-                LogTrades.WriteLine($"Did not set Stop on exchange, exchange status was {Stop.TradeExchangeStatus} - you need to add a new stop!");
-                Stop.TradeExchangeStatus = TradeExchangeStatus.NO_WARNING;
-                SetUpdateRequest(Stop);
-                return;
-            }
-
-            if (
-                Stop.Position == TradePosition.SHORT && Stop.Price < lastPrice ||
-                Stop.Position == TradePosition.LONG && Stop.Price > lastPrice
-                )
-            {
-                LogTrades.WriteLine($"Did not set Stop on exchange, Stop price was wrong side of candle data");
-                return;
-            }
-
-            //check take profit price as well, if it is set
-            if (TakeProfit != null &&
-                (TakeProfit.Position == TradePosition.SHORT && TakeProfit.Price > lastPrice ||
-                TakeProfit.Position == TradePosition.LONG && TakeProfit.Price < lastPrice)
-                )
-            {
-                LogTrades.WriteLine($"Did not set Take Profit on exchange, Take Profit price was wrong side of candle data");
-                return;
-            }
-
-            //will add a Take Profit since Binance require an OCO
-            if (TakeProfit == null)
-            {
-                TakeProfit = Entry.Clone();
-                TakeProfit.Action = TradeAction.TAKE_PROFIT;
-                TakeProfit.Timestamp = GetTimeStamp();
-                TakeProfit.Price =
-                    Entry.Position == TradePosition.LONG
-                        ? lastPrice * (1 + INITIAL_TAKE_PROFIT_PERCENT_MARKET / 100)
-                        : lastPrice * (1 - INITIAL_TAKE_PROFIT_PERCENT_MARKET / 100);
-                TakeProfit.Result = TakeProfit.Price;
-
-                AddLineToTrade_synchronised(TakeProfit, DateTime.UtcNow.AddMinutes(-1));
-                SetUpdateRequest(TakeProfit);
-            }
-
-            Stop.ItemId ??= _Trade.GetNewTradeId();
-            TakeProfit.ItemId ??= _Trade.GetNewTradeId();
-
-            if (Stop.Quantity == 0 && Entry != null && Order.ActionValue != 0)
-            {
-                //this will be called from Order when setting stops automatically
-                Stop.Quantity = TakeProfit.Quantity = Entry.Quantity;
-                LogTrades.WriteLine($"Stop quantity was zero, Stop not yet set, setting Stop...");
-            }
-
-            if (Stop.TradeExchangeStatus == TradeExchangeStatus.ENTERING_ON_EXCHANGE)
-            {
-                //trade is entering, run synchronously and allow enclosing InitForDataContext() to save changes
-                Stop.TradeExecutionStatus = TakeProfit.TradeExecutionStatus = TradeExecutionStatus.EXCHANGE_NOT_SYNCHED;
-
-                if (SendStopToExchange_Synchronised(false)) //not updating, so will not remove OCO first
-                {
-                    LogConnection.WriteLine("OCO order accepted.");
-                    Stop.TradeExchangeStatus = TakeProfit.TradeExchangeStatus = TradeExchangeStatus.ENTERED_ON_EXCHANGE;
-                    Stop.TradeExecutionStatus = TakeProfit.TradeExecutionStatus = TradeExecutionStatus.OK;
-                }
-                else
-                {
-                    LogConnection.WriteLine("OCO order NOT accepted.");
-                }
-            }
-            else
-            {
-                //trade is running, update stop
-                //however, we don't want to send updates unless the stop price or take profit price has actually changed
-                //can just use the Result property to save the previous price
-                if (Stop.Price != Stop.Result || TakeProfit.Price != TakeProfit.Result)
-                {
-                    //can assume this is a new stop if either the stop or take profit has no result, since this will be zero
-                    // for a new stop or TP. This would happen if the stop or TP had been force-removed in error
-                    bool isUpdating = Stop.Result != 0 && TakeProfit.Result != 0;
-
-                    Stop.Result = Stop.Price;
-                    TakeProfit.Result = TakeProfit.Price;
-
-                    Stop.TradeExecutionStatus = TakeProfit.TradeExecutionStatus = TradeExecutionStatus.EXCHANGE_NOT_SYNCHED;
-
-                    LogConnection.WriteLine("Sending OCO...");
-                    if (SendStopToExchange_Synchronised(true))
-                    {
-                        LogConnection.WriteLine("OCO order accepted.");
-                        Stop.TradeExchangeStatus = TakeProfit.TradeExchangeStatus = TradeExchangeStatus.ENTERED_ON_EXCHANGE;
-                        Stop.TradeExecutionStatus = TakeProfit.TradeExecutionStatus = TradeExecutionStatus.OK;
-
-                    }
-                    else
-                    {
-                        LogConnection.WriteLine("OCO order NOT accepted.");
-                    }
-                }
-            }
-
-            SetUpdateRequest(Stop);
-            SetUpdateRequest(TakeProfit);
-
-        }
-
-        public void SynchStopsWithExchange_synchronised()
-        {
-            InitForDataContext(() =>
-            {
-                if (Entry != null)
-                {
-                    if (Stop != null)
-                    {
-                        isManualSynch = true;
-                        SendStopToExchange_Synchronised(true);
-
-                        //do a timed check to make sure this has synchronised correctly
-                        var timer = new System.Timers.Timer(2000)
-                        {
-                            AutoReset = false
-                        };
-                        timer.Start();
-                        timer.Elapsed += (o, e) =>
-                        {
-                            if (isManualSynch)
-                            {
-                                LogTrades.WriteLine("Failed to synchronise OCO with exchange");
-                                isManualSynch = false;
-                            }
-                        };
-                    }
-                }
-                else
-                {
-                    LogTrades.WriteLine("Not entered on exchange - cannot synchronise stops with exchange.");
-                }
-            });
-        }
-
-        #endregion
-
         #region Close trade
 
         public virtual async void CloseTradeOnExchange(_Trade triggeringTrade = null)
@@ -1469,11 +1303,12 @@ namespace AlgoTrader.Shared
 
             if (!USE_TESTNET && !dataReady) return;
 
-            LogTrades.WriteLine($"\n**************************************");
+            LogTrades.WriteSpacer();
+            LogTrades.WriteLine($"Closing order at {DateTime.UtcNow}");
 
             if (Entry == null)
             {
-                LogTrades.WriteLine($"No Entry trade present for {symbolName}, cannot close trade, exiting OnExchangeDataReceived");
+                LogTrades.WriteLine($"No Entry trade present, cannot close trade, exiting CloseTradeOnExchange()");
                 return;
             }
 
@@ -1499,8 +1334,6 @@ namespace AlgoTrader.Shared
             }
 
             #endregion
-
-            LogTrades.WriteLine($"Closing order for {symbolName}...");
 
             double closePrice = currentDataItem.Close; //default value
             var _baseAsset = SymbolNames.GetBaseAssetForSymbol(symbolName);
@@ -1560,7 +1393,7 @@ namespace AlgoTrader.Shared
 
                 Order = AllTrades.FirstOrDefault(t => t.Id == triggeringTradeId);
                 LogTrades.WriteLine($"Flipping order if possible...");
-                EnterTradeOnExchange(); //and that's all there is to it.
+                EnterTradeOnExchange(false); //and that's all there is to it.
             }
 
             #endregion
@@ -1569,9 +1402,9 @@ namespace AlgoTrader.Shared
 
             //this will cause synchronisation to exit BEFORE this awaitable method completes,
             // so CANNOT have any synched objects accessed after this (like Close, etc.)
-            LogTrades.WriteLine("Getting exchange conversion rate...");
+            //LogTrades.WriteLine("Getting exchange conversion rate...");
             var gbp = await GetConversionRate(closeItemId);
-            LogTrades.WriteLine($"Conversion rate received of {gbp.ToString("F2")}, trade close complete!");
+            //LogTrades.WriteLine($"Conversion rate received of {gbp.ToString("F2")}, trade close complete!");
 
             #endregion
 
@@ -1660,6 +1493,168 @@ namespace AlgoTrader.Shared
             }
 
             Order = Entry = Stop = TakeProfit = null;    
+        }
+
+        #endregion
+
+        #region Stop
+
+        // will create a new TakeProfit if one is not already set
+        //this method is also called externally by Order, TradeEngine UI methods
+        public void SetStopOnExchange_Synchronised()
+        {
+            if (
+                USE_SIMULATED_EXCHANGE ||
+                Entry == null ||
+                Entry.TradeExchangeStatus != TradeExchangeStatus.ENTERED_ON_EXCHANGE ||
+                Stop == null
+                )
+            {
+                return;
+            }
+
+            double lastPrice;
+            lastPrice = GetLastPrice();
+
+            if (lastPrice == 0)
+            {
+                LogTrades.WriteLine($"Could not get price for Stop, Stop not set");
+                return;
+            }
+
+            if (Stop.TradeExchangeStatus == TradeExchangeStatus.ENTERED_OFF_EXCHANGE) // && Stop.Type != TradeType.STOP_WAITING)
+            {
+                LogTrades.WriteLine($"Did not set Stop on exchange, exchange status was {Stop.TradeExchangeStatus} - you need to add a new stop!");
+                Stop.TradeExchangeStatus = TradeExchangeStatus.NO_WARNING;
+                SetUpdateRequest(Stop);
+                return;
+            }
+
+            if (
+                Stop.Position == TradePosition.SHORT && Stop.Price < lastPrice ||
+                Stop.Position == TradePosition.LONG && Stop.Price > lastPrice
+                )
+            {
+                LogTrades.WriteLine($"Did not set Stop on exchange, Stop price was wrong side of candle data");
+                return;
+            }
+
+            //check take profit price as well, if it is set
+            if (TakeProfit != null &&
+                (TakeProfit.Position == TradePosition.SHORT && TakeProfit.Price > lastPrice ||
+                TakeProfit.Position == TradePosition.LONG && TakeProfit.Price < lastPrice)
+                )
+            {
+                LogTrades.WriteLine($"Did not set Take Profit on exchange, Take Profit price was wrong side of candle data");
+                return;
+            }
+
+            //will add a Take Profit since Binance require an OCO
+            if (TakeProfit == null)
+            {
+                TakeProfit = Entry.Clone();
+                TakeProfit.Action = TradeAction.TAKE_PROFIT;
+                TakeProfit.Timestamp = GetTimeStamp();
+                TakeProfit.Price =
+                    Entry.Position == TradePosition.LONG
+                        ? lastPrice * (1 + INITIAL_TAKE_PROFIT_PERCENT_MARKET / 100)
+                        : lastPrice * (1 - INITIAL_TAKE_PROFIT_PERCENT_MARKET / 100);
+                TakeProfit.Result = TakeProfit.Price;
+
+                AddLineToTrade_synchronised(TakeProfit, DateTime.UtcNow.AddMinutes(-1));
+                SetUpdateRequest(TakeProfit);
+            }
+
+            Stop.ItemId ??= _Trade.GetNewTradeId();
+            TakeProfit.ItemId ??= _Trade.GetNewTradeId();
+
+            if (Stop.Quantity == 0 && Entry != null && Order.ActionValue != 0)
+            {
+                //this will be called from Order when setting stops automatically
+                Stop.Quantity = TakeProfit.Quantity = Entry.Quantity;
+                LogTrades.WriteLine($"Stop quantity was zero, Stop not yet set, setting Stop...");
+            }
+
+            if (Stop.TradeExchangeStatus == TradeExchangeStatus.ENTERING_ON_EXCHANGE)
+            {
+                //trade is entering, run synchronously and allow enclosing InitForDataContext() to save changes
+                Stop.TradeExecutionStatus = TakeProfit.TradeExecutionStatus = TradeExecutionStatus.EXCHANGE_NOT_SYNCHED;
+
+                if (SendStopToExchange_Synchronised(false)) //not updating, so will not remove OCO first
+                {
+                    Stop.TradeExchangeStatus = TakeProfit.TradeExchangeStatus = TradeExchangeStatus.ENTERED_ON_EXCHANGE;
+                    Stop.TradeExecutionStatus = TakeProfit.TradeExecutionStatus = TradeExecutionStatus.OK;
+                }
+                else
+                {
+                    LogConnection.WriteLine("WARNING - OCO order NOT accepted.");
+                }
+            }
+            else
+            {
+                //trade is running, update stop
+                //however, we don't want to send updates unless the stop price or take profit price has actually changed
+                //can just use the Result property to save the previous price
+                if (Stop.Price != Stop.Result || TakeProfit.Price != TakeProfit.Result)
+                {
+                    //can assume this is a new stop if either the stop or take profit has no result, since this will be zero
+                    // for a new stop or TP. This would happen if the stop or TP had been force-removed in error
+                    bool isUpdating = Stop.Result != 0 && TakeProfit.Result != 0;
+
+                    Stop.Result = Stop.Price;
+                    TakeProfit.Result = TakeProfit.Price;
+
+                    Stop.TradeExecutionStatus = TakeProfit.TradeExecutionStatus = TradeExecutionStatus.EXCHANGE_NOT_SYNCHED;
+
+                    if (SendStopToExchange_Synchronised(true))
+                    {
+                        Stop.TradeExchangeStatus = TakeProfit.TradeExchangeStatus = TradeExchangeStatus.ENTERED_ON_EXCHANGE;
+                        Stop.TradeExecutionStatus = TakeProfit.TradeExecutionStatus = TradeExecutionStatus.OK;
+                    }
+                    else
+                    {
+                        LogConnection.WriteLine("WARNING - OCO order NOT accepted.");
+                    }
+                }
+            }
+
+            SetUpdateRequest(Stop);
+            SetUpdateRequest(TakeProfit);
+
+        }
+
+        public void SynchStopsWithExchange_synchronised()
+        {
+            InitForDataContext(() =>
+            {
+                if (Entry != null)
+                {
+                    if (Stop != null)
+                    {
+                        isManualSynch = true;
+                        SendStopToExchange_Synchronised(true);
+
+                        //do a timed check to make sure this has synchronised correctly
+                        var timer = new System.Timers.Timer(2000)
+                        {
+                            AutoReset = false
+                        };
+                        timer.Start();
+                        timer.Elapsed += (o, e) =>
+                        {
+                            if (isManualSynch)
+                            {
+                                LogTrades.WriteLine("Failed to synchronise OCO with exchange");
+                                isManualSynch = false;
+                            }
+                        };
+                    }
+                }
+                else
+                {
+                    LogTrades.WriteLine("Not entered on exchange - cannot synchronise stops with exchange.");
+                }
+            });
         }
 
         #endregion

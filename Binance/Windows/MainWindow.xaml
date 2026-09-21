@@ -88,6 +88,7 @@
                         <MenuItem Header="Last month" CommandParameter="720" Command="{Binding ClearClosedTrades}"></MenuItem>
                         <MenuItem Header="Last year" CommandParameter="8760" Command="{Binding ClearClosedTrades}"></MenuItem>
                     </MenuItem>
+                    <MenuItem Header="Show take profit" InputGestureText="T" Command="{Binding ToggleTP_Click}" IsChecked="{Binding ShowTakeProfit_Checked}"></MenuItem>
                     <MenuItem Header="Show closed trades" InputGestureText="C" Command="{Binding ShowClosedTradesCommand}" IsChecked="{Binding ShowClosedTrades_Checked}"></MenuItem>
                     <MenuItem Header="Show all trades + lines" InputGestureText="A" Command="{Binding ShowAllTradesCommand}" IsChecked="{Binding ShowAllTrades_Checked}"></MenuItem>
                     <MenuItem Header="Show liquidation levels" InputGestureText="L" Command="{Binding ShowLiquidationsCommand}" IsChecked="{Binding ShowLiquidations_Checked}"></MenuItem>
@@ -106,7 +107,8 @@
 
                     <MenuItem Header="Invert" InputGestureText="I" Command="{Binding InvertChartCommand}"></MenuItem>
 
-                    <MenuItem Header="Clear connection log" Command="{Binding ClearLogWindow}"></MenuItem>
+                    <MenuItem Header="Clear connection log" Command="{Binding ClearConnectionLogWindow}"></MenuItem>
+                    <MenuItem Header="Clear trades log" Command="{Binding ClearTradesLogWindow}"></MenuItem>
 
                     <MenuItem Header="Refresh active trade summary" Command="{Binding RefreshDailyPercent}"></MenuItem>
                     <!--<MenuItem Header="Remove unused lines" Command="{Binding RemoveUnallocatedLines_Click}" CommandParameter="1" />-->

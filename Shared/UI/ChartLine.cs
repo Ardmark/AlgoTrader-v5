@@ -203,17 +203,6 @@ namespace AlgoTrader.Shared
 
         #region Utility methods
 
-        //unused, since it does not project line along vector, which would give false impression of trade duration anyway
-        internal void SetMinimumLength(int timeFrame)
-        {
-            var diff = EndTimeStamp - StartTimeStamp;
-            //need to show the line as a minimum of one frame length, on the current timeframe
-            if (diff.TotalMinutes < timeFrame * 4)
-            {
-                EndTimeStamp = StartTimeStamp.AddMinutes(timeFrame * 4); //add a few bars, or will not be able to 'grab' end time so will always reverse line when extending
-            }
-        }
-
         internal void Extend(DateTime timeStamp, int timeFrame)
         {
             //if start is after timeStamp, set it to timeStamp

@@ -1,4 +1,5 @@
 ﻿using AlgoTrader.Shared.Enums;
+using AlgoTrader.Shared.Logging;
 using AlgoTrader.Shared.Windows;
 
 namespace AlgoTrader.Shared
@@ -82,6 +83,7 @@ namespace AlgoTrader.Shared
                         MoveTrade(Stop, up, pc);
                         MoveTrade(TakeProfit, !up, pc);
 
+                        LogTrades.WriteLine("Sending stop to exchange.");
                         SetStopOnExchange_Synchronised();
                     }
                 }
@@ -570,11 +572,6 @@ namespace AlgoTrader.Shared
                             SetUpdateRequest(line);
                         }
 
-                        //if (Stop.Type == TradeType.NO_FLIP_ORDER)
-                        //{
-                            SetStopOnExchange_Synchronised(); //this will not do anything if trade is not entered
-                        //}
-
                         SetUpdateRequest(trade);
                         return;
                     }
@@ -600,13 +597,7 @@ namespace AlgoTrader.Shared
                     trade.ActionValue = actionValue;
                     trade.Timestamp = timeStamp;
                     trade.TimeFrame = TimeFrame;
-
-                    //this may be an existing Moving Average stop, if so just changing the Type will stop the moving average update loop (see Order::ExecuteStop_synchronised())
-                    //trade.Type = tradeType;
-                    //flip side if this is a waiting stop
-                    //trade.Quantity = order.Quantity;
-                    //trade.Position = order.Position;// isWaitingStop ? order.Position == TradePosition.LONG ? TradePosition.SHORT : TradePosition.LONG : order.Position;
-                    
+                   
                     SetUpdateRequestAdd_UI(trade);
 
                     if (trade.Action == TradeAction.STOP || trade.Action == TradeAction.TAKE_PROFIT)
@@ -631,132 +622,15 @@ namespace AlgoTrader.Shared
                             TakeProfit.Result = 0;
                         }
                     }
-                    //if (Stop.Type == TradeType.NO_FLIP_ORDER)
-                    //{
-                        SetStopOnExchange_Synchronised(); //this will not do anything if trade is not entered
-                    //}
-
-                    #region line up trades (unused???)
-                    //LineUpTrades_UI_Synchronised(trade, chartLine, false);
-
-                    /**********************************/
-                    /* code from the above method */
-                    /*
-                    var trades = GetTradesForTradeReference(trade.TradeReference);
-                    if (!trades.Any(x => x.Id == trade.Id))
-                    {
-                        //add trade to list, as it will not be in the db yet
-                        trades.Add(trade);
-                    }
-
-                    if (order != null)
-                    {
-                        if (chartLine != null)
-                        {
-                            //line could be for order or stop, and could be for moving the line or when adding a stop
-                            chartLine.TradeId = trade.Id; //won't propagate from the Trade property until save...
-                            SetUpdateRequest(chartLine);
-                            if (!AllLinesForSymbol.Contains(chartLine))
-                            {
-                                //add it so we can find it later
-                                AllLinesForSymbol.Add(chartLine);
-                            }
-                        }
-
-                        var orderLine = AllLinesForSymbol.FirstOrDefault(x => x.TradeId == order.Id);
-
-                        if (order.ItemStatus == TradeItemStatus.OPEN)
-                        {
-                            //order has not entered, so move to line start
-                            if (orderLine != null) //order could be market, with no line
-                            {
-                                order.Timestamp = orderLine.StartTimeStamp;
-                                order.Price = orderLine.StartPrice;
-                                SetUpdateRequest(order);
-                            }
-                        }
-
-                        //move any stop to the start of the line, and adjust line length etc.
-                        //this will work for any line-attached trade (later)
-                        var entry = trades.FirstOrDefault(x => x.Action == TradeAction.ENTRY);
-                        if (entry == null) //only set line start to order time if not entered - otherwise, cannot move stop line start once entered
-                        {
-                            foreach (var attachedTrade in trades)
-                            {
-                                if (attachedTrade != null)
-                                {
-                                    if (attachedTrade.Type != TradeType.STOP_WAITING) //these should not be aligned with the order
-                                    {
-                                        //move stop to correct price
-                                        var stopLine = AllLinesForSymbol.FirstOrDefault(x => x.TradeId == attachedTrade.Id);
-                                        if (stopLine != null)
-                                        {
-                                            //set line start and end times, if required, just for display purposes
-                                            if (orderLine != null)
-                                            {
-                                                var gradient = (stopLine.EndPrice - stopLine.StartPrice) / (stopLine.EndTimeStamp - stopLine.StartTimeStamp).Ticks;
-                                                if (stopLine.StartTimeStamp > order.Timestamp)
-                                                {
-                                                    stopLine.StartPrice = stopLine.StartPrice - gradient * (stopLine.StartTimeStamp - order.Timestamp).Ticks;
-                                                    stopLine.StartTimeStamp = order.Timestamp;
-                                                    SetUpdateRequest(stopLine);
-                                                }
-                                                else if (stopLine.EndTimeStamp < orderLine.EndTimeStamp)
-                                                {
-                                                    stopLine.EndPrice = stopLine.EndPrice + gradient * (orderLine.EndTimeStamp - stopLine.EndTimeStamp).Ticks;
-                                                    stopLine.EndTimeStamp = orderLine.EndTimeStamp;
-                                                    SetUpdateRequest(stopLine);
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-
-                        bool isEntered = order.ItemStatus == TradeItemStatus.CLOSED && order.GlobalStatus == TradeGlobalStatus.ACTIVE;
-                        if (isEntered)
-                        {
-                            //deal with stops first by getting correct price from line
-                            foreach (var attachedTrade in trades)
-                            {
-                                if (attachedTrade != null)
-                                {
-                                    //move stop to correct price
-                                    var stopLine = AllLinesForSymbol.FirstOrDefault(x => x.TradeId == attachedTrade.Id);
-                                    if (stopLine != null)
-                                    {
-                                        (attachedTrade.Price, _) = stopLine.GetPriceAtTime(attachedTrade.Timestamp, true);
-
-                                        //attachedTrade.ExchangeStatus = TradeExchangeStatus.ENTERING_ON_EXCHANGE;
-
-                                        SetUpdateRequest(attachedTrade);
-                                    }
-                                    break;
-                                }
-                            }
-                        }
-                    }
-                    */
-                    /**********************************/
-
-                    #endregion
 
                     tradeEngine.UpdateUIList(trade);
                     tradeEngine.UpdateUIList(chartLine);
-
-
                 });
 
 
                 MainObj.DrawCurrentDispatcher(true);
                 MainObj.TradeStatusChanged(this);
             }
-
-            //var pos = isWaitingStop
-            //        ? order.Position == TradePosition.LONG ? TradePosition.SHORT : TradePosition.LONG
-            //        : order.Position;
-
 
             (bool isClose, bool isWrongSide) = CanSetTrade(orderLine, chartLine, price, tradeAction, entry, order.Position);
             if (isClose)

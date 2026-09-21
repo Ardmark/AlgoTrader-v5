@@ -23,7 +23,7 @@ namespace AlgoTrader.Windows
 
             TradeEngine.USE_TESTNET = false; //if true, Spot exchange will be used instead of margin, regardless of TradeEngine.EXCHANGE setting
             
-            TradeEngine.RESTRICT_TRADE_VALUE = true; //set in binance.cs, this is 0.0001 BTC - the lot size filter is incorrect
+            TradeEngine.RESTRICT_TRADE_VALUE = false; //set in binance.cs, this is 0.0001 BTC - the lot size filter is incorrect
 
             #region Connection
             MainObj.READ_LIVE_DATA = true; //if true, will update items live. If writing to DB, this is ignored
@@ -76,7 +76,7 @@ namespace AlgoTrader.Windows
             #region stop loss
             TradeEngine.STOP_LINE_PRICE_GAP_PC = 0;////this percent will be used to offset line for trade exit
             TradeEngine.ENTRY_LINE_PRICE_GAP_PC = 0;//this percent will be used to offset line for trade entry
-            TradeEngine.STOPLINE_MIN_VALUE = 0.1; //if stopline is moved closer than this % to Order / Entry, this will trigger a UI warning
+            TradeEngine.STOPLINE_MIN_VALUE = 0.05; //if stopline is moved closer than this % to Order / Entry, this will trigger a UI warning
             #endregion
 
             #region Trading

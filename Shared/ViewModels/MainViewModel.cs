@@ -141,11 +141,15 @@ namespace AlgoTrader.Live.ViewModels
             }
         }
 
-        void ClearLogs()
-        {
-            //LogBase.ClearLog("LogTrades.txt");
+        void ClearConnectionLog()
+        { 
             LogBase.ClearLog("LogConnection.txt");
             DisplayLogConnection("");
+        }
+        void ClearTradesLog()
+        {
+            LogBase.ClearLog("LogTrades.txt");
+            DisplayLogTrades("");
         }
         public void DisplayLogTrades(string s)
         {
@@ -396,7 +400,7 @@ namespace AlgoTrader.Live.ViewModels
         #endregion
 
         #region View
-        ICommand changeSymbolCommand, getAccountBalances, clearClosedTrades, refreshDailyPercent, clearLogWindow, invertChartCommand, showHeikinAshiCommand, showClosedTradesCommand, showWaitingTradesCommand, showFloorTradesCommand, showLiquidationsCommand, drawingModeCommand, darkModeCommand, showAllTradesCommand;
+        ICommand changeSymbolCommand, getAccountBalances, clearClosedTrades, refreshDailyPercent, clearConnectionLogWindow, clearTradesLogWindow, invertChartCommand, showHeikinAshiCommand, showClosedTradesCommand, showWaitingTradesCommand, showFloorTradesCommand, showLiquidationsCommand, drawingModeCommand, darkModeCommand, showAllTradesCommand;
         public ICommand ShowHeikinAshiCommand => showHeikinAshiCommand ?? (showHeikinAshiCommand = new CommandHandler1(() => { ToggleHeikinAshi(); }, true));
         public ICommand ShowClosedTradesCommand => showClosedTradesCommand ?? (showClosedTradesCommand = new CommandHandler1(() => { ToggleShowClosedTrades(); }, true));
         public ICommand ShowAllTradesCommand => showAllTradesCommand ?? (showAllTradesCommand = new CommandHandler1(() => { ToggleShowAllTrades(); }, true));
@@ -404,7 +408,8 @@ namespace AlgoTrader.Live.ViewModels
         public ICommand DrawingModeCommand => drawingModeCommand ?? (drawingModeCommand = new CommandHandler1(() => { ToggleDrawingMode(); }, true));
         public ICommand ToggleDarkModeCommand => darkModeCommand ?? (darkModeCommand = new CommandHandler1(() => { ToggleDarkMode(); }, true));
         public ICommand InvertChartCommand => invertChartCommand ?? (invertChartCommand = new CommandHandler1(() => { InvertChart(); }, true));
-        public ICommand ClearLogWindow => clearLogWindow ?? (clearLogWindow = new CommandHandler1(() => ClearLogs(), true));
+        public ICommand ClearConnectionLogWindow => clearConnectionLogWindow ?? (clearConnectionLogWindow = new CommandHandler1(() => ClearConnectionLog(), true));
+        public ICommand ClearTradesLogWindow => clearTradesLogWindow ?? (clearTradesLogWindow = new CommandHandler1(() => ClearTradesLog(), true));
         public ICommand RefreshDailyPercent => refreshDailyPercent ?? (refreshDailyPercent = new CommandHandler1(() => MainObj.RefreshActiveTradeSummary(), true));
         public ICommand ClearClosedTrades => refreshDailyPercent ?? (clearClosedTrades = new CommandHandler(async (param) =>
         {
@@ -1629,6 +1634,9 @@ namespace AlgoTrader.Live.ViewModels
                     }
                     break;
 
+                case Key.T:
+                    ShowHideTP();
+                    break;
                 case Key.N:
                     ToggleDarkMode();
                     break;

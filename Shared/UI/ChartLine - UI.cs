@@ -1,10 +1,5 @@
 ﻿using AlgoTrader.Shared.Enums;
 using AlgoTrader.Shared.Windows;
-using System.Data.Entity.Core.Common.EntitySql;
-using System.Transactions;
-using System.Windows.Controls;
-using System.Windows.Documents;
-using static System.Windows.Forms.VisualStyles.VisualStyleElement.ToolTip;
 
 namespace AlgoTrader.Shared
 {
@@ -19,148 +14,222 @@ namespace AlgoTrader.Shared
         //cursor exits line when dragging, so chart will get the mouse up event instead of line, generally
         public void MouseUp_UI_synchronised()
         {
-
             var tradeEngine = MainObj.GetTradeEngineForSymbol(SymbolName);
 
-            //var v = tradeEngine.chart.Results;
-            //if (v != null)
-            //{
-            //    Debug.WriteLine("----------------------------");
-            //    for (var i = v.Count - 1; i >= v.Count - 30; i--)
-            //    {
-            //        Debug.WriteLine(v[i].Timestamp);
-            //    }
-            //}
-
-            //can't just use UILines here, because the data context they are derived from may be disposed.
-            //so instead, need to get all lines with trades
-            //If using UILines (persistant data context in TradeEngine) would need to Include Trades as well, not so good for performance
-            // - so this may be a better appropach anyway
-            if (StartTimeStamp > EndTimeStamp)
+            tradeEngine.InitForDataContext(() => //need the Entry property set
             {
-                AlertDialog.Show("Start of line must be before end. Try a shorter timeframe.");
-                tradeEngine.InitForDataContext(() =>
+                if (StartTimeStamp > EndTimeStamp)
                 {
+                    AlertDialog.Show("Start of line must be before end. Try a shorter timeframe.");
                     if (Id > 0)
                     {
                         var chartLine = tradeEngine.AllLinesForSymbol.FirstOrDefault(x => x.Id == Id);
                         if (chartLine != null)
                         {
-                            StartTimeStamp = chartLine.StartTimeStamp;
-                            EndTimeStamp = chartLine.EndTimeStamp;
-                            StartPrice = chartLine.StartPrice;
-                            EndPrice = chartLine.EndPrice;
-                            tradeEngine.UpdateUIList(this);
-                            tradeEngine.SetUpdateRequest(this);
-                            MainObj.DrawCurrentDispatcher(true);
-                            return;
+                            (StartTimeStamp, EndTimeStamp) = (chartLine.StartTimeStamp, chartLine.EndTimeStamp);
+                            (StartPrice, EndPrice) = (chartLine.StartPrice, chartLine.EndPrice);
                         }
                     }
-                });
-            }
+                    else
+                    {
+                        (StartTimeStamp, EndTimeStamp) = (EndTimeStamp, StartTimeStamp);
+                        var id = tradeEngine.SetUpdateRequestAdd_UI(this);
+                        line.Name = "_" + Id.ToString(); //cannot start with a number
+                    }   
+                    
+                    tradeEngine.UpdateUIList(this);
+                    tradeEngine.SetUpdateRequest(this);
+                    MainObj.DrawCurrentDispatcher(true);
+                    return;
 
-            tradeEngine.InitForDataContext(() => //need the Entry property set
-            {
+                }
+
                 movingLine = null;
-
                 isDraggingEnd = isDraggingStart = false;
 
-                //move stop price and time after line move completed
-                if (Id > 0)
+                if (Id == 0)
+                {
+                    //line is not in DB and is being drawn
+                    var id = tradeEngine.SetUpdateRequestAdd_UI(this);
+                    line.Name = "_" + Id.ToString(); //cannot start with a number
+                    tradeEngine.SetUpdateRequest(this);
+                }      
+                else
                 {
                     //tradeEngine.Lines is only for the active trade
                     //tradeEngine.UILInes does not Include Trades
-  
+
                     //get the actual line from the db
                     var chartLine = tradeEngine.AllLinesForSymbol.FirstOrDefault(x => x.Id == Id);
                     if (chartLine != null)
                     {
-                        void SetLineStartAndEnd(_Trade trade = null)
+                        void SetLineToOrder(_Trade trade, _Trade orderEntry, bool hasEntered, _ChartLine line, TimeSpan translateTime)
                         {
+                            if (line == null || trade == null || orderEntry == null)
+                            {
+                                return;
+                            }
+
+                            //if the trade line is the one currently being moved, we need those values. Otherwise, use the
+                            // line data from the database
+
+                            var currentLine = (Trade.Id == trade.Id) ? this : line;
+
+                            var _gradient = (currentLine.EndPrice - currentLine.StartPrice) / (currentLine.EndTimeStamp - currentLine.StartTimeStamp).Ticks;
+                            var _timediff = (currentLine.EndTimeStamp - currentLine.StartTimeStamp).Ticks;
+
+                            //order, stop and take profit must always line up
+                            //order line must only start with order
+                            //stop and tp lines can start anywhere
+                            //order line must always end at current time if trade is entered
+                            // otherwise it can end anywhere
+                            //stop and tp lines can end anywhere
+                            //no order or entry, line is unbounded anyway
+
+                            //trade time is always lined up with order, or for stop and tp it is current time if trade has entered
+                            //set line start always before end
+                            if (currentLine.StartTimeStamp > currentLine.EndTimeStamp)
+                            {
+                                var v1 = currentLine.StartTimeStamp;
+                                var v2 = currentLine.StartPrice;
+                                currentLine.StartTimeStamp = currentLine.EndTimeStamp;
+                                currentLine.StartPrice = currentLine.EndPrice;
+                                currentLine.EndTimeStamp = v1;
+                                currentLine.EndPrice = v2;
+                            }
+
+                            //line start must not be after current time, etc.
+                            var lineStartTime = currentLine.StartTimeStamp;
+                            var lineEndTime = currentLine.EndTimeStamp;
+                            if (lineStartTime > DateTime.UtcNow)
+                            {
+                                lineStartTime = DateTime.UtcNow;
+                            }
+                            if (lineEndTime < DateTime.UtcNow)
+                            {
+                                lineEndTime = DateTime.UtcNow;
+                            }
+
+                            bool isOrderOrEntry = trade.Action == TradeAction.ORDER || trade.Action == TradeAction.ENTRY;
+                            DateTime startTime, endTime, tradeTime;
+                            if (isOrderOrEntry)
+                            {
+                                startTime = hasEntered ? orderEntry.Timestamp : lineStartTime;
+                                endTime = hasEntered ? DateTime.UtcNow : lineEndTime;
+                                tradeTime = orderEntry.Timestamp;
+                            }
+                            else
+                            {
+                                startTime = lineStartTime;
+                                endTime = lineEndTime;
+                                tradeTime = hasEntered ? DateTime.UtcNow : orderEntry.Timestamp;
+                            }
+
+                            var diff = chartLine.EndTimeStamp - chartLine.StartTimeStamp;
+                            //need to show the line as a minimum of a couple of frames
+                            if ((endTime - startTime).TotalMinutes < tradeEngine.TimeFrame * 2)
+                            {
+                                endTime = startTime.AddMinutes(tradeEngine.TimeFrame * 2);
+                            }
+
                             //scaling bug will move candles and trade across if the trade is beyond the candle bounds.
                             //This is not an issue if only an empty line is drawn
                             //this will show as the line starting before the last candle, with the trade being apparently disconnected
                             // - but the timestamp for the last candle will appear to be wrong as the candles are shifted across
                             //Fix by not allowing the trade to go that far, by moving the line start and end back to just before the last candle
                             var lastItemTime = tradeEngine.Results.Last().Timestamp;
-                            if (StartTimeStamp > lastItemTime)
+                            if (tradeTime > lastItemTime)
                             {
-                                var diff1 = lastItemTime.Subtract(StartTimeStamp).TotalMinutes - 1;
-                                StartTimeStamp = StartTimeStamp.AddMinutes((int)diff1);
-                                EndTimeStamp = EndTimeStamp.AddMinutes((int)diff1);
-                                if (chartLine.Trade != null)
+                                tradeTime = lastItemTime;
+                            }
+
+                            if (isOrderOrEntry)
+                            {
+                                tradeTime += translateTime;
+                            }
+                            //map the prices to the correct level based on line gradient
+                            //work from the opposite end of the line to the required start or end time
+                            //will update the database line here, not the current line, which may be the UI object
+                            line.StartPrice = currentLine.EndPrice - _gradient * (endTime - startTime).Ticks;
+                            line.EndPrice = currentLine.StartPrice + _gradient * (endTime - startTime).Ticks;
+                            line.StartTimeStamp = startTime;
+                            line.EndTimeStamp = endTime;
+                            trade.Timestamp = tradeTime;
+                            (trade.Price, _) = line.GetPriceAtTime(orderEntry.Timestamp, true);
+                            tradeEngine.SetUpdateRequest(line);
+                            tradeEngine.SetUpdateRequest(trade);
+                            tradeEngine.UpdateUIList(trade);
+                            tradeEngine.UpdateUIList(line);
+                        }
+
+                        void SetLineStartAndEnd(_Trade orderEntry = null)
+                        {
+                            if (orderEntry == null)
+                            {
+                                return;
+                            }
+                            var tradeRef = chartLine.TradeReference;
+                            var order = tradeEngine.GetTradeForTradeReference(TradeAction.ORDER, tradeRef);
+                            var entry = tradeEngine.GetTradeForTradeReference(TradeAction.ENTRY, tradeRef);
+                            var stop = tradeEngine.GetTradeForTradeReference(TradeAction.STOP, tradeRef);
+                            var takeProfit = tradeEngine.GetTradeForTradeReference(TradeAction.TAKE_PROFIT, tradeRef);
+
+                            TimeSpan translateTime = TimeSpan.Zero;
+                            if (Trade.Id == orderEntry.Id)
+                            {
+                                //if the order line gets moved, update the order time so that can be moved away from the current time
+                                if (!isDraggingEnd && !isDraggingStart)
                                 {
-                                    chartLine.Trade.Timestamp = StartTimeStamp;
+                                    var lines = tradeEngine.GetLinesForTradeReference(tradeRef);
+                                    var _line = lines.FirstOrDefault(x => x.Id == Id);
+                                    translateTime = StartTimeStamp - _line.StartTimeStamp;
                                 }
                             }
 
-                            var lineCopy = new _ChartLine();
-                            chartLine.CopyTo(lineCopy);
-                            chartLine.StartPrice = StartPrice;
-                            chartLine.EndPrice = EndPrice;
-                            chartLine.StartTimeStamp = StartTimeStamp;
-                            chartLine.EndTimeStamp = EndTimeStamp;
-
-                            //set start always before end
-                            if (chartLine.StartTimeStamp > chartLine.EndTimeStamp)
+                            //pass each of the lines and trades in, the order will update the others anyway so they then won't make any changes
+                            //and vice-versa with the stop and tp, they will not update the order though
+                            //Perhaps not efficient but the most clear way to do this
+                            if (order != null)
                             {
-                                var v1 = chartLine.StartTimeStamp;
-                                var v2 = chartLine.StartPrice;
-                                chartLine.StartTimeStamp = chartLine.EndTimeStamp;
-                                chartLine.StartPrice = chartLine.EndPrice;
-                                chartLine.EndTimeStamp = v1;
-                                chartLine.EndPrice = v2;
+                                var _line = tradeEngine.AllLinesForSymbol.FirstOrDefault(x => x.TradeId == order.Id);
+                                SetLineToOrder(order, orderEntry, entry != null, _line, translateTime);
                             }
-
-                            //line up the line start with the order or entry
-                            //if (trade != null && trade.TradeExchangeStatus == TradeExchangeStatus.ENTERED_ON_EXCHANGE)
-                            //{
-                            //    tradeEngine.LineUpTrades_synchronised(lines, TradeAction.STOP, order, entry != null);
-
-                            //    var _gradient = (chartLine.EndPrice - chartLine.StartPrice) / (chartLine.EndTimeStamp - chartLine.StartTimeStamp).Ticks;
-                            //    var _timediff = (chartLine.EndTimeStamp - chartLine.StartTimeStamp).Ticks;
-                            //    chartLine.StartPrice -= _gradient * (chartLine.StartTimeStamp - trade.Timestamp).Ticks;
-                            //    chartLine.StartTimeStamp = trade.Timestamp;
-                            //}
-
-                            tradeEngine.SetUpdateRequest(chartLine);
-
-                            //SetMinimumLength(tradeEngine.TimeFrame);
-
-                            var diff = chartLine.EndTimeStamp - chartLine.StartTimeStamp;
-                            //need to show the line as a minimum of one frame length, on the current timeframe
-                            if (diff.TotalMinutes < tradeEngine.TimeFrame)
+                            if (stop != null)
                             {
-                                chartLine.EndTimeStamp = StartTimeStamp.AddMinutes(tradeEngine.TimeFrame);
+                                var _line = tradeEngine.AllLinesForSymbol.FirstOrDefault(x => x.TradeId == stop.Id);
+                                SetLineToOrder(stop, orderEntry, entry != null, _line, translateTime);
                             }
-                        }
-                        
-                        //bail if trade is active and line has the order attached
-                        if (Trade != null && Trade.Action == TradeAction.ORDER)
-                        {
-                            var entry = tradeEngine.GetTradeForTradeReference(TradeAction.ENTRY, chartLine.Trade.TradeReference);
-                            if (entry != null)
+                            if (takeProfit != null)
                             {
-                                return;
+                                var _line = tradeEngine.AllLinesForSymbol.FirstOrDefault(x => x.TradeId == takeProfit.Id);
+                                SetLineToOrder(takeProfit, orderEntry, entry != null, _line, translateTime);
                             }
                         }
 
                         if (Trade == null)
                         {
-                            SetLineStartAndEnd();
+                            CopyTo(chartLine);
+                            tradeEngine.SetUpdateRequest(chartLine);
                             tradeEngine.UpdateUIList(chartLine);
                             tradeEngine.SetUpdateRequest(chartLine);
                             MainObj.DrawCurrentDispatcher(true);
                         }
                         else
                         {
-                            var lines = tradeEngine.GetLinesForTradeReference(chartLine.Trade.TradeReference);
-                            var order = tradeEngine.GetTradeForTradeReference(TradeAction.ORDER, chartLine.Trade.TradeReference);
                             var entry = tradeEngine.GetTradeForTradeReference(TradeAction.ENTRY, chartLine.Trade.TradeReference);
-                            var order_entry = entry ?? order;
+
+                            //bail if trade is active and line has the order attached
+                            if (entry != null && Trade.Action == TradeAction.ORDER)
+                            {
+                                return;
+                            }
+
+                            var order = tradeEngine.GetTradeForTradeReference(TradeAction.ORDER, chartLine.Trade.TradeReference);
 
                             if (order != null)
                             {
+                                var order_entry = entry ?? order;
+                                var lines = tradeEngine.GetLinesForTradeReference(chartLine.Trade.TradeReference);
                                 var orderLine = lines.FirstOrDefault(x => x.TradeId == order.Id);
 
                                 (bool isClose, bool isWrongSide) = tradeEngine.CanSetTrade(orderLine, this, Trade.Price, Trade.Action, entry, order.Position);
@@ -188,15 +257,7 @@ namespace AlgoTrader.Shared
                                                 {
                                                     tradeEngine.InitForDataContext(() =>
                                                     {
-                                                        chartLine = tradeEngine.AllLinesForSymbol.FirstOrDefault(x => x.Id == Id);
-                                                        lines = tradeEngine.GetLinesForTradeReference(chartLine.Trade.TradeReference);
-                                                        order = tradeEngine.GetTradeForTradeReference(TradeAction.ORDER, chartLine.Trade.TradeReference);
-                                                        entry = tradeEngine.GetTradeForTradeReference(TradeAction.ENTRY, chartLine.Trade.TradeReference);
-                                                        SetPrice();
- 
                                                         SetLineStartAndEnd(order_entry);
-                                                        tradeEngine.UpdateUIList(chartLine.Trade);
-                                                        tradeEngine.UpdateUIList(chartLine);
                                                         MainObj.DrawCurrentDispatcher(true);
                                                         return;
                                                     });
@@ -210,71 +271,15 @@ namespace AlgoTrader.Shared
                                 else
                                 {
                                     SetLineStartAndEnd(order_entry);
-                                    SetPrice();
-                                    tradeEngine.UpdateUIList(chartLine.Trade);
-                                    tradeEngine.UpdateUIList(chartLine);
                                     MainObj.DrawCurrentDispatcher(true);
                                     return;
-                                }
-
-                                void SetPrice()
-                                {
-                                    //if the order is moved, then move the line to that (not entered, obviously)
-                                    //then update all lines to move stops, etc. and line starts to coincide with the order start time
-                                    //finally, Chart.Draw() will no longer need to line up stops with order
-                                    if (chartLine.TradeId == order.Id && order.ItemStatus == TradeItemStatus.OPEN)
-                                    {
-                                        //move the order to the line start
-                                        order.Timestamp = chartLine.StartTimeStamp;
-                                        order.Price = chartLine.StartPrice;
-                                    }
-
-                                    //set start of line to order time, end of line to entry
-                                    if (entry != null)
-                                    {
-                                        var _gradient = (chartLine.EndPrice - chartLine.StartPrice) / (chartLine.EndTimeStamp - chartLine.StartTimeStamp).Ticks;
-                                        var _timediff = (chartLine.EndTimeStamp - chartLine.StartTimeStamp).Ticks;
-
-                                        if (chartLine.EndTimeStamp < order_entry.Timestamp)
-                                        {
-                                            chartLine.EndTimeStamp = order_entry.Timestamp;
-                                            chartLine.EndPrice = chartLine.StartPrice + _gradient * (chartLine.StartTimeStamp - order_entry.Timestamp).Ticks;
-                                        }
-                                        if (chartLine.StartTimeStamp < order.Timestamp)
-                                        {
-                                            chartLine.StartTimeStamp = order.Timestamp;
-                                            chartLine.StartPrice = chartLine.EndPrice + _gradient * (order.Timestamp - chartLine.EndTimeStamp).Ticks;
-                                        }
-                                    }
-
-                                    tradeEngine.UpdateUIList(chartLine);
-                                    tradeEngine.currentTradeSetReference = chartLine.Trade.TradeReference;
-                                    MainObj.DrawCurrentDispatcher(true);
-
-                                    if (chartLine.Trade.Action == TradeAction.STOP && chartLine.Trade.TradeExchangeStatus == TradeExchangeStatus.ENTERED_ON_EXCHANGE)
-                                    {
-                                        tradeEngine.SetStopOnExchange_Synchronised();
-                                    }
-
-                                    //do a price update here so the trade can be immediately redrawn
-                                    (chartLine.Trade.Price, _) = GetPriceAtTime(chartLine.Trade.Timestamp, true);
-
                                 }
                             }
                         }
                     }
-                }
-
-                if (Id == 0)
-                {
-                    //line is not in DB and is being drawn
-                    var id = tradeEngine.SetUpdateRequestAdd_UI(this);
-                    line.Name = "_" + Id.ToString(); //cannot start with a number
-                    tradeEngine.SetUpdateRequest(this);
-                }              
+                }   
             });
         }
-
 
         #endregion
 
@@ -328,46 +333,6 @@ namespace AlgoTrader.Shared
                 {
                     return;
                 }
-
-                //block stop movement above current price, with a small margin of 1% (or would just close straight away if on exact price anyway)
-                //if (Trade.Action == TradeAction.STOP)
-                //{
-                //    var tradeEngine = MainObj.GetTradeEngineForSymbol(Trade.SymbolName);
-                //    if (tradeEngine.currentDataItem != null)
-                //    {
-                //        var entry = tradeEngine.UI_Trades.FirstOrDefault(x => x.Action == TradeAction.ENTRY && x.TradeReference == Trade.TradeReference);
-                //        if (entry != null && entry.GlobalStatus == TradeGlobalStatus.ACTIVE)
-                //        {
-                //            //this only applies to live orders
-                //            (var currLinePrice, _) = GetPriceAtTime(tradeEngine.currentDataItem.Timestamp, true);
-
-                //            //calculate the maximum price (i.e. long) which you must not go above when moving a line.
-                //            //The line may move incrementally anyway so it can get very close to the current price otherwise, and then the price can move against the
-                //            // line resulting in a trade exit
-                //            double beVal = 1 + TradeEngine.BREAK_EVEN_THRESHOLD / 100;
-                //            var maxPrice =  entry.Position == TradePosition.LONG
-                //                ? currLinePrice * beVal
-                //                : currLinePrice / beVal; 
-
-                //            bool not_ok = Trade.Position == TradePosition.LONG
-                //                ? maxPrice > tradeEngine.currentDataItem.Close
-                //                : maxPrice < tradeEngine.currentDataItem.Close;
-                //            if (not_ok)
-                //            {
-                //                //is line moving away from the price? Must test for this, or line will get locked once threshold is hit
-                //                //locks trade to the price, cannot move
-                //                not_ok = Trade.Position == TradePosition.LONG
-                //                    ? deltaY < 0
-                //                    : deltaY > 0;
-                //                if (not_ok)
-                //                {
-                //                    AlertDialog.Show($"Cannot move stop too within {TradeEngine.BREAK_EVEN_THRESHOLD}% of current price! Set a floor if this is desirable.");
-                //                    return;
-                //                }
-                //            }
-                //        }   
-                //    }
-                //}
             }
 
             if (isDraggingEnd)
@@ -387,11 +352,9 @@ namespace AlgoTrader.Shared
                 {
                     line.Y1 = line.Y2;
                 }
-
             }
             else
             {
-
                 //test for drag starting
                 (isDraggingStart, isDraggingEnd) = IsOverLineEnds(newMouseX, newMouseY);
 
@@ -418,22 +381,8 @@ namespace AlgoTrader.Shared
                 return;
             }
 
-            var frame = chart.GetFrameNumFromMouseX(line.X1); //frame matches display output.
-            int barNum = (int)(line.X1 / MainObj.chart_Canvas.ActualWidth * Chart.ScaleBars) + chart.ScrollBars;
-
-            //this matches screen output
-            //var dateTime = barNum < Chart.items_chart.Count ? Chart.items_chart[barNum].Timestamp : Chart.items_chart.Last().Timestamp.AddMinutes(chart.TimeFrame * numExtraMins);
-
-            (var _StartTimeStamp, _) = chart.GetTimeAndPrice(line.X1, line.Y1);
-
-            var firstTime = chart.Results.First().Timestamp;
-            var frameTime = firstTime.AddMinutes(frame);
-
-            //this does not match the above
             (StartTimeStamp, StartPrice) = chart.GetTimeAndPrice(line.X1, line.Y1);
             (EndTimeStamp, EndPrice) = chart.GetTimeAndPrice(line.X2, line.Y2);
-
-            //  SetMinimumLength(chart.TimeFrame);
         }
 
         #endregion

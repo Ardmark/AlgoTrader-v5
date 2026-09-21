@@ -867,7 +867,7 @@ namespace AlgoTrader.Shared
                                     const int currentTimeOffset = 0; //shift the stops, etc. left to clear the current time, for clarity
 
                                     //must round timestamp down to time interval
-                                    var timeStamp = entry == null ? order.Timestamp : trade.Timestamp;
+                                    var timeStamp = trade.Timestamp;
 
                                     (left, top) = GetDrawPosition1(timeStamp, trade.Price);
 
