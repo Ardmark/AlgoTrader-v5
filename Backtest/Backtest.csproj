@@ -19,9 +19,17 @@
 
   <ItemGroup>
     <Compile Remove="Backtesting\**" />
+    <Compile Remove="Logs\**" />
+    <Compile Remove="Migrations - Copy\**" />
     <EmbeddedResource Remove="Backtesting\**" />
+    <EmbeddedResource Remove="Logs\**" />
+    <EmbeddedResource Remove="Migrations - Copy\**" />
     <None Remove="Backtesting\**" />
+    <None Remove="Logs\**" />
+    <None Remove="Migrations - Copy\**" />
     <Page Remove="Backtesting\**" />
+    <Page Remove="Logs\**" />
+    <Page Remove="Migrations - Copy\**" />
   </ItemGroup>
 
   <ItemGroup>

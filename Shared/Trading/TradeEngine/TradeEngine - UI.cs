@@ -1,6 +1,8 @@
 ﻿using AlgoTrader.Shared.Enums;
 using AlgoTrader.Shared.Logging;
 using AlgoTrader.Shared.Windows;
+using System.Diagnostics;
+using System.Windows.Interop;
 
 namespace AlgoTrader.Shared
 {
@@ -82,24 +84,12 @@ namespace AlgoTrader.Shared
                     {
                         MoveTrade(Stop, up, pc);
                         MoveTrade(TakeProfit, !up, pc);
-
-                        LogTrades.WriteLine("Sending stop to exchange.");
                         SetStopOnExchange_Synchronised();
                     }
                 }
-                 //move any unentered trades, including their stops and takeprofits
-                var activeTrades = AllTrades.Where(x =>
-                    x.GlobalStatus == TradeGlobalStatus.ACTIVE &&
-                    x.ItemStatus == TradeItemStatus.OPEN && //if the order is open, then it has not entered
-                    x.Action == TradeAction.ORDER
-                    );
-                foreach (var trade in activeTrades)
-                {
-                    MoveTrade(trade, !up, pc);
-                }
 
                 //move any stopped trades
-                activeTrades = AllTrades.Where(x => x.GlobalStatus == TradeGlobalStatus.STOPPED);
+                var activeTrades = AllTrades.Where(x => x.GlobalStatus == TradeGlobalStatus.STOPPED);
 
                 foreach (var trade in activeTrades)
                 {
@@ -109,7 +99,6 @@ namespace AlgoTrader.Shared
                         //if there is no close, then the trade was stopped before it entered, so can move the stop and take profit levels
                         MoveTrade(trade, !up, pc);
                     }
-
                 }
             });
             MainObj.DrawImmediate();
@@ -153,6 +142,7 @@ namespace AlgoTrader.Shared
                             if (line != null)
                             {
                                 line.TradeId = null;
+                                line.StopId = null;
                                 SetUpdateRequest(line);
                             }
                             SetUpdateRequest(_trade, TradeUpdateRequest.DELETE);
@@ -170,20 +160,20 @@ namespace AlgoTrader.Shared
             {
                 var linesWithoutTrades = DataContext.Lines.Where(x =>
                                                x.SymbolName == symbolName &&
-                                               x.TradeReference == null
+                                               x.TradeId == null && x.StopId == null
                                                ).ToList();
                 var linesWithTrades = DataContext.Lines.Where(x =>
                                                x.SymbolName == symbolName &&
-                                               x.TradeReference != null
+                                               (x.TradeId != null || x.StopId != null)
                                                ).ToList();
-                foreach (var line in linesWithTrades)
-                {
-                    //this will leave stop lines, since the stops would also need to be removed first
-                    if (!DataContext.Trades.Any(x => x.Id == line.TradeId))
-                    {
-                        linesWithoutTrades.Add(line);
-                    }
-                }
+                //foreach (var line in linesWithTrades)
+                //{
+                //    //this will leave stop lines, since the stops would also need to be removed first
+                //    if (!DataContext.Trades.Any(x => x.Id == line.TradeId || x.Id == line.StopId))
+                //    {
+                //        linesWithoutTrades.Add(line);
+                //    }
+                //}
                 foreach (var line in linesWithoutTrades)
                 {
                     SetUpdateRequest(line, TradeUpdateRequest.DELETE);
@@ -265,30 +255,10 @@ namespace AlgoTrader.Shared
                 AlertDialog.Show("Waiting for connection", "Not possible");
                 return;
             }
+
             InitForDataContext(() =>
             {
-                //ensure break is above current price
-                //var frame = chart.GetFrameForTimestamp(currentDataItem.Timestamp);
-                var currentPrice = currentDataItem.Close;
-                bool canSet = true;
-                if (position == TradePosition.LONG && price < currentPrice ||
-                    position == TradePosition.SHORT && price > currentPrice)
-                {
-                    canSet = false;
-                }
-
-                if (!canSet)
-                {
-                    var m = position == TradePosition.LONG ? "below" : "above";
-                    AlertDialog.Show($"Requested position is {m} current price ", "Order position not valid");
-                    return;
-                }
-
-                timeStamp = DateTime.UtcNow.AddMinutes(-1);
-
-               
-
-                var nextEarliest = MainObj.GetNextInterval_UI(timeStamp, currentDataItem);
+                var nextEarliest = MainObj.GetNextInterval_UI(DateTime.UtcNow.AddMinutes(-1), currentDataItem);
                 var line = new _ChartLine
                 {
                     StartTimeStamp = timeStamp,
@@ -358,6 +328,13 @@ namespace AlgoTrader.Shared
                 RemoveTradeFromSystem_UI_synchronised(trade, true);
                 MainObj.TradeStatusChanged(this);
 
+                trade = AllTrades.FirstOrDefault(x => x.Id != tradeId);
+                if (trade != null)
+                {
+                    currentTradeSetReference = trade.TradeReference;
+                    MainObj.DrawImmediate();
+                }
+
             });
 
         }
@@ -381,8 +358,14 @@ namespace AlgoTrader.Shared
                     return;
                 }
                 RemoveTradeFromSystem_UI_synchronised(trade, false, allowForceRemove);
-
                 MainObj.TradeStatusChanged(this);
+
+                trade = AllTrades.FirstOrDefault(x => x.Id != tradeId);
+                if (trade != null)
+                {
+                    currentTradeSetReference = trade.TradeReference;
+                    MainObj.DrawImmediate();
+                }
 
             });
 
@@ -475,7 +458,7 @@ namespace AlgoTrader.Shared
                         EndPrice = trade.Price,
                         SymbolName = symbolName,
                         Trade = trade,
-                        TradeReference = trade.TradeReference,
+                        //TradeReference = trade.TradeReference,
                         Type = LineType.BREAK
                     };
 
@@ -509,33 +492,9 @@ namespace AlgoTrader.Shared
             //ensure stop is below (or above) current price
             var entry = UI_Trades.GetTradeForTradeReference(TradeAction.ENTRY, currentTradeSetReference);
 
-            //if (entry == null && (tradeType == TradeType.STOP_WAITING || tradeType == TradeType.FLIP_ORDER))
-            //{
-            //    AlertDialog.Show("Can only place a Flip Order or Flip Order Stop on a live trade, consider using a pair of opposing trades instead.", "Could not set trade");
-            //    return;
-            //}
-
-            //if (tradeType == TradeType.STOP_WAITING)
-            //{
-            //    var v = UI_Trades.FirstOrDefault(x =>
-            //                x.Action == TradeAction.STOP &&
-            //                x.Type == TradeType.FLIP_ORDER &&
-            //                x.Position == order.Position &&
-            //                x.TradeReference == order.TradeReference);
-            //    if (v == null)
-            //    {
-            //        AlertDialog.Show("Cannot place a Flip Order Stop without a flip order!");
-            //        return;
-            //    }
-            //}
-            ////for a flip stop, the orderLine will be the line with the flip stop set on it
-            //var orderLine = isWaitingStop
-            //    ? UI_Lines.GetLineForTrade(UI_Trades.FirstOrDefault(x => x.TradeReference == order.TradeReference && x.Action == TradeAction.STOP && x.Type == TradeType.FLIP_ORDER))
-            //    : UI_Lines.GetLineForTrade(order);
-
             var orderLine = UI_Lines.GetLineForTrade(order);
 
-            void SetStop()
+            void SetStop(TradeAction _tradeAction)
             {
                 InitForDataContext(() =>
                 {
@@ -544,7 +503,7 @@ namespace AlgoTrader.Shared
                         //get the line for the current data context, the chartLine parameter will not track in EF
                         chartLine = AllLinesForSymbol.FirstOrDefault(x => x.Id == chartLine.Id);
 
-                        if (chartLine.Trade != null)
+                        if (chartLine.TradeId != null || chartLine.StopId != null)
                         {
                             return;
                         }
@@ -553,18 +512,17 @@ namespace AlgoTrader.Shared
                     //Set the stop
                     //if this is called from an entered trade, there will be a stop. Otherwise, we need to set one
 
-
                     //if this is a trailing stop, need the action value
                     double actionValue = tradeStop == TradeStop.STOP_TRAIL ? price / 100 : 0; //because the price is the percent here
 
-                    //this could be an existing flip, waiting, or line break stop
-                    _Trade trade = GetTradeForTradeReference(tradeAction);
+                    //this could be an existing line break stop
+                    _Trade trade = GetTradeForTradeReference(_tradeAction);
                     if (trade != null)
                     {
                         //just update the existing stop
                         var priceDiff = price - trade.Price;
                         trade.Price = price;
-                        var line = AllLinesForSymbol.FirstOrDefault(x => x.TradeId == trade.Id);
+                        var line = AllLinesForSymbol.FirstOrDefault(x => x.StopId == trade.Id);
                         if (line != null)
                         {
                             line.StartPrice += priceDiff;
@@ -608,7 +566,7 @@ namespace AlgoTrader.Shared
                         }
                         else
                         {
-                            chartLine.TradeId = trade.Id;
+                            chartLine.StopId = trade.Id;
                             SetUpdateRequest(chartLine);
                         }
                     }
@@ -632,14 +590,14 @@ namespace AlgoTrader.Shared
                 MainObj.TradeStatusChanged(this);
             }
 
-            (bool isClose, bool isWrongSide) = CanSetTrade(orderLine, chartLine, price, tradeAction, entry, order.Position);
+            (bool isClose, bool isWrongSide) = CanSetTrade(chartLine, price, tradeAction, entry, order.Position);
             if (isClose)
             {
                 if (!isWrongSide)
                 {
                     //need to block setting on wrong side of current price entirely to be safe
                     AlertDialog.ShowCallback($"Requested position is too close to Order and may trigger immediate exit.\nDo you wish to procede? ", $"Terminating trade position may not be valid", (_) =>            
-                        SetStop()
+                        SetStop(tradeAction)
                     );
                 }
                 else
@@ -649,14 +607,14 @@ namespace AlgoTrader.Shared
             }
             else
             {
-                SetStop();
+                SetStop(tradeAction);
             }
         }
 
-        internal void AddStopToLine_UI(int chartLineId) //, TradeType tradeType)
+        internal void AddStopToLine_UI(int chartLineId)
         {
             var chartLine = UI_Lines.FirstOrDefault(x => x.Id == chartLineId);
-            if (chartLine.Trade != null)// && (chartLine.Trade.Action != TradeAction.STOP || chartLine.Trade.Action == TradeAction.WAITING_STOP))
+            if (chartLine.Trade != null || chartLine.Stop != null)
             {
                 AlertDialog.Show("Trade already set on this line");
                 return;
@@ -679,26 +637,13 @@ namespace AlgoTrader.Shared
             var timeStamp = order.TradeExchangeStatus == TradeExchangeStatus.ENTERED_ON_EXCHANGE ? DateTime.Now : order.Timestamp;
             (var price, var isWithinLine) = chartLine.GetPriceAtTime(timeStamp, true);
 
-            //TradeAction tradeAction;
-            //switch (tradeType)
-            //{
-            //    case TradeType.FLIP_ORDER:
-            //    case TradeType.NO_FLIP_ORDER:
-            //        tradeAction = TradeAction.STOP; break;
-
-            //    case TradeType.STOP_WAITING:
-            //        tradeAction = TradeAction.WAITING_STOP; break;
-
-            //    default: tradeAction = TradeAction.STOP; break;
-
-            //}
-            SetStop_UI(timeStamp, price, TradeAction.STOP, /*tradeType, */TradeStop.STOP_ON_LINE_BREAK, chartLine);
+            SetStop_UI(timeStamp, price, TradeAction.STOP, TradeStop.STOP_ON_LINE_BREAK, chartLine);
         }
 
-        internal void AddTakeProfitToLine_UI(int chartLineId) //, TradeType tradeType)
+        internal void AddTakeProfitToLine_UI(int chartLineId)
         {
             var chartLine = UI_Lines.FirstOrDefault(x => x.Id == chartLineId);
-            if (chartLine.Trade != null && chartLine.Trade.Action != TradeAction.TAKE_PROFIT)
+            if (chartLine.Trade != null || chartLine.Stop != null)
             {
                 AlertDialog.Show("Trade already set on this line");
                 return;
@@ -716,9 +661,10 @@ namespace AlgoTrader.Shared
                 AlertDialog.Show("Could not set trade", "Order is closed");
                 return;
             }
+            var timeStamp = order.TradeExchangeStatus == TradeExchangeStatus.ENTERED_ON_EXCHANGE ? DateTime.Now : order.Timestamp;
 
-            (var price, var isWithinLine) = chartLine.GetPriceAtTime(order.Timestamp, true);
-            SetStop_UI(order.Timestamp, price, TradeAction.TAKE_PROFIT,/* tradeType, */0, chartLine);
+            (var price, var isWithinLine) = chartLine.GetPriceAtTime(timeStamp, true);
+            SetStop_UI(order.Timestamp, price, TradeAction.TAKE_PROFIT, 0, chartLine);
         }
 
         internal void AddBreakToLine_UI_synchronised(int chartLineId, TradePosition position)
@@ -744,7 +690,8 @@ namespace AlgoTrader.Shared
         {
             AlertDialog.Show("Unimplemented, needs to be changed to allow reversed position for waiting stop");
             return;
-            void ChangePrice()
+            
+            /*void ChangePrice()
             {
                 InitForDataContext(() =>
                 {
@@ -767,6 +714,7 @@ namespace AlgoTrader.Shared
                     }
                 });
             }
+            */
         }
 
         public void ChangeTimeframe_UI_Synchronised(_Trade _trade, int timeframe)
@@ -914,8 +862,6 @@ namespace AlgoTrader.Shared
                     case TradeAction.ENTRY:
                     case TradeAction.CLOSE:
 
-                        //var entry = tradesToRemove.Where(x => x.Action == TradeAction.ENTRY).FirstOrDefault();
-
                         //if this is a locally entered trade, can remove it without closing on the exchange
                         foreach (var t in tradesToRemove)
                         {
@@ -926,21 +872,9 @@ namespace AlgoTrader.Shared
 
 
                     case TradeAction.STOP:
-                    //case TradeAction.WAITING_STOP:
                     case TradeAction.TAKE_PROFIT:
 
-                        //if (trade.Type == TradeType.FLIP_ORDER)
-                        //{
-                        //    //also remove waiting stop
-                        //    var waitingStop = tradesToRemove.FirstOrDefault(x => x.Action == TradeAction.WAITING_STOP && x.Type == TradeType.STOP_WAITING);
-                        //    if (waitingStop != null)
-                        //    {
-                        //        DetachTradeFromLine_UI_synchronised(waitingStop, false);
-                        //        SetUpdateRequest(waitingStop, TradeUpdateRequest.DELETE);
-                        //    }
-                        //}
-
-                        DetachTradeFromLine_UI_synchronised(tradeToRemove, false);
+                        DetachTradeFromLine_UI_synchronised(tradeToRemove, removeLine);
                         SetUpdateRequest(tradeToRemove, TradeUpdateRequest.DELETE);
 
                         break;
@@ -980,7 +914,7 @@ namespace AlgoTrader.Shared
                 if (order != null)
                 {
                     line.Trade = order;
-                    line.TradeReference = order.TradeReference;
+                    //line.TradeReference = order.TradeReference;
                     line.Type = LineType.BREAK;
                     SetUpdateRequest(order);
                     SetUpdateRequest(line);
@@ -1041,7 +975,8 @@ namespace AlgoTrader.Shared
                 {
                     line.Trade = null;
                     line.TradeId = null; //must do this, not just set the trade to null!
-                    line.TradeReference = null;
+                    line.StopId = null;
+                    //line.TradeReference = null;
                     line.Type = LineType.NONE;
                     SetUpdateRequest(line);
                     //remove any tiny lines completely
@@ -1227,7 +1162,7 @@ namespace AlgoTrader.Shared
         }
 
         //returns (is close, is wrong side)
-        internal (bool, bool) CanSetTrade(_ChartLine orderLine, _ChartLine tradeLine, double price, TradeAction action, _Trade entry, TradePosition position)
+        internal (bool, bool) CanSetTrade(_ChartLine tradeLine, double price, TradeAction action, _Trade entry, TradePosition position)
         {
             if (currentDataItem == null)
             {
@@ -1238,42 +1173,21 @@ namespace AlgoTrader.Shared
             {
                 (price, _) = tradeLine.GetPriceAtTime(currentDataItem.Timestamp, true);
             }
-
-            var msg = entry == null ? "projected entry price" : "current entry price";
-
             var basePrice = currentDataItem.Close;
-            if (entry == null) // || action == TradeAction.WAITING_STOP)
-            {
-                if (orderLine != null)
-                {
-                    (basePrice, _) = orderLine.GetPriceAtTime(currentDataItem.Timestamp, true);
-                }
-            }
 
             var v = MainObj.GetPriceDiff(basePrice, price, position) * 100;
 
-            bool isClose = false;
+            bool isClose = Math.Abs(v) < STOPLINE_MIN_VALUE;
             bool isWrongSide = false;
 
             switch (action)
             {
                 case TradeAction.ORDER:
-                    //isClose = v < MIN_ORDER_THRESHOLD;
-                    break;
-                //case TradeAction.BREAK_EVEN:
-                //    isClose = v < BREAK_EVEN_THRESHOLD;
-                //    isWrongSide = v < 0;
-                //    break;
                 case TradeAction.TAKE_PROFIT:
-                //case TradeAction.CEILING:
-                    isClose = -v < STOPLINE_MIN_VALUE;
-                    isWrongSide = v > 0;
+                    isWrongSide = position == TradePosition.LONG ? v >= 0 : v <= 0;
                     break;
-                //case TradeAction.FLOOR:
                 case TradeAction.STOP:
-                //case TradeAction.WAITING_STOP:
-                    isClose = v < STOPLINE_MIN_VALUE;
-                    isWrongSide = v < 0;
+                    isWrongSide = position == TradePosition.LONG ? v <= 0 : v >= 0;
                     break;
             }
 

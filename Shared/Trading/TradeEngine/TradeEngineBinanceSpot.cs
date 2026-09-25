@@ -1,6 +1,8 @@
 ﻿using AlgoTrader.Shared.Enums;
 using AlgoTrader.Shared.Logging;
 using AlgoTrader.Shared.Windows;
+using System.Text.Json.Nodes;
+using System.Windows.Forms;
 
 namespace AlgoTrader.Shared
 {
@@ -19,7 +21,6 @@ namespace AlgoTrader.Shared
      
         public override async void Test()
         {
-            var d = CalculateLeverageFromPercent(0.7, TradePosition.LONG);
         }
 
         #region Init
@@ -142,7 +143,7 @@ namespace AlgoTrader.Shared
                     var symbol = SymbolNames.GetBaseAssetForSymbol(symbolName);
                     var quoteAssetBalance = (double)accountData?.Balances.FirstOrDefault(x => x.Asset == symbol)?.Free;
 
-                    quoteAssetBalance = GetRestrictedBalanceQuote(quoteAssetBalance);
+                    quoteAssetBalance = GetRestrictedBalanceBase(quoteAssetBalance);
                     
                     return quoteAssetBalance;
                 }
@@ -185,6 +186,15 @@ namespace AlgoTrader.Shared
                 return (0, 0);
             }
         }
+        protected override double BalanceFree()
+        {
+            var accountData = GetAccountInfo();
+
+            //can really ignore locked amount, this is just for trades placed on the exchange which have not yet entered
+            var v = accountData.Balances.FirstOrDefault(x => x.Asset == SymbolNames.FIAT_ASSET);
+            double freeEquity = v != null ? v.Free : 0;
+            return freeEquity;
+        }
 
         protected override bool IsTradeClosed(TradePosition position)
         {
@@ -210,14 +220,59 @@ namespace AlgoTrader.Shared
                     }
                 }
             }
-
+            if (ret)
+            {
+                LogTrades.WriteLine($"++ {DateTime.UtcNow} - SPOT IsTradeClosed() returned true");
+            }
             return ret;
         }
 
         public override void ShowAccountBalances()
         {
-            //never implemented in Binance spot, only Bitmex so nothing missing here
-            AlertDialog.Show("This method is unimplemented.", "Account balance and info:");
+            var message = string.Empty;
+            var accountData = GetAccountInfo();
+            if (accountData != null)
+            {
+                var __baseAsset = SymbolNames.GetBaseAssetForSymbol(symbolName);
+                var _quoteAsset = SymbolNames.GetQuoteAssetForSymbol(symbolName);
+
+                var __baseAssetBalanceFree = accountData.Balances.Where(x => x.Asset == __baseAsset).Select(x => x.Free).FirstOrDefault() * GetLastPrice();
+                var __baseAssetBalanceLocked = accountData.Balances.Where(x => x.Asset == __baseAsset).Select(x => x.Locked).FirstOrDefault() * GetLastPrice();
+                var _quoteAssetBalanceFree = accountData.Balances.Where(x => x.Asset == _quoteAsset).Select(x => x.Free).FirstOrDefault();
+                var _quoteAssetBalanceLocked = accountData.Balances.Where(x => x.Asset == _quoteAsset).Select(x => x.Locked).FirstOrDefault();
+
+                double bnbPrice = 0;
+                JsonNode response = binanceAPI.TickerPriceAsync("BNBUSDT").Result;
+                try
+                {
+                    double.TryParse(response["price"].ToString(), out bnbPrice);
+                }
+                catch { }
+                var __bnbAssetBalanceFree = accountData.Balances.Where(x => x.Asset == "BNB").Select(x => x.Free).FirstOrDefault() * bnbPrice;
+                var __bnbAssetBalanceLocked = accountData.Balances.Where(x => x.Asset == "BNB").Select(x => x.Locked).FirstOrDefault() * bnbPrice;
+
+                message += "---------------------------------\n";
+                message += "BTC:\n";
+                message += $"Free:\t\t${__baseAssetBalanceFree:F2}\n";
+                message += $"Locked:\t\t${__baseAssetBalanceLocked:F2}\n";
+                message += "---------------------------------\n";
+                message += "USDT:\n";
+                message += $"Free:\t\t${_quoteAssetBalanceFree:F2}\n";
+                message += $"Locked:\t\t${_quoteAssetBalanceLocked:F2}\n";
+                message += "---------------------------------\n";
+                message += "BNB:\n";
+                message += $"Free:\t\t${__bnbAssetBalanceFree:F2}\n";
+                message += $"Locked:\t\t${__bnbAssetBalanceLocked:F2}\n";
+
+
+                AlertDialog.Show(message, "Account balance and info:");
+            }
+
+        }
+
+        protected override double GetLiquidationPrice()
+        {
+            return 0;
         }
     } 
 }

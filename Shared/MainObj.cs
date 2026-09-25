@@ -919,7 +919,7 @@ namespace AlgoTrader.Shared
                 ActiveTradeSummary.Init();
             });
 
-           
+            HideThings();
             initComplete = true; //marks so DB can now be backed up
 
             if (BACKUP_DB == true && BACKUP_FOLDER != null && NUM_INCREMENTAL_BACKUPS > 0)
@@ -1440,6 +1440,11 @@ namespace AlgoTrader.Shared
                     DrawImmediate();
                 }
             });
+        }
+
+        internal static void HideThings()
+        {
+            mainViewModel.HideTP_Liquidations();
         }
 
         internal static void SetCurrentSeconds(double countdownSeconds)

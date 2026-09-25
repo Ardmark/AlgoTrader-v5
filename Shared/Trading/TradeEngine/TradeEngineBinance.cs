@@ -296,6 +296,7 @@ namespace AlgoTrader.Shared
             //however, the executed quantity is available in "executedQty" so no need to set that
             internal double CalculateAverageFillPrice()
             {
+                if (Fills == null) return -1;
                 var totalQty = Fills.Select(x => x.Qty).Sum();
                 if (totalQty > 0)
                 {
@@ -432,8 +433,85 @@ namespace AlgoTrader.Shared
         #endregion
 
         #region Orders
+        protected override bool SendEntry(double tradeAmountBase, double lastQuoteValue, out double averagePrice, out double executedQuantity)
+        {
+            (bool accepted, bool retry) = SendOrder(Entry.Position, tradeAmountBase, Entry.ItemId, Side.ENTER, out averagePrice, out executedQuantity);
 
-        protected override bool SendOrder(TradePosition position, double orderQuantity, string orderId, Side side, out double averagePrice, out double executedQuantity)
+            #region retry if Binance cannot lend due to liquidity problems
+            if (retry)
+            {
+                //borrowing limit exceeded, which happens when there is not enough available for borrowing
+                //so try to enter without borrowing instead
+                //To do this, you can not set a 1X leverage as that will still use any residual BTC as well, and will be rejected
+                // - long borrows fiat to buy, short borrows fiat against current price
+                //so just try to enter with reduced leverage, then with the fiat balance only and ignore the BTC value
+                // - however, it can be assumed anyway that if the first attempt fails, borrowing will be disabled anyway
+
+                LogTrades.WriteLine("Insufficient funds available for lending.");
+
+                (bool accepted, bool quit) AttemptRetryEntry(out double averagePrice, out double executedQuantity)
+                {
+                    LogTrades.WriteLine($"Trying reduced leverage of {Leverage}:");
+
+                    averagePrice = executedQuantity = 0;
+                    if (Entry.Position == TradePosition.SHORT && Leverage < MIN_ALLOWED_LEVERAGE_SHORT)
+                    {
+                        LogTrades.WriteLine("Short order leverage too small, exiting");
+                        KillEntryOrCloseOrder(true);
+                        return (false, true);
+                    }
+                    if (Entry.Position == TradePosition.LONG && Leverage < MIN_ALLOWED_LEVERAGE_LONG)
+                    {
+                        LogTrades.WriteLine("Long order leverage too small, exiting");
+                        KillEntryOrCloseOrder(true);
+                        return (false, true);
+                    }
+
+                    (_, tradeAmountBase) = BalanceToEnterTrade(lastQuoteValue, Order.Position);
+                    Entry.Leverage = Order.Leverage = Leverage;
+                    return SendOrder(Entry.Position, tradeAmountBase, Entry.ItemId, Side.ENTER, out averagePrice, out executedQuantity);
+                }
+
+                //1st retry
+                Leverage /= 2;
+                (accepted, retry) = AttemptRetryEntry(out averagePrice, out executedQuantity);
+                if (retry) //if not accepted at all, will not return true for retry anyway
+                {
+                    //2nd retry
+                    Leverage /= 2;
+                    (accepted, retry) = AttemptRetryEntry(out averagePrice, out executedQuantity);
+                    if (retry)
+                    {
+                        //3rd retry - only a buy order now with the available fiat
+                        Leverage = 1;
+                        LogTrades.WriteLine($"Trying reduced leverage of 1x:");
+                        if (Entry.Position == TradePosition.SHORT)
+                        {
+                            LogTrades.WriteLine("Short order leverage too small, exiting");
+                            KillEntryOrCloseOrder(true);
+                            return false;
+                        }
+                        //can now only attempt a buy with available free fiat
+                        var freeBalance = BalanceFree();
+                        if (freeBalance > 0)
+                        {
+                            var balanceToTrade = GetCorrectPrecisionForBaseAssetTrade(freeBalance / lastQuoteValue);
+                            Entry.Leverage = Order.Leverage = 1;
+                            (accepted, _) = SendOrder(Entry.Position, balanceToTrade, Entry.ItemId, Side.ENTER, out averagePrice, out executedQuantity);
+                        }
+                    }
+                }
+            }
+            return accepted;
+            #endregion
+        }
+        protected override bool SendClose(out double closePrice, out double executedQuantity)
+        {
+            (bool accepted, _) = SendOrder(Close.Position, Close.Quantity, Close.ItemId, Side.CLOSE, out closePrice, out executedQuantity);
+            return accepted;
+        }
+
+        private (bool accepted, bool retry) SendOrder(TradePosition position, double orderQuantity, string orderId, Side side, out double averagePrice, out double executedQuantity)
         {
             averagePrice = executedQuantity = 0;
             var data = GetOrderData(position, orderQuantity, side, orderId);
@@ -443,7 +521,7 @@ namespace AlgoTrader.Shared
                 if (result == null)
                 {
                     LogTrades.WriteLine("Send order returned null");
-                    return false;
+                    return (false, false);
                 }
                 if (!string.IsNullOrEmpty(result.Status) && result.Status != "FILLED")
                 {
@@ -455,17 +533,24 @@ namespace AlgoTrader.Shared
                     {
                         LogTrades.WriteLine("Order returned zero executed quantity");
                     }
-                    return false;
+                    return (false, false);
 
                 }
-                averagePrice = result.AveragePrice;
+                averagePrice = result.CalculateAverageFillPrice();
                 executedQuantity = result.ExecutedQty;
-                return true;
+                return (true, false);
             }
             catch (Exception e)
             {
-                LogTrades.WriteLine($"Error executing order: {e.Message}");
-                return false;
+                if (e.Message.Contains("11007")) //not enough available for lending but exception message doesn't say this, only the website UI
+                {
+                    return (false, true);
+                }
+                else
+                {
+                    LogTrades.WriteLine(e.Message);
+                    return (false, false);
+                }
             }
         }
 
@@ -535,12 +620,7 @@ namespace AlgoTrader.Shared
 
         protected override bool InitForEntryOrClose() 
         {
-            if (GetExchangeInfo() == null)
-            {
-                KillEntryOrCloseOrder(true);
-                return false;
-            }
-            return true;
+            return GetExchangeInfo() != null;
         }
   
         protected override bool CancelOpenOrders()

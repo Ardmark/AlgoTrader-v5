@@ -46,15 +46,15 @@ namespace AlgoTrader.Shared
                     var enteredTrades = allTrades.Where(x => x.Action == TradeAction.ENTRY).ToList();
                     var allOrders = allTrades.Where(x => x.Action == TradeAction.ORDER).ToList();
                     var waitingTrades = allOrders.Where(x => x.ItemStatus == TradeItemStatus.OPEN).ToList();
-                    //var stops = allTrades.Where(x => x.Action == TradeAction.STOP && x.ItemStatus == TradeItemStatus.OPEN);
-                    //var takeProfits = allTrades.Where(x => x.Action == TradeAction.CEILING && x.ItemStatus == TradeItemStatus.OPEN);
-                    var _closedOrders = db.Trades.AsNoTracking().AsParallel().Where(x => x.Action == TradeAction.CLOSE).OrderBy(x => x.Timestamp).ToList();
-                    var closedOrders = _closedOrders.Where(x => x.Timestamp > LastClosedTimeToShow).ToList();
-                    var numClosed = closedOrders.Count;
-                     //want to always show intermediate order so set the prev. close order here. If the date range just shows one close,
+                    var closedOrders = db.Trades.AsNoTracking().AsParallel().Where(x => x.Action == TradeAction.CLOSE).OrderBy(x => x.Timestamp).ToList();
+                    var closedOrdersToShow = closedOrders.Where(x => x.Timestamp > LastClosedTimeToShow).ToList();
+                    //want to always show intermediate order so set the prev. close order here. If the date range just shows one close,
                     // this will ensure the intermediate order is calculated as well.
-                    var prevClose = _closedOrders.Count > numClosed+1 ? _closedOrders[^(numClosed + 1)] : null;
-                    //double prevEquity = prevClose != null ? prevClose.Equity : 0;   
+
+                    var prevClose = closedOrdersToShow.Count > 0 && closedOrders.Count > closedOrdersToShow.Count
+                         ? closedOrders[^closedOrdersToShow.Count] //closedOrders[closedOrders.Count - closedOrdersToShow.Count];
+                         : null;
+                    
 
                     var outputString = string.Empty;
                     string dailySummaryString = string.Empty;
@@ -154,6 +154,7 @@ namespace AlgoTrader.Shared
                     sb.Append(SPACER);
 
                     #region running trades
+                    /*
                     sb.Append("Running trades:\n");
                     //e.g. Running: Binance BNBBTC   Price +0.5%   Stop -1%    Take profit +16%  (Market Break)
                     foreach (var trade in enteredTrades.OrderBy(x => x.Timestamp))
@@ -165,21 +166,7 @@ namespace AlgoTrader.Shared
 
                                 var s = trade.TradeExchangeStatus == TradeExchangeStatus.ENTERED_ON_EXCHANGE ? " " : "Test ";
                                 s += trade.TradeExecutionStatus == TradeExecutionStatus.OK ? "" : "INTERRUPTED";
-
-                                //sb.Append(string.Concat(Pad12(trade.SymbolName)));
-
-                                //var priceDiff = -MainObj.GetPriceDiff(trade.Price, currentSymbol.Close, trade.Position) * 100;
-                                //sb.Append(Pad20(string.Format("Price {0}{1}%", priceDiff < 0 ? "" : "+", priceDiff.ToString("F"))));
-                                //sb.Append(string.Concat("    ", Enum.GetName(typeof(TradeType), trade.Type)));
-
                                 var entry = db.Trades.Where(x => x.TradeReference == trade.TradeReference && x.Action == TradeAction.ENTRY).FirstOrDefault();
-                                //var entryString = entry != null
-                                //    ? $",  entered {entry.Timestamp:g} at {entry.Price}"
-                                //    : string.Empty;
-
-                                //sb.Append(Pad20(entryString));
-                                //sb.Append(s);
-                                //sb.Append("\n");
                                 var priceDiff = -MainObj.GetPriceDiff(trade.Price, currentSymbol.Close, trade.Position) * 100;
                                 var pc = string.Format("Price {0}{1}%", priceDiff < 0 ? "" : "+", priceDiff.ToString("F"));
                                 var symbolName = SymbolNames.GetBaseAssetForSymbol(trade.SymbolName) ?? trade.SymbolName;
@@ -196,11 +183,6 @@ namespace AlgoTrader.Shared
                                        $"{entry.Timestamp:t}\t" +
                                        $"{PriceFormatter.Format(entry.Price)}\t\t" +
                                        $"{pos}\t"
-                                       // + $"{profitLoss.ToString("F")}\t" +
-                                       //$"{GetTradeType(close)}\t" +
-                                       //$"{close.TimeFrame}\t" +
-                                       //$"{script}" +
-                                       //$"{s}"
                                        );
                                 }
 
@@ -208,10 +190,10 @@ namespace AlgoTrader.Shared
                             }
                         }
                     }
-
+                    sb.Append(SPACER);
+                    */
                     #endregion
 
-                    sb.Append(SPACER);
                  
                     #region waiting trades
 
@@ -236,7 +218,7 @@ namespace AlgoTrader.Shared
                     sb.Append("Closed trades:\n");
                     //sb.Append("\tLeverage\tAmount\tEntry: Date\tTime\tPrice\tBalance\tExit: Date\tTime\tPrice\tBalance\tEquity\tResult\tResult Leveraged\tEquity result\tDollar result\tSide\tTF\t$ P/L\tUSDGBP\t£ P/L\n");
                     //this does not really line up so omit it
-                    foreach (var close in closedOrders)
+                    foreach (var close in closedOrdersToShow)
                     {
                         var s = close.TradeExchangeStatus == TradeExchangeStatus.ENTERED_ON_EXCHANGE ? "" : "Test closed:  ";
                         var entry = db.Trades.Where(x => x.TradeReference == close.TradeReference && x.Action == TradeAction.ENTRY).FirstOrDefault();
@@ -269,32 +251,29 @@ namespace AlgoTrader.Shared
 
                             if (prevClose != null)
                             {
+                                var _balancePCMove = prevClose.Balance > 0 ? (entry.Balance / prevClose.Balance - 1) * 100 : 0;
                                 var _profit = entry.Balance - prevClose.Balance;
                                 var _result = (entry.Price / prevClose.Price - 1) * 100;
                                 var _gbp = _profit * entry.ExchangeRate;
 
                                 sb.Append(
-                                    "BTC\t" +
+                                    "---\t" +
                                     "\t" +
                                     "\t" +
                                     $"{prevClose.Timestamp:d}\t" +
                                     $"{prevClose.Timestamp:t}\t" +
                                     $"{PriceFormatter.Format(prevClose.Price)}\t" +
-                                    $"{prevClose.Balance.ToString("F2")}\t" +
+                                    $"{prevClose.Balance:F2}\t" +
                                     $"{entry.Timestamp:d}\t" +
                                     $"{entry.Timestamp:t}\t" +
                                     $"{PriceFormatter.Format(entry.Price)}\t" +
                                     $"{entry.Balance:F2}\t" +
-                                    //"\t" +
                                     $"{_result:F2}%\t" +
-                                    //"\t" +
                                     "\t" +
-                                    "\t" +
-                                    "\t" +
-                                    "\t" +
+                                    $"{_balancePCMove:F}%\t" +
                                     $"{_profit:F4}\t" +
-                                    $"{entry.ExchangeRate:F6}\t" +
-                                    $"{_gbp:F2}"
+                                    $"{_gbp:F2}\t" +
+                                    $"{entry.ExchangeRate:F6}\t"
                                 );
                                 sb.Append('\n');
                             }
@@ -302,13 +281,12 @@ namespace AlgoTrader.Shared
 
 
                             var leverage = close.Leverage == 0 ? 1 : close.Leverage; //just to be safe
-                            var result = close.Result; //already adjusted for fees
-
-                            var balanceResult = entry.Balance > 0 ? (close.Balance / entry.Balance - 1) * 100 : 0;
-                            var profit = close.Balance - entry.Balance;
+                            var result = close.Result; //already adjusted for fees, result is just difference between entry and close prices
+                            var balancePCMove = entry.Balance > 0 ? (close.Balance / entry.Balance - 1) * 100 : 0;
+                            var profitLoss = close.Balance - entry.Balance;
                             var pos = close.Position == TradePosition.LONG ? "long" : "short";
                             var leveragedResult = result * leverage;
-                            var gbp = profit * close.ExchangeRate;
+                            var gbp = profitLoss * close.ExchangeRate;
                             sb.Append(
                                 $"{symbolName}\t" +
                                 $"{leverage:F1}\t" +
@@ -323,18 +301,18 @@ namespace AlgoTrader.Shared
                                 $"{close.Balance:F2}\t" +
                                 $"{result:F}%\t" +
                                 $"{leveragedResult:F2}%\t" +
-                                $"{balanceResult:F}%\t" +
-                                $"{pos}\t" +
-                                $"{close.TimeFrame}\t" +
-                                $"{profit:F}\t" +
+                                $"{balancePCMove:F}%\t" +
+                                $"{profitLoss:F}\t" +
+                                $"{gbp:F2}\t" +
                                 $"{close.ExchangeRate:F6}\t" +
-                                $"{gbp:F2}"
+                                $"{pos}\t" +
+                                $"{close.TimeFrame}"
                             );
                             sb.Append('\n');
                         }
                     }
 
-                    var total = closedOrders.Sum(x => x.Result);
+                    var total = closedOrdersToShow.Sum(x => x.Result);
                     sb.Append(string.Concat("Total: ", total.ToString("F"), "%\n"));
 
                     #endregion

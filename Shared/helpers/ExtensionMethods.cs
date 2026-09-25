@@ -41,7 +41,11 @@ namespace AlgoTrader.Shared
         public static _ChartLine GetLineForTrade(this List<_ChartLine> lines, _Trade trade)
         {
             //in backtesting, the line trade does not reference the order for some reason, so have switched to Id comparison instead
-            return trade != null
+            return trade.Action == TradeAction.STOP || trade.Action == TradeAction.TAKE_PROFIT
+                ? trade != null
+                        ? lines.Where(x => x.StopId == trade.Id).FirstOrDefault()
+                        : null
+                : trade != null
                         ? lines.Where(x => x.TradeId == trade.Id).FirstOrDefault()
                         : null;
         }

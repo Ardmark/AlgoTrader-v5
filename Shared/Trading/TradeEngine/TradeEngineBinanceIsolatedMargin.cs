@@ -44,14 +44,17 @@ namespace AlgoTrader.Shared
         public override void Test()
         {
             double leverage = 0;
-            leverage = CalculateLeverageFromPercent(1, TradePosition.LONG);
-            leverage = CalculateLeverageFromPercent(1.1, TradePosition.SHORT);
-            leverage = CalculateLeverageFromPercent(0.75, TradePosition.LONG);
-            leverage = CalculateLeverageFromPercent(1.25, TradePosition.SHORT);
-            leverage = CalculateLeverageFromPercent(1.5, TradePosition.SHORT);
-            leverage = CalculateLeverageFromPercent(1.25, TradePosition.SHORT);
-            leverage = CalculateLeverageFromPercent(1.5, TradePosition.SHORT);
-            leverage = CalculateLeverageFromPercent(1.75, TradePosition.SHORT);
+
+            LogTrades.WriteLine("test");
+
+            //leverage = CalculateLeverageFromPercent(1, TradePosition.LONG);
+            //leverage = CalculateLeverageFromPercent(1.1, TradePosition.SHORT);
+            //leverage = CalculateLeverageFromPercent(0.75, TradePosition.LONG);
+            //leverage = CalculateLeverageFromPercent(1.25, TradePosition.SHORT);
+            //leverage = CalculateLeverageFromPercent(1.5, TradePosition.SHORT);
+            //leverage = CalculateLeverageFromPercent(1.25, TradePosition.SHORT);
+            //leverage = CalculateLeverageFromPercent(1.5, TradePosition.SHORT);
+            //leverage = CalculateLeverageFromPercent(1.75, TradePosition.SHORT);
 
 
         }
@@ -393,6 +396,16 @@ namespace AlgoTrader.Shared
             return Math.Round(freeBalance, 2);
         }
 
+        protected override double BalanceFree()
+        {
+            var response = Deserialize<IsolatedMarginAccountData>(binanceAPI.QueryIsolateMarginAccountInfoAsync().Result);
+            if (response != null)
+            {
+                var quoteAsset = response.GetQuoteAsset(symbolName);
+                return quoteAsset.Free;
+            }
+            return 0;
+        }
 
         protected override bool IsTradeClosed(TradePosition position)
         {
@@ -404,6 +417,13 @@ namespace AlgoTrader.Shared
                 {
                     switch (position)
                     {
+                        /* If free + locked is close to zero, trade can be deemed to have exited.
+                         * Reasoning: 
+                         *  - the stop will have closed on the exchange, so locked will be zero
+                         *  - the trade will have sold, so free will be zero
+                         *  - otherwise, free will be zero anyway because locked takes from the free balance anyway
+                         *  - so it is really the locked balance which normally shows the trade as still running, unless there was no stop
+                         *  */
                         case TradePosition.LONG:
 
                             var lotSize = GetMinLotSize();
@@ -411,9 +431,14 @@ namespace AlgoTrader.Shared
                             var baseAsset = response.GetBaseAsset(symbolName);
                             if (baseAsset != null)
                             {
-                                ret = (baseAsset.Free + baseAsset.Borrowed) <= lotSize; //i.e there is no BTC
+                                ret = (baseAsset.Free + baseAsset.Locked) <= lotSize; //i.e there is no BTC
                             }
 
+                            //if (ret)
+                            //{
+                            //    LogTrades.WriteLine($"++{DateTime.UtcNow}\n++ IsTradeClosed returned true\n++ Base asset free {baseAsset.Free}, borrowed: {baseAsset.Borrowed}, lot size: {lotSize}");
+                            //    ret = false;
+                            //}
                             break;
 
                         case TradePosition.SHORT:
@@ -423,18 +448,20 @@ namespace AlgoTrader.Shared
                             var quoteAsset = response.GetQuoteAsset(symbolName);
                             if (quoteAsset != null)
                             {
-                                ret = (quoteAsset.Free + quoteAsset.Borrowed) <= priceFilter; //i.e there is no FIAT
+                                ret = (quoteAsset.Free + quoteAsset.Locked) <= priceFilter; //i.e there is no FIAT
                             }
-
+                            //if (ret)
+                            //{
+                            //    LogTrades.WriteLine($"++{DateTime.UtcNow}\n++ IsTradeClosed returned true\n++ Quote asset free {quoteAsset.Free}, borrowed: {quoteAsset.Borrowed}, price filter: {priceFilter}");
+                            //    ret = false ;
+                            //}
                             break;
                     }
                 }
             }
             catch { }
 
-            if (ret) LogTrades.WriteLine("IsTradeClosed() returned TRUE");
-
-            return ret;
+            return  ret;
         }
 
         public override void ShowAccountBalances()
@@ -548,7 +575,18 @@ namespace AlgoTrader.Shared
                 }
             }                
         }
-        
+
+        protected override double GetLiquidationPrice()
+        {
+            var response = Deserialize<IsolatedMarginAccountData>(binanceAPI.QueryIsolateMarginAccountInfoAsync().Result);
+            if (response != null)
+            {
+                var asset = response.GetAssetData(symbolName);
+                return asset != null ? asset.LiquidateRate : 0;
+            }
+            return 0;
+        }
+
         #region Margin-specific methods (unused)
         public bool EnableIsolatedMargin()
         {

@@ -73,7 +73,7 @@ namespace AlgoTrader.Shared
                             //if the trade line is the one currently being moved, we need those values. Otherwise, use the
                             // line data from the database
 
-                            var currentLine = (Trade.Id == trade.Id) ? this : line;
+                            var currentLine = (TradeId == trade.Id || StopId == trade.Id) ? this : line;
 
                             var _gradient = (currentLine.EndPrice - currentLine.StartPrice) / (currentLine.EndTimeStamp - currentLine.StartTimeStamp).Ticks;
                             var _timediff = (currentLine.EndTimeStamp - currentLine.StartTimeStamp).Ticks;
@@ -156,6 +156,7 @@ namespace AlgoTrader.Shared
                             line.EndTimeStamp = endTime;
                             trade.Timestamp = tradeTime;
                             (trade.Price, _) = line.GetPriceAtTime(orderEntry.Timestamp, true);
+
                             tradeEngine.SetUpdateRequest(line);
                             tradeEngine.SetUpdateRequest(trade);
                             tradeEngine.UpdateUIList(trade);
@@ -168,14 +169,14 @@ namespace AlgoTrader.Shared
                             {
                                 return;
                             }
-                            var tradeRef = chartLine.TradeReference;
+                            var tradeRef = orderEntry.TradeReference;
                             var order = tradeEngine.GetTradeForTradeReference(TradeAction.ORDER, tradeRef);
                             var entry = tradeEngine.GetTradeForTradeReference(TradeAction.ENTRY, tradeRef);
                             var stop = tradeEngine.GetTradeForTradeReference(TradeAction.STOP, tradeRef);
                             var takeProfit = tradeEngine.GetTradeForTradeReference(TradeAction.TAKE_PROFIT, tradeRef);
 
                             TimeSpan translateTime = TimeSpan.Zero;
-                            if (Trade.Id == orderEntry.Id)
+                            if (TradeId == orderEntry.Id || StopId == orderEntry.Id)
                             {
                                 //if the order line gets moved, update the order time so that can be moved away from the current time
                                 if (!isDraggingEnd && !isDraggingStart)
@@ -189,24 +190,28 @@ namespace AlgoTrader.Shared
                             //pass each of the lines and trades in, the order will update the others anyway so they then won't make any changes
                             //and vice-versa with the stop and tp, they will not update the order though
                             //Perhaps not efficient but the most clear way to do this
-                            if (order != null)
+                            if (Stop == null) //no stop set on this line
                             {
-                                var _line = tradeEngine.AllLinesForSymbol.FirstOrDefault(x => x.TradeId == order.Id);
-                                SetLineToOrder(order, orderEntry, entry != null, _line, translateTime);
+                                //don't move the order if you are moving TP or stop, but OK if vice-versa
+                                if (order != null)
+                                {
+                                    var _line = tradeEngine.AllLinesForSymbol.FirstOrDefault(x => x.TradeId == order.Id);
+                                    SetLineToOrder(order, orderEntry, entry != null, _line, translateTime);
+                                }
                             }
                             if (stop != null)
                             {
-                                var _line = tradeEngine.AllLinesForSymbol.FirstOrDefault(x => x.TradeId == stop.Id);
+                                var _line = tradeEngine.AllLinesForSymbol.FirstOrDefault(x => x.StopId == stop.Id);
                                 SetLineToOrder(stop, orderEntry, entry != null, _line, translateTime);
                             }
                             if (takeProfit != null)
                             {
-                                var _line = tradeEngine.AllLinesForSymbol.FirstOrDefault(x => x.TradeId == takeProfit.Id);
+                                var _line = tradeEngine.AllLinesForSymbol.FirstOrDefault(x => x.StopId == takeProfit.Id);
                                 SetLineToOrder(takeProfit, orderEntry, entry != null, _line, translateTime);
                             }
                         }
 
-                        if (Trade == null)
+                        if (Trade == null && Stop == null)
                         {
                             CopyTo(chartLine);
                             tradeEngine.SetUpdateRequest(chartLine);
@@ -216,23 +221,24 @@ namespace AlgoTrader.Shared
                         }
                         else
                         {
-                            var entry = tradeEngine.GetTradeForTradeReference(TradeAction.ENTRY, chartLine.Trade.TradeReference);
+                            var tradeRef = Trade == null ? Stop.TradeReference : Trade.TradeReference;
+                            var entry = tradeEngine.GetTradeForTradeReference(TradeAction.ENTRY, tradeRef);
 
                             //bail if trade is active and line has the order attached
-                            if (entry != null && Trade.Action == TradeAction.ORDER)
+                            if (entry != null && Trade != null)
                             {
                                 return;
                             }
 
-                            var order = tradeEngine.GetTradeForTradeReference(TradeAction.ORDER, chartLine.Trade.TradeReference);
+                            var order = tradeEngine.GetTradeForTradeReference(TradeAction.ORDER, tradeRef);
 
                             if (order != null)
                             {
                                 var order_entry = entry ?? order;
-                                var lines = tradeEngine.GetLinesForTradeReference(chartLine.Trade.TradeReference);
+                                var lines = tradeEngine.GetLinesForTradeReference(tradeRef);
                                 var orderLine = lines.FirstOrDefault(x => x.TradeId == order.Id);
 
-                                (bool isClose, bool isWrongSide) = tradeEngine.CanSetTrade(orderLine, this, Trade.Price, Trade.Action, entry, order.Position);
+                                (bool isClose, bool isWrongSide) = tradeEngine.CanSetTrade(this, order.Price, order.Action, entry, order.Position);
 
                                 if (isClose)
                                 {
@@ -248,9 +254,9 @@ namespace AlgoTrader.Shared
                                         tradeEngine.UpdateUIList(chartLine);
                                         MainObj.DrawCurrentDispatcher(true);
 
-                                        AlertDialog.ShowCallback($"Trade would be too close to price and may trigger close.\nDo you wish to procede? ", $"Position may not be valid", (ret) =>
-                                        {
-                                            if (ret)
+                                        //AlertDialog.ShowCallback($"Trade would be too close to price and may trigger close.\nDo you wish to procede? ", $"Position may not be valid", (ret) =>
+                                        //{
+                                         //   if (ret)
                                             {
                                                 //enclosing datacontext will be lost now
                                                 Task.Run(() =>
@@ -265,7 +271,7 @@ namespace AlgoTrader.Shared
                                             }
 
                                             MainObj.DrawCurrentDispatcher(true);
-                                        });
+                                        //});
                                     }
                                 }
                                 else
@@ -327,8 +333,7 @@ namespace AlgoTrader.Shared
 
             if (Trade != null)
             {
-
-                //trade may be order or stop. If order and has entered, cannot move line
+                //If order and has entered, cannot move line
                 if (Trade.Action == TradeAction.ORDER && Trade.ItemStatus == TradeItemStatus.CLOSED)
                 {
                     return;

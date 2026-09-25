@@ -142,13 +142,13 @@ namespace AlgoTrader.Live.ViewModels
         }
 
         void ClearConnectionLog()
-        { 
-            LogBase.ClearLog("LogConnection.txt");
+        {
+            Shared.Logging.LogConnection.Clear();
             DisplayLogConnection("");
         }
         void ClearTradesLog()
         {
-            LogBase.ClearLog("LogTrades.txt");
+            LogTrades.Clear();
             DisplayLogTrades("");
         }
         public void DisplayLogTrades(string s)
@@ -372,13 +372,6 @@ namespace AlgoTrader.Live.ViewModels
         #endregion
 
         #region Menu commands
-        
-        #region Orders
-        ICommand moveStopsCommand, killOrdersCommand;
-        public ICommand MoveStops_Click => moveStopsCommand ??= new CommandHandler((param) => MoveTrades(param), true);
-        public ICommand KillOrders_Click => killOrdersCommand ??= new CommandHandler1(KillOrders, true);
-
-        #endregion
 
         #region Connection
         ICommand connectionCommand, restartCommand, backupDBCommand;
@@ -433,12 +426,14 @@ namespace AlgoTrader.Live.ViewModels
         #endregion
 
         #region Button commands
-        ICommand synchStopsWithExchangeButton_Click, showHideTP_Command, cleanupTradesAndLines_Command, cleanupLines_Command, cleanupTrades_Command, extendLines_Command, removeUnallocatedLines_Command, setOrderButton_Command, nextTradeButton_Command, prevTradeButton_Command, scrollButton1_Command, scrollButton2_Command, scrollButton3_Command, scrollButton4_Command, scrollButton5_Command, scrollButton6_Command, scaleButton1_Command, scaleButton2_Command;
+        ICommand moveStopsCommand, killOrdersCommand, synchStopsWithExchangeButton_Click, showHideTP_Command, cleanupTradesAndLines_Command, cleanupLines_Command, cleanupTrades_Command, extendLines_Command, removeUnallocatedLines_Command, setOrderButton_Command, nextTradeButton_Command, prevTradeButton_Command, scrollButton1_Command, scrollButton2_Command, scrollButton3_Command, scrollButton4_Command, scrollButton5_Command, scrollButton6_Command, scaleButton1_Command, scaleButton2_Command;
+        public ICommand MoveStops_Click => moveStopsCommand ??= new CommandHandler((param) => MoveTrades(param), true);
+        public ICommand KillOrders_Click => killOrdersCommand ??= new CommandHandler1(KillOrders, true);
         public ICommand SynchStopsWithExchangeButton_Click => synchStopsWithExchangeButton_Click ?? (synchStopsWithExchangeButton_Click = new CommandHandler1(() => SynchStopsWithExchange(), true));
         public ICommand CleanupLines_Click => cleanupLines_Command ?? (cleanupLines_Command = new CommandHandler1(() => MainObj.CleanupLines(), true));
         public ICommand CleanupTrades_Click => cleanupTrades_Command ?? (cleanupTrades_Command = new CommandHandler1(() => MainObj.CleanupTrades(), true));
         public ICommand CleanupTradesAndLines_Click => cleanupTradesAndLines_Command ?? (cleanupTradesAndLines_Command = new CommandHandler1(() => { MainObj.CleanupTrades(); MainObj.CleanupLines(); }, true));
-        public ICommand ToggleTP_Click => showHideTP_Command ?? (showHideTP_Command = new CommandHandler1(() => { ShowHideTP(); }, true));
+        public ICommand ToggleTP_Click => showHideTP_Command ?? (showHideTP_Command = new CommandHandler1(() => { ShowHideTakeProfit(); }, true));
         public ICommand Scrollbutton1_Click => scrollButton1_Command ?? (scrollButton1_Command = new CommandHandler1(() => MainObj.ScrollToStart(), true));
         public ICommand Scrollbutton2_Click => scrollButton2_Command ?? (scrollButton2_Command = new CommandHandler1(() => MainObj.ScrollForward(true), true));
         public ICommand Scrollbutton3_Click => scrollButton3_Command ?? (scrollButton3_Command = new CommandHandler1(() => MainObj.ScrollForward(false), true));
@@ -571,27 +566,10 @@ namespace AlgoTrader.Live.ViewModels
                 },
                 #endregion
 
-                //this can be removed
-                #region Add flip stop to line
-                () =>
-                {
-                    //tradeEngine.AddStopToLine_UI(GetChartLineId(), TradeType.FLIP_ORDER);
-                    RemovePopupWindow();
-                },
-                #endregion
-
                 #region Add dead stop to line
                 () =>
                 {
                     tradeEngine.AddStopToLine_UI(GetChartLineId());//, TradeType.NO_FLIP_ORDER);
-                    RemovePopupWindow();
-                },
-                #endregion
-
-                #region Add waiting dead stop to line
-                () =>
-                {
-                tradeEngine.AddStopToLine_UI(GetChartLineId());//, TradeType.STOP_WAITING);
                     RemovePopupWindow();
                 },
                 #endregion
@@ -609,10 +587,10 @@ namespace AlgoTrader.Live.ViewModels
                 {
                     tradeEngine.DeleteLine_UI_synchronised(GetChartLineId());
                     RemovePopupWindow();
-
-                });
+                }
+                #endregion
+                );
             }
-            #endregion
 
             SetPopupMenuWindow(e);
         }
@@ -882,8 +860,6 @@ namespace AlgoTrader.Live.ViewModels
                 );
             }
 
-            //(popupMenuWindow as OrderExecutionMenu).AllowClose = allowClose;
-
             SetPopupMenuWindow(e);
         }
 
@@ -1003,7 +979,6 @@ namespace AlgoTrader.Live.ViewModels
                     {
                         (DateTime timeStamp, double price) = MainObj.visibleChart.GetTimeAndPriceFromLastMouse(true);
                         MainObj.visibleTradeEngine.SetStopAtPrice_UI_synchronised(timeStamp, price, TradeStop.STOP_ON_LINE_BREAK);
-                        Chart.showTakeProfit = true;
                     }
                     RemovePopupWindow();
                 },
@@ -1096,63 +1071,6 @@ namespace AlgoTrader.Live.ViewModels
                     MainObj.visibleTradeEngine.Test();
                     RemovePopupWindow();
                 }
-                /*
-                #region Set MA Stop
-                () =>
-                {
-                    MainObj.visibleTradeEngine.SetMovingAverageStop_UI_synchronised();
-                    RemovePopupWindow();
-                },
-                #endregion
-
-                #region Set MA Flip
-                () =>
-                {
-                    MainObj.visibleTradeEngine.SetMovingAverageStop_UI_synchronised(TradeType.FLIP_ORDER);
-                    RemovePopupWindow();
-                },
-                #endregion
-
-                #region Set Trailing Stop
-                () =>
-                {
-                    SetStopTrailPC();
-                    RemovePopupWindow();
-                },
-                #endregion
-               
-                #region Set take profit at percent (unused)
-
-                () =>
-                {
-                    if (MainObj.invertChart)
-                    {
-                        ShowInvertedChartWarning();
-                    }
-                    else
-                    {
-                        AlertDialog.ShowCallback("Unimplemented - Set take profit at percent between entry and current price?", "", () =>
-                        {
-                            //(DateTime timeStamp, double price) = MainObj.visibleChart.GetTimeAndPriceFromLastMouse(true);
-                            //MainObj.visibleTradeEngine.SetTakeProfitAtPercent_UI_synchronised(timeStamp, price);
-                        });
-                    }
-                    RemovePopupWindow();
-                },
-                #endregion
-
-                #region Set Break Even
-                () =>
-                {
-                    //if (MainObj.visibleTradeEngine.currentDataItem != null)
-                    //{
-                    //MainObj.visibleTradeEngine.SetTakeProfitAtPercent_UI_synchronised(DateTime.UtcNow, MainObj.visibleTradeEngine.currentDataItem.Close);
-                    //}
-                    RemovePopupWindow();
-                }
-                #endregion
-                 */
-
             );
             }
 
@@ -1325,6 +1243,7 @@ namespace AlgoTrader.Live.ViewModels
             SetProperty("ShowClosedTrades_Checked", Chart.showClosedTrades);
             MainObj.DrawImmediate();
         }
+
         public void ShowClosedTrades()
         {
             Chart.showClosedTrades = true;
@@ -1353,12 +1272,22 @@ namespace AlgoTrader.Live.ViewModels
             MainObj.DrawImmediate();
         }
 
+        public void HideTP_Liquidations()
+        {
+            Chart.showLiquidations = false;
+            Chart.showTakeProfit = false;
+            SetProperty("ShowLiquidations_Checked", Chart.showLiquidations);
+            SetProperty("ShowTakeProfit_Checked", Chart.showTakeProfit);
+            //called externally so don't draw here
+        }
+
         private void ToggleDarkMode()
         {
             MainObj.ToggleDarkMode();
             SetProperty("DarkMode_Checked", MainObj.isDarkMode);
             MainObj.DrawImmediate();
         }
+
         private void ToggleDrawingMode()
         {
             toggleDraw = !toggleDraw;
@@ -1377,13 +1306,6 @@ namespace AlgoTrader.Live.ViewModels
                 Chart.showTrades = toggleDraw;
                 SetProperty("ShowAllTrades_Checked", Chart.showTrades);
             }
-            MainObj.DrawImmediate();
-        }
-
-        private void ShowHideTP()
-        {
-            Chart.showTakeProfit = !Chart.showTakeProfit;
-            SetProperty("ShowTakeProfit_Checked", Chart.showTakeProfit);
             MainObj.DrawImmediate();
         }
 
@@ -1437,15 +1359,11 @@ namespace AlgoTrader.Live.ViewModels
             });
         }
 
-
-
-
         private void ShowResultsWindow(object param)
         {
             var resultsWindow = new ResultsWindow();
             resultsWindow.Show();
         }
-
 
         //navigate back and forward to the previous or next trades,
         // or navigate back and forward to the previous or next potential trade entries (i.e. indicator positions)
@@ -1496,7 +1414,6 @@ namespace AlgoTrader.Live.ViewModels
             });
         }
 
-
         public void SetTimeframe(object param)
         {
             int.TryParse(param as string, out int timeFrame);
@@ -1525,12 +1442,10 @@ namespace AlgoTrader.Live.ViewModels
             mouseDown = false; //because the mouse down events fire and set it to true during initialisation
 
             BackupDBEnabled = true; //cannot do this during init, obviously
-
         }
 
         public void SetTimeframeMenuState(int timeFrame)
         {
-
             SetProperty("TimeFrame1_Checked", false); SetProperty("TimeFrame2_Checked", false); SetProperty("TimeFrame3_Checked", false); SetProperty("TimeFrame4_Checked", false); SetProperty("TimeFrame4_Checked", false); SetProperty("TimeFrame5_Checked", false); SetProperty("TimeFrame6_Checked", false);
 
             switch (timeFrame)
@@ -1552,7 +1467,6 @@ namespace AlgoTrader.Live.ViewModels
                     break;
             }
             SetProperty("UI_Interval", timeFrame.ToString()); //this is an alternative to calling the method and putting OnPropertyChanged there
-
         }
 
         public void SetConcurrentOrdersMenuState(int m)
@@ -1607,7 +1521,6 @@ namespace AlgoTrader.Live.ViewModels
         public bool toggleDraw = false;
         public void KeyDown(Key key)
         {
-
             //don't use SPACE - it holds focus on the last button clicked.
             switch (key)
             {
@@ -1621,7 +1534,6 @@ namespace AlgoTrader.Live.ViewModels
                     break;
                 //case Key.X:
                 case Key.Delete:
-                    AlgoTrader.Shared.Logging.LogConnection.WriteLine(key.ToString());
                     if (_ChartLine.CurrentLine != null)
                     {
                         int.TryParse(_ChartLine.CurrentLine.Name.Substring(1), out int id);
@@ -1635,90 +1547,66 @@ namespace AlgoTrader.Live.ViewModels
                     break;
 
                 case Key.T:
-                    ShowHideTP();
+                    ShowHideTakeProfit();
                     break;
                 case Key.N:
                     ToggleDarkMode();
                     break;
 
                 case Key.H:
-                    AlgoTrader.Shared.Logging.LogConnection.WriteLine(key.ToString());
                     ToggleHeikinAshi();
                     break;
 
                 case Key.B:
-                    AlgoTrader.Shared.Logging.LogConnection.WriteLine(key.ToString());
                     GetBalances();
                     break;
 
                 case Key.A:
-                    AlgoTrader.Shared.Logging.LogConnection.WriteLine(key.ToString());
                     ToggleShowAllTrades();
                     break;
-
                 case Key.C:
-                    AlgoTrader.Shared.Logging.LogConnection.WriteLine(key.ToString());
                     Chart.showClosedTrades = !Chart.showClosedTrades;
                     SetProperty("ShowClosedTrades_Checked", Chart.showClosedTrades);
-                    //GotoNextClosedSymbol();
                     MainObj.DrawImmediate();
                     break;
                 case Key.P:
-                    AlgoTrader.Shared.Logging.LogConnection.WriteLine(key.ToString());
                     if (!keysDown.Contains(key))
                     {
                         ShowHideTakeProfit();
                     }
                     break;
                 case Key.L:
-                    AlgoTrader.Shared.Logging.LogConnection.WriteLine(key.ToString());
                     if (!keysDown.Contains(key))
                     {
                         ShowHideLiquidations();
                     }
                     break;
-
-                //problem with the lines trapping mouse events, and using PreviewMouseDown to bubble the event does not help.
-                //so just show the lines when the alt key is pressed
-                case Key.LeftShift:
-
-                    // MainObj.chart.ShowCrossLines();
-                    break;
-
                 case Key.Escape:
-                    AlgoTrader.Shared.Logging.LogConnection.WriteLine(key.ToString());
                     MainObj.visibleChart.ShowBox = false;
                     keysDown.Clear();
                     MainObj.visibleChart.currentLine = null;
                     _ChartLine.movingLine = null;
                     MainObj.StopSound();
                     break;
-
                 case Key.R:
-                    AlgoTrader.Shared.Logging.LogConnection.WriteLine(key.ToString());
                     GoToNextRunningSymbol();
                     break;
-
                 case Key.I:
-                    AlgoTrader.Shared.Logging.LogConnection.WriteLine(key.ToString());
                     InvertChart();
                     break;
-
                 case Key.OemPlus:
-                    AlgoTrader.Shared.Logging.LogConnection.WriteLine(key.ToString());
                     MainObj.visibleChart.ScaleChart(false);
                     break;
                 case Key.OemMinus:
-                    AlgoTrader.Shared.Logging.LogConnection.WriteLine(key.ToString());
                     MainObj.visibleChart.ScaleChart(true);
                     break;
                 case Key.D0:
-                    AlgoTrader.Shared.Logging.LogConnection.WriteLine(key.ToString());
                     Chart.rangeScale = 1;
                     MainObj.visibleChart.yOffset = 0;
                     MainObj.DrawCurrentDispatcher();
                     break;
             }
+            //Shared.Logging.LogConnection.WriteLine(key.ToString());
 
             if (!keysDown.Contains(key))
             {

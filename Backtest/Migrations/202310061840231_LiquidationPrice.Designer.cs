@@ -6,14 +6,14 @@ namespace AlgoTrader.Backtest.Migrations
     using System.Data.Entity.Migrations.Infrastructure;
     using System.Resources;
     
-    [GeneratedCode("EntityFramework.Migrations", "6.5.1")]
-    public sealed partial class Update : IMigrationMetadata
+    [GeneratedCode("EntityFramework.Migrations", "6.4.4")]
+    public sealed partial class LiquidationPrice : IMigrationMetadata
     {
-        private readonly ResourceManager Resources = new ResourceManager(typeof(Update));
+        private readonly ResourceManager Resources = new ResourceManager(typeof(LiquidationPrice));
         
         string IMigrationMetadata.Id
         {
-            get { return "202609130907024_Update"; }
+            get { return "202310061840231_LiquidationPrice"; }
         }
         
         string IMigrationMetadata.Source

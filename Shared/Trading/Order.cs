@@ -598,7 +598,7 @@ namespace AlgoTrader.Shared
                                     var line = new _ChartLine
                                     {
                                         SymbolName = symbolName,
-                                        TradeReference = entry.TradeReference,
+                                        //TradeReference = entry.TradeReference,
                                         StartTimeStamp = startTimestamp,
                                         EndTimeStamp = endTimestamp,
                                         StartPrice = price,

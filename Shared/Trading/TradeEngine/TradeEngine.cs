@@ -1,10 +1,12 @@
 using AlgoTrader.Shared.Enums;
+using AlgoTrader.Shared.Interfaces;
 using AlgoTrader.Shared.Logging;
 using AlgoTrader.Shared.MovingAverages;
 using OpenExchangeRates;
 using System.Data.Entity;
 using System.Windows.Controls;
 using System.Windows.Media;
+using static AlgoTrader.Shared.TradeEngineBinanceIsolatedMargin;
 using Brushes = System.Windows.Media.Brushes;
 
 namespace AlgoTrader.Shared
@@ -195,8 +197,8 @@ namespace AlgoTrader.Shared
                 return _activeLines != null
                     ? _activeLines
                     : _activeLines = Order != null
-                        ? DataContext.Lines.Include(x => x.Trade).Where(x =>
-                            x.TradeReference == Order.TradeReference
+                        ? DataContext.Lines.Include(x => x.Trade).Include(x => x.Stop).Where(x =>
+                            x.TradeId == Order.Id
                             ).ToList()
                         : new List<_ChartLine>();
 
@@ -231,7 +233,7 @@ namespace AlgoTrader.Shared
             {
                 return _allLinesForSymbol != null
                 ? _allLinesForSymbol
-                : _allLinesForSymbol = DataContext.Lines.Include(x => x.Trade).Where(x =>
+                : _allLinesForSymbol = DataContext.Lines.Include(x => x.Trade).Include(x => x.Stop).Where(x =>
                                             x.SymbolName == symbolName
                                             ).ToList();
 
@@ -377,7 +379,7 @@ namespace AlgoTrader.Shared
         internal List<_ChartLine> GetLinesForTradeReference(string reference = null)
         {
             var _reference = reference ?? currentTradeSetReference;
-            return AllLinesForSymbol.Where(x => x.TradeReference == _reference).ToList();
+            return AllLinesForSymbol.Where(x => x.Trade != null && x.Trade.TradeReference == _reference || (x.Stop != null && x.Stop.TradeReference == reference)).ToList();
         }
 
         #endregion
@@ -388,7 +390,7 @@ namespace AlgoTrader.Shared
         {
             if (dataContext != null)
             {
-                UI_Lines = [.. dataContext.Lines.AsNoTracking().Include(x => x.Trade).Where(x => x.SymbolName == symbolName)]; //same as .ToList()
+                UI_Lines = [.. dataContext.Lines.AsNoTracking().Include(x => x.Trade).Include(x => x.Stop).Where(x => x.SymbolName == symbolName)]; //same as .ToList()
                 UI_Trades = [.. dataContext.Trades.AsNoTracking().Where(x => x.SymbolName == symbolName)];
             }
         }
@@ -510,13 +512,13 @@ namespace AlgoTrader.Shared
             try
             {
                 //UpdateRequest.ADD is not used, since it is only the Id which determines if the object should be added to the DB, and it will not duplicate if added twice anyway
-                if (trade.Id == 0) //should never be non-zero anyway
+                if (updateRequest == TradeUpdateRequest.DELETE)
+                {
+                    DataContext.Trades.Remove(trade); //can require a delete before Id is set??
+                }
+                else if (trade.Id == 0) //should never be non-zero anyway
                 {
                     DataContext.Trades.Add(trade); //cannot duplicate in database if added twice, it will only get added once
-                }
-                else if (updateRequest == TradeUpdateRequest.DELETE)
-                {
-                    DataContext.Trades.Remove(trade);
                 }
                 dbUpdateRequired = true;
             }
@@ -691,13 +693,16 @@ namespace AlgoTrader.Shared
         protected abstract bool CancelOpenOrders();
         protected abstract void UpdateLiveState();
         protected abstract double GetLastPrice();
-        protected abstract bool SendOrder(TradePosition position, double orderQuantity, string orderId, Side side, out double averagePrice, out double executedQuantity);
+        protected abstract bool SendEntry(double tradeAmountBase, double lastQuoteValue, out double averagePrice, out double executedQuantity);
+        protected abstract bool SendClose(out double closePrice, out double executedQuantity);
         protected abstract double GetCorrectPrecisionForBaseAssetTrade(double balanceToTrade);
         protected abstract double BalanceNet();
+        protected abstract double BalanceFree();
         protected abstract (double, double) BalanceToEnterTrade(double lastQuoteValue, TradePosition position);
         protected abstract double BalanceToCloseTrade(TradePosition position);
         protected abstract bool InitForEntryOrClose();
         protected abstract bool IsTradeClosed(TradePosition position);
+        protected abstract double GetLiquidationPrice();
         #endregion
 
         #region Run orders
@@ -1007,11 +1012,13 @@ namespace AlgoTrader.Shared
                         //AlertDialog.Show($"Could not place order for {trade.SymbolName} as there have already been {TradeEngine.MAX_TRADES_PER_24_HOURS} in 24 hours");
                         return (false, true);
 
-                    case OrderFrequency.PREV_ENTRY_TOO_CLOSE:
-                        LogTrades.WriteLine($" {trade.SymbolName} at {DateTime.Now} - Trade not entered as too near to previous trade's close order");
-                        return (false, true);
+                        //this will happen with a flip every time
+                    //case OrderFrequency.PREV_ENTRY_TOO_CLOSE:
+                    //    LogTrades.WriteLine($" {trade.SymbolName} at {DateTime.Now} - Trade not entered as too near to previous trade's close order");
+                    //    return (false, true);
 
                     case OrderFrequency.OK_TO_ENTER_LIVE:
+                    case OrderFrequency.PREV_ENTRY_TOO_CLOSE:
 
                         var price = trade.Price; //trade may be an active order or a market order entry  currentDataItem.Close;
                         //issue with price of 0, this should not happen here, or matter if trade is live, but this is just to check
@@ -1130,7 +1137,7 @@ namespace AlgoTrader.Shared
             {
                 stopPrice = Stop.Price;
 
-                var stopLine = AllLinesForSymbol.FirstOrDefault(x => x.TradeId == Stop.Id);
+                var stopLine = AllLinesForSymbol.FirstOrDefault(x => x.StopId == Stop.Id);
                 if (stopLine != null)
                 {
                     (stopPrice, _) = stopLine.GetPriceAtTime(DateTime.UtcNow, true);
@@ -1193,7 +1200,8 @@ namespace AlgoTrader.Shared
                 KillEntryOrCloseOrder(true);
                 return;
             }
-
+            //    KillEntryOrCloseOrder(true);
+            //return;
             #endregion
 
             #region Generate Entry
@@ -1208,7 +1216,7 @@ namespace AlgoTrader.Shared
             Entry.Equity = netBalanceQuote;
             Entry.TradeReference = Order.TradeReference;//shared with all trades in this group
             Entry.Leverage = Order.Leverage = Leverage; //leverage may have been changed by max borrow amount
-            SetUpdateRequest(Entry);
+            Entry.Balance = netBalanceQuote;
 
             #endregion
 
@@ -1216,15 +1224,17 @@ namespace AlgoTrader.Shared
 
             Order.TradeExchangeStatus = Entry.TradeExchangeStatus = TradeExchangeStatus.ENTERING_ON_EXCHANGE;
 
-            LogTrades.WriteLine($"Placing buy order of {tradeAmountBase}, adjusted for step size, at {DateTime.Now}...");
+            LogTrades.WriteLine($"Placing buy order of {tradeAmountBase}, at {DateTime.Now}");
 
-            bool accepted = SendOrder(Entry.Position, tradeAmountBase, Entry.ItemId, Side.ENTER, out double averagePrice, out double executedQuantity);
+            bool accepted = SendEntry(tradeAmountBase, lastQuoteValue, out double averagePrice, out double executedQuantity);
             if (!accepted)
             {
-                LogTrades.WriteLine("Order not accepted, terminating Entry");
+                LogTrades.WriteLine("Order was not placed on exchange. Terminating order.");
                 KillEntryOrCloseOrder(true);
                 return;
             }
+
+            SetUpdateRequest(Entry); //don't add unless accepted
 
             LogTrades.WriteLine($"{Entry.Position} order FILLED for {Entry.SymbolName} at {DateTime.UtcNow}");
 
@@ -1278,6 +1288,10 @@ namespace AlgoTrader.Shared
 
             #endregion
 
+            #region Get liquidation price
+            Entry.LiquidationPrice = GetLiquidationPrice();
+            #endregion
+
             #region Get exchange rate
             //cannot have any synched objects after this as synchronisation will exit before this method completes
             LogTrades.WriteLine("Getting exchange conversion rate...");
@@ -1286,10 +1300,9 @@ namespace AlgoTrader.Shared
             #endregion
 
             //No more access to Entry, Close etc. after call to async GetConversionRate()!!!
+            MainObj.HideThings();
             MainObj.DrawCurrentDispatcher();
-
             tradeStatusChanged = true;
-
             InitLiveUpdateTimer();
         }
 
@@ -1314,7 +1327,6 @@ namespace AlgoTrader.Shared
 
             if (!InitForEntryOrClose())
             {
-                KillEntryOrCloseOrder(true);
                 return;
             }
             #endregion
@@ -1363,13 +1375,17 @@ namespace AlgoTrader.Shared
 
                 #region Place order     
                 
-                LogTrades.WriteLine($"Placing sell order of {Close.Quantity}, adjusted for step size, at {DateTime.Now}...");
+                LogTrades.WriteLine($"Placing sell order of {Close.Quantity}, at {DateTime.Now}");
 
-                bool accepted = SendOrder(Close.Position, Close.Quantity, Close.ItemId, Side.CLOSE, out closePrice, out double executedQuantity);
+                bool accepted = SendClose(out closePrice, out double executedQuantity);
 
                 if (accepted)
                 {
-                    LogTrades.WriteLine($"{Entry.Position} Close order filled for {Entry.SymbolName} at {DateTime.UtcNow}");
+                    LogTrades.WriteLine($"{Entry.Position} Close order filled at {DateTime.UtcNow}");
+                }
+                else
+                {
+                    LogTrades.WriteLine($"Failed to close {Entry.Position} order at {DateTime.UtcNow}");
                 }
 
                 #endregion
@@ -1408,6 +1424,11 @@ namespace AlgoTrader.Shared
 
             #endregion
 
+            if (triggeringTrade == null)
+            {
+                MainObj.HideThings();
+                StopLiveUpdateTimer();
+            }
             MainObj.DrawCurrentDispatcher();
 
             tradeStatusChanged = true;
@@ -1483,16 +1504,10 @@ namespace AlgoTrader.Shared
 
         protected void KillEntryOrCloseOrder(bool entry)
         {
-            foreach (var trade in ActiveTrades)
-            {
-                trade.ItemStatus = TradeItemStatus.CLOSED;
-                trade.GlobalStatus = TradeGlobalStatus.STOPPED;
-                trade.TradeExecutionStatus = TradeExecutionStatus.OK;
-                trade.TradeExchangeStatus = entry ? TradeExchangeStatus.NEVER_ENTERED : TradeExchangeStatus.NO_WARNING;
-                SetUpdateRequest(trade);
-            }
+            Order.ItemStatus = TradeItemStatus.CLOSED;
+            SetUpdateRequest(Order);
 
-            Order = Entry = Stop = TakeProfit = null;    
+            Entry = null;    //will not have been added anyway
         }
 
         #endregion
@@ -1522,7 +1537,7 @@ namespace AlgoTrader.Shared
                 return;
             }
 
-            if (Stop.TradeExchangeStatus == TradeExchangeStatus.ENTERED_OFF_EXCHANGE) // && Stop.Type != TradeType.STOP_WAITING)
+            if (Stop.TradeExchangeStatus == TradeExchangeStatus.ENTERED_OFF_EXCHANGE)
             {
                 LogTrades.WriteLine($"Did not set Stop on exchange, exchange status was {Stop.TradeExchangeStatus} - you need to add a new stop!");
                 Stop.TradeExchangeStatus = TradeExchangeStatus.NO_WARNING;
@@ -1555,18 +1570,17 @@ namespace AlgoTrader.Shared
                 TakeProfit = Entry.Clone();
                 TakeProfit.Action = TradeAction.TAKE_PROFIT;
                 TakeProfit.Timestamp = GetTimeStamp();
-                TakeProfit.Price =
+                TakeProfit.Price = TakeProfit.Result =
                     Entry.Position == TradePosition.LONG
                         ? lastPrice * (1 + INITIAL_TAKE_PROFIT_PERCENT_MARKET / 100)
                         : lastPrice * (1 - INITIAL_TAKE_PROFIT_PERCENT_MARKET / 100);
-                TakeProfit.Result = TakeProfit.Price;
+                TakeProfit.ItemId = _Trade.GetNewTradeId();
 
                 AddLineToTrade_synchronised(TakeProfit, DateTime.UtcNow.AddMinutes(-1));
                 SetUpdateRequest(TakeProfit);
             }
 
             Stop.ItemId ??= _Trade.GetNewTradeId();
-            TakeProfit.ItemId ??= _Trade.GetNewTradeId();
 
             if (Stop.Quantity == 0 && Entry != null && Order.ActionValue != 0)
             {
@@ -1931,11 +1945,19 @@ namespace AlgoTrader.Shared
                 StartPrice = trade.Price,
                 EndPrice = trade.Price,
                 SymbolName = symbolName,
-                Trade = trade,
-                TradeReference = trade.TradeReference,
+                //TradeReference = trade.TradeReference,
                 Type = LineType.BREAK,
-                TradeId = trade.Id
             };
+            switch (trade.Action)
+            {
+                case TradeAction.STOP:
+                case TradeAction.TAKE_PROFIT:
+                    line.Stop = trade;
+                    line.StopId = trade.Id; break;
+                default:
+                    line.Trade = trade;
+                    line.TradeId = trade.Id; break;
+            }
             currentTradeSetReference = trade.TradeReference;
             SetUpdateRequest(line);
         }  

@@ -27,5 +27,6 @@ namespace AlgoTrader.Shared.Interfaces
         void SetConcurrentOrdersMenuState(int concurrentOrders);
         void SetLeverage(int leverage);
         void ShowClosedTrades();
+        void HideTP_Liquidations();
     }
 }

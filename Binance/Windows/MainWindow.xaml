@@ -107,8 +107,8 @@
 
                     <MenuItem Header="Invert" InputGestureText="I" Command="{Binding InvertChartCommand}"></MenuItem>
 
-                    <MenuItem Header="Clear connection log" Command="{Binding ClearConnectionLogWindow}"></MenuItem>
-                    <MenuItem Header="Clear trades log" Command="{Binding ClearTradesLogWindow}"></MenuItem>
+                    <MenuItem Header="Clear connection log (no backup)" Command="{Binding ClearConnectionLogWindow}"></MenuItem>
+                    <MenuItem Header="Clear trades log (backup retained)" Command="{Binding ClearTradesLogWindow}"></MenuItem>
 
                     <MenuItem Header="Refresh active trade summary" Command="{Binding RefreshDailyPercent}"></MenuItem>
                     <!--<MenuItem Header="Remove unused lines" Command="{Binding RemoveUnallocatedLines_Click}" CommandParameter="1" />-->
@@ -235,8 +235,8 @@
                     </Grid.RowDefinitions>
 
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="300" />
-                        <ColumnDefinition Width="450"/>
+                        <ColumnDefinition Width="280" />
+                        <ColumnDefinition Width="420"/>
                         <ColumnDefinition/>
                     </Grid.ColumnDefinitions>
 

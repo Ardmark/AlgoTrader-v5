@@ -32,8 +32,8 @@ namespace AlgoTrader.Windows
             
             #region Leverage
             TradeEngine.USE_FIXED_LEVERAGE = false; //if true, will use the default leverage for all trades, otherwise will calculate leverage from stop
-            TradeEngine.MIN_ALLOWED_LEVERAGE_SHORT = 1;
-            TradeEngine.MIN_ALLOWED_LEVERAGE_LONG = 1.333;
+            TradeEngine.MIN_ALLOWED_LEVERAGE_SHORT = 1.333;
+            TradeEngine.MIN_ALLOWED_LEVERAGE_LONG = 1;
             TradeEngine.MAX_ALLOWED_LEVERAGE = 3; //leverage cannot excede this
 
             //these min and max values are just the arbitrary ranges which the leverages are calculated from.
@@ -81,7 +81,7 @@ namespace AlgoTrader.Windows
 
             #region Trading
             TradeEngine.FEE = 0.15; //percent, total for 2 trades
-            TradeEngine.MAX_ENTRY_DIFF_PERCENT = 0.1;
+            TradeEngine.MAX_ENTRY_DIFF_PERCENT = 0.15;
             TradeEngine.INITIAL_TAKE_PROFIT_PERCENT_MARKET = 6; //will auto-set ceiling to this value - and it is then used in the OCO (Binance) will default to 10% if set to zero here
             TradeEngine.ENTRY_LINE_PRICE_GAP_PC = 0; //percent to offset trade entry lines
             TradeEngine.STOP_LINE_PRICE_GAP_PC = 0; //percent to offset trade stop lines

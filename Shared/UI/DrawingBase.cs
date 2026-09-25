@@ -9,7 +9,6 @@ namespace AlgoTrader.Shared
         [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
         public int Id { get; set; }
         public string SymbolName { get; set; }
-        public string TradeReference { get; set; }
         public bool IsVisible { get; set; } = true;
         public double Opacity { get; set; } = 1;
 
@@ -41,7 +40,11 @@ namespace AlgoTrader.Shared
         // which cannot be done without a db context synchronisation and a linq query, if the trade is not attached to the line
         //Also, since the line is not always required with the trade, it is more efficient to do it this way
         public _Trade Trade { get; set; }
-        public int? TradeId { get; set; } //must be nullable or if Trade not set, will still try to find it with Id of zero which throws exception on 1SaveChanges()
+        public _Trade Stop { get; set; }
+        public int? TradeId { get; set; } //must be nullable or if Trade not set, will still try to find it with Id of zero which throws exception on SaveChanges()
+        public int? StopId { get; set; } //must be nullable or if Trade not set, will still try to find it with Id of zero which throws exception on SaveChanges()
+
+        public string TradeReference { get; set; } //unused, just get the reference from the trade which is included
 
         //don't need this in db
         //[System.ComponentModel.DataAnnotations.Schema.NotMapped]
@@ -54,8 +57,9 @@ namespace AlgoTrader.Shared
         public virtual void CopyTo(UIDrawingBase uiDrawingBase)
         {
             uiDrawingBase.TradeId = TradeId;
+            uiDrawingBase.StopId = TradeId;
             uiDrawingBase.SymbolName = SymbolName;
-            uiDrawingBase.TradeReference = TradeReference;
+            //uiDrawingBase.TradeReference = TradeReference;
             uiDrawingBase.IsVisible = IsVisible;
             uiDrawingBase.Opacity = Opacity;
             uiDrawingBase.Red = Red;

@@ -70,6 +70,7 @@ namespace AlgoTrader.Shared
                     MainObj.visibleChart.currentLine = this;
 
                     Trade = MainObj.visibleTradeEngine.UI_Trades.FirstOrDefault(x => x.Id == TradeId);
+                    Stop = MainObj.visibleTradeEngine.UI_Trades.FirstOrDefault(x => x.Id == StopId);
                     e.Handled = true; //prevents main view model from getting mouse down, so it does not set mouseDown to true which is passed to Chart with mouseMove, so chart does not drag, only line
                 };
                 line.MouseRightButtonDown += (object sender, MouseButtonEventArgs e) =>

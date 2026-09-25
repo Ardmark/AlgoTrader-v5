@@ -18,10 +18,10 @@ namespace AlgoTrader.Windows
 
             #endregion
 
-            //TradeEngine.EXCHANGE = Shared.Enums.ExchangeId.BINANCE_SPOT;
-            TradeEngine.EXCHANGE = Shared.Enums.ExchangeId.BINANCE_MARGIN;
+            TradeEngine.EXCHANGE = Shared.Enums.ExchangeId.BINANCE_SPOT;
+            //TradeEngine.EXCHANGE = Shared.Enums.ExchangeId.BINANCE_MARGIN;
 
-            TradeEngine.USE_TESTNET = false; //if true, must use spot as margin does not work on testnet
+            TradeEngine.USE_TESTNET = true; //if true, must use spot as margin does not work on testnet
 
             TradeEngine.RESTRICT_TRADE_VALUE = true; //set in binance.cs, this is 0.0001 BTC - the lot size filter is incorrect
           

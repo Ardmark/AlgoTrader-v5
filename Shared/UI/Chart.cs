@@ -5,6 +5,7 @@ using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Shapes;
 using static Shared.Drawings.DrawingObjects;
+using static System.Net.Mime.MediaTypeNames;
 using Brushes = System.Windows.Media.Brushes;
 using Color = System.Windows.Media.Color;
 using Pen = System.Windows.Media.Pen;
@@ -32,14 +33,13 @@ namespace AlgoTrader.Shared
         public static bool showTakeProfit = true;
         public static bool showLiquidations = false;
 
-        public static readonly SolidColorBrush STOPPED_COLOR_L = Brushes.Black;
-        public static readonly SolidColorBrush STOPPED_COLOR_D = Brushes.White;
-        public static readonly SolidColorBrush CANCELLED_COLOR_L = Brushes.Gray;
-        public static readonly SolidColorBrush CANCELLED_COLOR_D = Brushes.Gray;
-
+        internal static readonly SolidColorBrush STOPPED_COLOR_L = Brushes.Black;
+        internal static readonly SolidColorBrush STOPPED_COLOR_D = Brushes.White;
+        internal static readonly SolidColorBrush CANCELLED_COLOR_L = Brushes.Gray;
+        internal static readonly SolidColorBrush CANCELLED_COLOR_D = Brushes.Gray;
         static readonly SolidColorBrush VERTICAL_LINE_ACTIVE_L = new(Color.FromRgb(200, 200, 200));
         static readonly SolidColorBrush VERTICAL_LINE_ACTIVE_D = Brushes.Black;
-        static readonly SolidColorBrush VERTICAL_LINE_INACTIVE_L = new (Color.FromRgb(96, 96, 96));
+        static readonly SolidColorBrush VERTICAL_LINE_INACTIVE_L = new (Color.FromRgb(64, 64, 64));
         static readonly SolidColorBrush VERTICAL_LINE_INACTIVE_D = new (Color.FromRgb(192, 192, 192));
         static readonly SolidColorBrush RUNNING_COLOR_LONG_D = new(Color.FromRgb(0, 153, 255));
         static readonly SolidColorBrush RUNNING_COLOR_LONG_L = Brushes.Blue;
@@ -406,7 +406,7 @@ namespace AlgoTrader.Shared
         {
             const double scaleAmt = 0.1;
             double scale = up ? scaleAmt : -scaleAmt;
-            Chart.rangeScale += scale;
+            rangeScale += scale;
             var h = MainObj.visibleChart.canvas.ActualHeight / 2 * scale;
             MainObj.visibleChart.yOffset += (int)h;
             MainObj.DrawCurrentDispatcher();
@@ -480,35 +480,38 @@ namespace AlgoTrader.Shared
                     #region Get all objects to draw
                     tradeEngine.GetUILists(null, shallow, () =>
                     {
-                        //so this is a callback, to ensure thread safety - cannot read any of the UI lists if they are being updated
-                        // - it also does not create a shallow copy of the entire lists, only a copy from a query  
-                        bool _CompareDateTime(_ChartLine f)
-                        {
+                    //so this is a callback, to ensure thread safety - cannot read any of the UI lists if they are being updated
+                    // - it also does not create a shallow copy of the entire lists, only a copy from a query  
+                    bool _CompareDateTime(_ChartLine f)
+                    {
                         return
                             (DateTime.Compare(f.StartTimeStamp, rightEdgeTimestamp) <= 0 && DateTime.Compare(f.EndTimeStamp, leftEdgeTimestamp) >= 0) ||
                             (DateTime.Compare(f.StartTimeStamp, leftEdgeTimestamp) >= 0 && DateTime.Compare(f.EndTimeStamp, rightEdgeTimestamp) <= 0);
 
-                        }
-                        if (showTrades)
-                        {
-                            //interesting - the objects returned are not fresh from the DB, but are references to any in-memory objects with any properties set, etc.
-                            // - so the lines that have beenn initialised still have their initialisation settings
+                    }
+                    if (showTrades)
+                    {
+                        //interesting - the objects returned are not fresh from the DB, but are references to any in-memory objects with any properties set, etc.
+                        // - so the lines that have beenn initialised still have their initialisation settings
 
-                            //the <= and >= just did not work sometimes withing the lambda
+                        //the <= and >= just did not work sometimes withing the lambda
 
-                            //by comparing the trade action with one which is never assigned, they will all pass
-                            //otherwise we can just block them selectively to hide the lines
-                            TradeAction tradeActionsAHidden = showTakeProfit ? TradeAction.NULL : TradeAction.TAKE_PROFIT;
+                        //by comparing the trade action with one which is never assigned, they will all pass
+                        //otherwise we can just block them selectively to hide the lines
+                        TradeAction tradeActionsAHidden = showTakeProfit ? TradeAction.NULL : TradeAction.TAKE_PROFIT;
 
-                            visibleLines = tradeEngine.UI_Lines.Where(f =>  f.Trade != null && f.Trade.Action != tradeActionsAHidden && _CompareDateTime(f) 
-                                                                            ||
-                                                                            f.Trade == null && _CompareDateTime(f));
-                        }
+                        visibleLines = tradeEngine.UI_Lines.Where(f => f.Trade != null && f.Trade.Action != tradeActionsAHidden && _CompareDateTime(f)
+                                                                        || f.Stop != null && f.Stop.Action != tradeActionsAHidden && _CompareDateTime(f)
+                                                                        || f.Stop == null && f.Trade == null && _CompareDateTime(f));
+
+
+                         }
                         else
                         {
                             visibleLines = tradeEngine.UI_Lines.Where(f => _CompareDateTime(f));
                         }
 
+                        var v = tradeEngine.UI_Lines.ToList();
                         foreach (var l in visibleLines)
                         {
                             l.InitLine(false);
@@ -957,11 +960,9 @@ namespace AlgoTrader.Shared
                                             break;
                                     }
 
-
                                     if (canvas1 != null)
                                     {
                                         canvas1.Name = "_" + trade.Id.ToString(); //cannot start with a number
-
 
                                         if (trade.Action == TradeAction.ORDER || trade.Action == TradeAction.ENTRY)
                                         {
@@ -1018,6 +1019,13 @@ namespace AlgoTrader.Shared
                                     }
                                 }
 
+                                if (entry != null && entry.Price != 0 && entry.LiquidationPrice != 0)
+                                {
+                                    (var left, var top) = GetDrawPosition1(DateTime.UtcNow, entry.LiquidationPrice);
+                                    var pc = (1 - entry.LiquidationPrice / entry.Price) * 100;
+                                    var c = TradeStopMarker(entry.Position, left, top, Brushes.Gray, outline, $"Liquidation level: {entry.LiquidationPrice:F2} = {pc:F1}% ", false, false);
+                                    canvas.Children.Add(c.canvas);
+                                }
 
                                 #endregion
                             }
@@ -1037,8 +1045,8 @@ namespace AlgoTrader.Shared
                                 }
                             }
 
-                            _ChartLine stopLine = stop == null ? null : visibleLines.FirstOrDefault(x => x.TradeId == stop.Id);
-                            _ChartLine tpLine = showTakeProfit && takeProfit != null ? visibleLines.FirstOrDefault(x => x.TradeId == takeProfit.Id) : null;
+                            _ChartLine stopLine = stop == null ? null : visibleLines.FirstOrDefault(x => x.StopId == stop.Id);
+                            _ChartLine tpLine = showTakeProfit && takeProfit != null ? visibleLines.FirstOrDefault(x => x.StopId == takeProfit.Id) : null;
 
                             //this will draw all trades at the Order timestamp, not the trade timestamp - 
                             // so stops, which will track with time, will always show lined up with the other orders
@@ -1120,22 +1128,14 @@ namespace AlgoTrader.Shared
                                     (double _, double bottom) = GetDrawPosition1(order.Timestamp, botPrice, false);
 
                                     top1 = top1 < 0 ? 0 : top1;
-                                    //bottom = bottom > canvas.ActualHeight ? canvas.ActualHeight : bottom;
 
                                     Pen p = new()
                                     {
                                         Thickness = 2,
-                                        DashStyle = new DashStyle(new DoubleCollection { 1, 2 }, 0)
+                                        DashStyle = new DashStyle(new DoubleCollection { 1, 2 }, 0),
+                                        Brush = tradeEngine.currentTradeSetReference == null || tradeEngine.currentTradeSetReference == order.TradeReference
+                                            ? MainObj.isDarkMode ? VERTICAL_LINE_ACTIVE_L : VERTICAL_LINE_ACTIVE_D : MainObj.isDarkMode ? VERTICAL_LINE_INACTIVE_L : VERTICAL_LINE_INACTIVE_D
                                     };
-                                    if (order.ItemStatus == TradeItemStatus.CLOSED && order.GlobalStatus == TradeGlobalStatus.ACTIVE)
-                                    {
-                                        p.Brush = Brushes.Orange;
-                                    }
-                                    else
-                                    {
-                                        p.Brush = tradeEngine.currentTradeSetReference == null || tradeEngine.currentTradeSetReference == order.TradeReference
-                                            ? MainObj.isDarkMode ? VERTICAL_LINE_ACTIVE_L : VERTICAL_LINE_ACTIVE_D : MainObj.isDarkMode ? VERTICAL_LINE_INACTIVE_L : VERTICAL_LINE_INACTIVE_D;
-                                    }
 
                                     dc.DrawLine(p, new Point(left1, top1), new Point(left1, bottom));
                                 }
@@ -1338,7 +1338,7 @@ namespace AlgoTrader.Shared
                                 currentLine = new _ChartLine
                                 {
                                     SymbolName = symbolName,
-                                    TradeReference = tradeEngine.currentTradeSetReference
+                                    //TradeReference = tradeEngine.currentTradeSetReference
                                 };
                                 (currentLine.StartTimeStamp, currentLine.StartPrice) = GetTimeAndPriceFromLastMouse();
                             }

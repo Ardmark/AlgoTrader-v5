@@ -98,6 +98,10 @@ namespace AlgoTrader.Shared.Logging
             }
             catch { }
         }
+        public static void Clear()
+        {
+            LogBase.ClearLog("LogConnection.txt");
+        }
     }
 
     public static class LogExceptions
@@ -113,19 +117,18 @@ namespace AlgoTrader.Shared.Logging
     {
         public static void WriteLine(string text)
         {
-            var s = LogBase.Write(text, "LogTrades.txt");
+            var s = LogBase.Write(text, "LogTradesDisplay.txt");
             MainObj.mainViewModel.DisplayLogTrades(s);
+            LogBase.Write(text, "LogTradesAll.txt");
         }
-
-        //public static void WriteLineOrder(string text)
-        //{
-        //    LogBase.Write(text, "LogOrders.txt");
-        //    WriteLine(text);
-        //}
+        public static void Clear()
+        {
+            LogBase.ClearLog("LogTradesDisplay.txt");
+        }
 
         public static void WriteSpacer()
         {
-            WriteLine($"\n**************************************************************************************");
+            WriteLine($"\n*********************************************************************");
         }
     }
 

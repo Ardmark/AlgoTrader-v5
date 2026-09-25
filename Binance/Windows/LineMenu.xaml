@@ -18,13 +18,11 @@
         </Menu.ItemsPanel>
         <MenuItem Header="Order: Line Break (Long)"     Command="{Binding MenuItem0_Command}"></MenuItem>
         <MenuItem Header="Order: Line Break (Short)"    Command="{Binding MenuItem1_Command}"></MenuItem>
-        <MenuItem Header="Order: Flip Order"            Command="{Binding MenuItem2_Command}"></MenuItem>
         <Separator></Separator>
-        <MenuItem Header="Stop"                         Command="{Binding MenuItem3_Command}"></MenuItem>
-        <!--<MenuItem Header="Flip Order Stop"              Command="{Binding MenuItem4_Command}"></MenuItem>-->
+        <MenuItem Header="Stop"                         Command="{Binding MenuItem2_Command}"></MenuItem>
         <Separator></Separator>
-        <MenuItem Header="Take Profit"                  Command="{Binding MenuItem5_Command}"></MenuItem>
+        <MenuItem Header="Take Profit"                  Command="{Binding MenuItem3_Command}"></MenuItem>
         <Separator></Separator>
-        <MenuItem Header="Delete line"                  Command="{Binding MenuItem6_Command}"></MenuItem>
+        <MenuItem Header="Delete line"                  Command="{Binding MenuItem4_Command}"></MenuItem>
     </Menu>
 </Window>
