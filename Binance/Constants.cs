@@ -23,7 +23,7 @@ namespace AlgoTrader.Windows
 
             TradeEngine.USE_TESTNET = false; //if true, Spot exchange will be used instead of margin, regardless of TradeEngine.EXCHANGE setting
             
-            TradeEngine.RESTRICT_TRADE_VALUE = false; //set in binance.cs, this is 0.0001 BTC - the lot size filter is incorrect
+            TradeEngine.RESTRICT_TRADE_VALUE = true; //set in binance.cs, this is 0.0001 BTC - the lot size filter is incorrect
 
             #region Connection
             MainObj.READ_LIVE_DATA = true; //if true, will update items live. If writing to DB, this is ignored
@@ -80,7 +80,9 @@ namespace AlgoTrader.Windows
             #endregion
 
             #region Trading
-            TradeEngine.FEE = 0.15; //percent, total for 2 trades
+            //here's some AI slop...
+            //not recording fees as that only applies to the difference between the entry and exit price, and the fees are taken from the account balance, not the trade itself. So, for example, if you buy 1 BTC at $10,000 and sell it at $10,100, the profit is $100. If the fee is 0.1%, then the fee is $10 (0.1% of $10,000), so the net profit is $90. But if you buy 1 BTC at $10,000 and sell it at $9,900, the loss is $100. If the fee is 0.1%, then the fee is $10 (0.1% of $9,900), so the net loss is $110. So, in this case, the fees are not recorded as part of the trade itself.
+            TradeEngine.FEE = 0; //percent, total for 2 trades
             TradeEngine.MAX_ENTRY_DIFF_PERCENT = 0.15;
             TradeEngine.INITIAL_TAKE_PROFIT_PERCENT_MARKET = 6; //will auto-set ceiling to this value - and it is then used in the OCO (Binance) will default to 10% if set to zero here
             TradeEngine.ENTRY_LINE_PRICE_GAP_PC = 0; //percent to offset trade entry lines

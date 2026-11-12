@@ -263,7 +263,7 @@ namespace AlgoTrader.Shared.ViewModels
 
                     var result = close.Result - 0.2;
 
-                    var c = result * close.Leverage;
+                    var c = result * open.Leverage;
 
                     total += result;
 

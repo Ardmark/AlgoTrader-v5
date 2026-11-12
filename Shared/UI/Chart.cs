@@ -463,7 +463,6 @@ namespace AlgoTrader.Shared
                     // present any issues as draw does not update the objects
                     //ToList() does make a shallow copy to a new list.
                     _Trade activeOrder = null;
-
                     var leftEdgeTimestamp = FirstVisibleTime;
                     var rightEdgeTimestamp = LastVisibleTime.AddMinutes(TimeFrame * 2); //or will scroll one extra frame before correctly rescaling
 
@@ -520,6 +519,7 @@ namespace AlgoTrader.Shared
                         activeOrder = tradeEngine.UI_Trades.FirstOrDefault(x => x.Action == TradeAction.ORDER &&
                                                                 x.GlobalStatus == TradeGlobalStatus.ACTIVE &&
                                                                 x.ItemStatus == TradeItemStatus.CLOSED);
+
                         if (showTrades)
                         {
                             //need the trade set associated with any visible order (i.e. the order line is visible)
@@ -1184,7 +1184,7 @@ namespace AlgoTrader.Shared
                     {
                         if (activeOrder.ItemStatus == TradeItemStatus.CLOSED)
                         {
-                            leverage = $"{activeOrder.Leverage} X\n";
+                            
                             var system = TradeEngine.USE_SIMULATED_EXCHANGE == false ? "On exchange trade\n" : "Exchange simulated trade\n";
 
                             var quantity = Math.Abs(activeOrder.Quantity);
@@ -1193,6 +1193,8 @@ namespace AlgoTrader.Shared
                             var entry = visibleOrActiveOrders.FirstOrDefault(x => x.Action == TradeAction.ENTRY && x.TradeReference == activeOrder.TradeReference);
                             if (entry != null)
                             {
+                                leverage = $"{entry.Leverage} X\n";
+
                                 var _orderPriceNow = entry.Price;
                                 if (tradeEngine.currentDataItem != null)
                                 {

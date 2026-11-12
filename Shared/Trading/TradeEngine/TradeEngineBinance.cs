@@ -559,6 +559,7 @@ namespace AlgoTrader.Shared
         {
 
             var data = GetOCOData(position, orderQuantity, belowPrice, stopId, abovePrice, TPId);
+
             try
             {
                 var ret = Deserialize<NewOCOData>(binanceAPI.NewOcoAsync(data).Result);

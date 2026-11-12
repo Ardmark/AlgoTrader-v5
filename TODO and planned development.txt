@@ -1,0 +1,16 @@
+1 November 2026:
+
+Current status is operational on Binance, with plans to extend to MEXC. Binance is limited to margin trading (isolated is useful here)
+but does not allow trading of derivatives. Margin trading is dependent on borrowing and that is not always available on Binance. MEXC will allow for derivatives trading, with lower fees.
+Binance suffers from problems when setting stops via the API, they don't always set correctly often at $0 long and short without an immediate trigger,
+and you can only set them as an OCO via the API which is cumbersome.
+
+Development roadmap:
+
+Rebuild for .NET core
+New UI, there are issues currently with performance and viewport scaling
+Better handling of graphics for mobile devices (access is through RDP to the client machine, but the UI is not optimized for mobile))
+Run across multiple exchanges simultaneously, with a single account, to mitigate risk of exchange downtime or API issues
+Alerts via email and SMS
+Improved trading indicators
+Client / server architecture so the server can run remotely and the client through a web browser. This is a major change and will require substantial UI assistance to build the system for web access. This will allow for better mobile access.

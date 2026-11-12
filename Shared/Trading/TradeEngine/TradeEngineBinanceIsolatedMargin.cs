@@ -263,6 +263,7 @@ namespace AlgoTrader.Shared
                     break;
             }
                     
+            LogTrades.WriteLine($"OCO data: {SYMBOL}={symbolName}, {SIDE}={sideValue}, {QUANTITY}={orderQuantity}, {PRICE}={abovePrice}, {STOP_PRICE}={belowPrice}, {STOP_CLIENT_ORDER_ID}={stopId}, {LIMIT_CLIENT_ORDER_ID}={TPId}, {SIDE_EFFECT_TYPE}={sideEffectType}");
             return new Dictionary<string, string>
             {
                 { SYMBOL, symbolName},

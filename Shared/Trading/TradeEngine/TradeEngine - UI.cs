@@ -1,8 +1,10 @@
 ﻿using AlgoTrader.Shared.Enums;
 using AlgoTrader.Shared.Logging;
 using AlgoTrader.Shared.Windows;
+using System;
 using System.Diagnostics;
 using System.Windows.Interop;
+using static System.Windows.Forms.VisualStyles.VisualStyleElement.ToolTip;
 
 namespace AlgoTrader.Shared
 {
@@ -15,13 +17,13 @@ namespace AlgoTrader.Shared
 
         //there is an unused method in MainObj to kill all orders on all trade engines simultaneously,
         // this will just remove the orders on the current trade engine
-        
+
         internal void KillOrders_UI_Synchronised()
         {
             CancelTrade_UI_synchronised();
             MainObj.TradeStatusChanged(this);
         }
-   
+
         internal void MoveTrades_UI_Synchronised(bool up)
         {
             InitForDataContext(() =>
@@ -59,11 +61,11 @@ namespace AlgoTrader.Shared
                             {
                                 sinTheta = 0.1;
                             }
-                             __pc = (__pc - 1) / sinTheta + 1;
+                            __pc = (__pc - 1) / sinTheta + 1;
                         }
 
                         __pc = trade.Position == TradePosition.LONG ? __pc : 1 / __pc;
-                        
+
                         if (line != null)
                         {
                             line.StartPrice = _up ? line.StartPrice * __pc : line.StartPrice / __pc;
@@ -116,7 +118,7 @@ namespace AlgoTrader.Shared
         //        }
         //    });
         //}
-        
+
         internal void CleanupTrades_UI_Synchronised()
         {
             InitForDataContext(() =>
@@ -153,7 +155,7 @@ namespace AlgoTrader.Shared
 
             MainObj.DrawImmediate();
         }
-        
+
         internal void CleanupLines_UI_Synchronised()
         {
             InitForDataContext(() =>
@@ -182,17 +184,17 @@ namespace AlgoTrader.Shared
 
             MainObj.DrawImmediate();
         }
-        
+
         internal void SetStopAtPrice_UI_synchronised(DateTime timeStamp, double price, TradeStop tradeStop)
         {
             SetStop_UI(timeStamp, price, TradeAction.STOP, /*TradeType.NO_FLIP_ORDER, */tradeStop);
-        }        
-        
+        }
+
         internal void SetTakeProfitAtPrice_UI_synchronised(DateTime timeStamp, double price)
         {
             SetStop_UI(timeStamp, price, TradeAction.TAKE_PROFIT/*, TradeType.NO_FLIP_ORDER*/);
         }
-        
+
         internal void SetMarketOrderAtTime_UI_synchronised(DateTime timeStamp, double price, TradePosition position)
         {
             Task.Run(() =>
@@ -389,7 +391,7 @@ namespace AlgoTrader.Shared
                             return;
                         }
                         SetUpdateRequest(chartLine, TradeUpdateRequest.DELETE);
-                   }
+                    }
 
                 }
                 catch
@@ -471,7 +473,7 @@ namespace AlgoTrader.Shared
         }
 
         //this sets both stops and take profits
-        private void SetStop_UI(DateTime timeStamp, double price, TradeAction tradeAction, /*TradeType tradeType = TradeType.NO_FLIP_ORDER,*/ TradeStop tradeStop = TradeStop.STOP_ON_LINE_BREAK, _ChartLine chartLine = null)
+        private void SetStop_UI(DateTime timeStamp, double price, TradeAction tradeAction, TradeStop tradeStop = TradeStop.STOP_ON_LINE_BREAK, _ChartLine chartLine = null)
         {
             //var isWaitingStop = tradeAction == TradeAction.WAITING_STOP;
 
@@ -533,7 +535,7 @@ namespace AlgoTrader.Shared
                         SetUpdateRequest(trade);
                         return;
                     }
-           
+
                     //new stop
                     //add a new stop / take profit, and line
                     double _price = price;
@@ -543,7 +545,7 @@ namespace AlgoTrader.Shared
                     }
 
                     trade = order.Clone();
-                   
+
 
                     //although precision is set when OCO is sent to exchange, it helps to keep the number of decimal places down anyway.
                     //_price = GetCorrectPrecisionForPrice(_price);
@@ -555,7 +557,7 @@ namespace AlgoTrader.Shared
                     trade.ActionValue = actionValue;
                     trade.Timestamp = timeStamp;
                     trade.TimeFrame = TimeFrame;
-                   
+
                     SetUpdateRequestAdd_UI(trade);
 
                     if (trade.Action == TradeAction.STOP || trade.Action == TradeAction.TAKE_PROFIT)
@@ -590,22 +592,24 @@ namespace AlgoTrader.Shared
                 MainObj.TradeStatusChanged(this);
             }
 
-            (bool isClose, bool isWrongSide) = CanSetTrade(chartLine, price, tradeAction, entry, order.Position);
-            if (isClose)
+            (bool isClose, bool isWrongSide) = CanSetStop(price, orderLine, chartLine, order.Position, tradeAction, entry != null);// CanSetTrade(chartLine, orderLine, price, tradeAction, entry, order.Position);
+
+            bool canSetStop = true;
+            if (isWrongSide)
             {
-                if (!isWrongSide)
-                {
-                    //need to block setting on wrong side of current price entirely to be safe
-                    AlertDialog.ShowCallback($"Requested position is too close to Order and may trigger immediate exit.\nDo you wish to procede? ", $"Terminating trade position may not be valid", (_) =>            
-                        SetStop(tradeAction)
-                    );
-                }
-                else
-                {
-                    AlertDialog.Show("Requested position is wrong side of Order");
-                }
+                AlertDialog.Show("Requested position is wrong side of Order");
+                canSetStop = false;
             }
-            else
+            else if (isClose)
+            {
+                canSetStop = false;
+                //need to block setting on wrong side of current price entirely to be safe
+                AlertDialog.ShowCallback($"Requested position is too close to Order and may trigger immediate exit.\nDo you wish to procede? ", $"Terminating trade position may not be valid", (_) =>
+                    canSetStop = true
+                );
+            }
+
+            if (canSetStop)
             {
                 SetStop(tradeAction);
             }
@@ -690,7 +694,7 @@ namespace AlgoTrader.Shared
         {
             AlertDialog.Show("Unimplemented, needs to be changed to allow reversed position for waiting stop");
             return;
-            
+
             /*void ChangePrice()
             {
                 InitForDataContext(() =>
@@ -732,7 +736,7 @@ namespace AlgoTrader.Shared
                 MainObj.TradeStatusChanged(this);
             });
         }
-      
+
         #endregion
 
         #region MainObj - called methods (on batches of trades)
@@ -781,10 +785,10 @@ namespace AlgoTrader.Shared
                             else
                             {
                                 //order has entered
-                                _Trade oppositeOrder = USE_TESTNET ? GetOppositeOrder(order) : null;         
+                                _Trade oppositeOrder = USE_TESTNET ? GetOppositeOrder(order) : null;
                                 CloseTradeOnExchange(oppositeOrder); //cannot do a flip from a manually closed trade unless testing
 
-                                
+
                                 //no, even if it is local it still should close on the exchange
                                 //if (order.ExchangeStatus == TradeExchangeStatus.ENTERED_ON_EXCHANGE) //don't bother to do this with backtests
                                 //{
@@ -1161,36 +1165,23 @@ namespace AlgoTrader.Shared
             }
         }
 
-        //returns (is close, is wrong side)
-        internal (bool, bool) CanSetTrade(_ChartLine tradeLine, double price, TradeAction action, _Trade entry, TradePosition position)
+        //will use supplied price (i.e. setting a stop at an arbitrary price) or will take that from orderline instead if supplied
+        internal (bool, bool) CanSetStop(double price, _ChartLine orderLine, _ChartLine stopLine, TradePosition position, TradeAction action, bool hasEntered)
         {
-            if (currentDataItem == null)
+            if (orderLine == null || currentDataItem == null)
             {
-                return (false, false);
+                return (true, true);
             }
-            //if trade is on a line, use that for price, otherwise use supplied price
-            if (tradeLine != null)
-            {
-                (price, _) = tradeLine.GetPriceAtTime(currentDataItem.Timestamp, true);
-            }
-            var basePrice = currentDataItem.Close;
+            (var stopPrice, _) = stopLine == null ? (price, true) : stopLine.GetPriceAtTime(currentDataItem.Timestamp, true);
+            
+            (var currentPrice, _) = hasEntered ? (currentDataItem.Close, true) : orderLine.GetPriceAtTime(currentDataItem.Timestamp, true);
 
-            var v = MainObj.GetPriceDiff(basePrice, price, position) * 100;
-
-            bool isClose = Math.Abs(v) < STOPLINE_MIN_VALUE;
-            bool isWrongSide = false;
-
-            switch (action)
-            {
-                case TradeAction.ORDER:
-                case TradeAction.TAKE_PROFIT:
-                    isWrongSide = position == TradePosition.LONG ? v >= 0 : v <= 0;
-                    break;
-                case TradeAction.STOP:
-                    isWrongSide = position == TradePosition.LONG ? v <= 0 : v >= 0;
-                    break;
-            }
-
+            var v = MainObj.GetPriceDiff(stopPrice, currentPrice, position) * 100; //cannot be wrong side of price
+            
+            var isClose = Math.Abs(v) < STOPLINE_MIN_VALUE;
+            
+            var isWrongSide = action == TradeAction.STOP ? v >= 0 : v < 0;
+            
             return (isClose, isWrongSide);
         }
 
